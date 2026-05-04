@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
-  Activity, LayoutDashboard, Upload, Users, FileText, 
-  Settings, LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
+  Activity, LayoutDashboard, Users, FileText, 
+  LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, type Inspector } from '../services/api';
@@ -38,18 +38,7 @@ export default function AdminDashboard() {
     setLoadingInspectors(false);
   };
 
-  const handleDeleteInspector = async (id: string, nombre: string) => {
-    if (window.confirm(`¿Estás seguro de que quieres eliminar a ${nombre}?`)) {
-      const success = await deleteInspector(id);
-      if (success) {
-        setShowAddInspector(false);
-        setEditingInspector(null);
-        loadInspectors();
-      } else {
-        alert('Error al eliminar inspector');
-      }
-    }
-  };
+
 
   const handleAssign = async (ticketId: string | number, inspectorId: string) => {
     if(!inspectorId) return;
