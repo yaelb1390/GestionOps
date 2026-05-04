@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Activity, LayoutDashboard, Users, FileText, 
+  Activity, LayoutDashboard, Users, FileText, BookOpen,
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -78,6 +78,9 @@ export default function AdminDashboard() {
           <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
             <Users size={20} /> Personal
           </button>
+          <button className={`nav-item ${activeTab === 'codigos' ? 'active' : ''}`} onClick={() => setActiveTab('codigos')}>
+            <BookOpen size={20} /> Código Razón Cliente
+          </button>
           <div style={{ flex: 1 }}></div>
           <button className="nav-item" onClick={() => navigate('/login')} style={{ color: 'var(--danger-color)' }}>
             <LogOut size={20} /> Salir
@@ -92,6 +95,7 @@ export default function AdminDashboard() {
             <h1 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
                activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Gestión de Tickets</> : 
+               activeTab === 'codigos' ? <><BookOpen size={28} color="var(--primary-color)" /> Código Razón Cliente</> :
                <><Users size={28} color="var(--primary-color)" /> Directorio de Personal</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
@@ -412,6 +416,62 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'codigos' && (
+          <div className="glass-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
+              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <BookOpen size={20} color="var(--primary-color)" /> Códigos de Razón de Cliente
+              </h3>
+              <button className="btn-primary" onClick={() => alert("Función para añadir código en desarrollo")}>
+                Añadir Código
+              </button>
+            </div>
+            
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Razón / Descripción</th>
+                    <th>Categoría</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span className="badge info">001</span></td>
+                    <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>Cliente ausente en domicilio</td>
+                    <td>Visita Fallida</td>
+                    <td><span className="badge success">Activo</span></td>
+                    <td>
+                      <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Editar</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span className="badge info">002</span></td>
+                    <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>Cliente canceló el servicio en el sitio</td>
+                    <td>Cancelación</td>
+                    <td><span className="badge success">Activo</span></td>
+                    <td>
+                      <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Editar</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span className="badge info">003</span></td>
+                    <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>Dirección incorrecta o ilocalizable</td>
+                    <td>Visita Fallida</td>
+                    <td><span className="badge success">Activo</span></td>
+                    <td>
+                      <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Editar</button>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
