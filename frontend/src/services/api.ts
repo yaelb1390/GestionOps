@@ -162,3 +162,22 @@ export const autoAssignTickets = async (): Promise<{success: boolean, updated: n
     return { success: false, updated: 0 };
   }
 };
+
+export interface RazonCliente {
+  Caso?: string;
+  'Nombre del Ejecutor'?: string;
+  'Nombre del Supervisor'?: string;
+  Localidad?: string;
+  Descripcion?: string;
+}
+
+export const fetchRazones = async (): Promise<RazonCliente[]> => {
+  try {
+    const res = await fetch(`${SCRIPT_URL}?type=razones`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Error fetching razones:", error);
+    return [];
+  }
+};

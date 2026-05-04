@@ -4,7 +4,7 @@ import {
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, type Inspector } from '../services/api';
+import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, type Inspector, fetchRazones, type RazonCliente } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -20,6 +20,10 @@ export default function AdminDashboard() {
   const [showAddInspector, setShowAddInspector] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(null);
 
+  // Estados de Razones
+  const [razones, setRazones] = useState<RazonCliente[]>([]);
+  const [loadingRazones, setLoadingRazones] = useState(false);
+
   useEffect(() => {
     loadTickets();
     loadInspectors();
@@ -29,7 +33,17 @@ export default function AdminDashboard() {
     if (activeTab === 'personal') {
       loadInspectors();
     }
+    if (activeTab === 'codigos' && razones.length === 0) {
+      loadRazones();
+    }
   }, [activeTab]);
+
+  const loadRazones = async () => {
+    setLoadingRazones(true);
+    const data = await fetchRazones();
+    setRazones(data);
+    setLoadingRazones(false);
+  };
 
   const loadInspectors = async () => {
     setLoadingInspectors(true);
@@ -428,50 +442,33 @@ export default function AdminDashboard() {
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <BookOpen size={20} color="var(--primary-color)" /> Códigos de Razón de Cliente
               </h3>
-              <button className="btn-primary" onClick={() => alert("Función para añadir código en desarrollo")}>
-                Añadir Código
-              </button>
             </div>
             
             <div className="table-container">
               <table>
                 <thead>
                   <tr>
-                    <th>Código</th>
-                    <th>Razón / Descripción</th>
-                    <th>Categoría</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
+                    <th>Caso</th>
+                    <th>Ejecutor</th>
+                    <th>Supervisor</th>
+                    <th>Localidad</th>
+                    <th>Descripción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td><span className="badge info">001</span></td>
-                    <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>Cliente ausente en domicilio</td>
-                    <td>Visita Fallida</td>
-                    <td><span className="badge success">Activo</span></td>
-                    <td>
-                      <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Editar</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><span className="badge info">002</span></td>
-                    <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>Cliente canceló el servicio en el sitio</td>
-                    <td>Cancelación</td>
-                    <td><span className="badge success">Activo</span></td>
-                    <td>
-                      <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Editar</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><span className="badge info">003</span></td>
-                    <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>Dirección incorrecta o ilocalizable</td>
-                    <td>Visita Fallida</td>
-                    <td><span className="badge success">Activo</span></td>
-                    <td>
-                      <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Editar</button>
-                    </td>
-                  </tr>
+                  {loadingRazones ? (
+                    <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                  ) : razones.length === 0 ? (
+                    <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos en esta hoja de cálculo.</td></tr>
+                  ) : razones.map((r, idx) => (
+                    <tr key={idx}>
+                      <td><span className="badge info">{r.Caso || '-'}</span></td>
+                      <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>{r['Nombre del Ejecutor'] || '-'}</td>
+                      <td>{r['Nombre del Supervisor'] || '-'}</td>
+                      <td>{r.Localidad || '-'}</td>
+                      <td>{r.Descripcion || '-'}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

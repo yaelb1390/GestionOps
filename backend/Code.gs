@@ -55,6 +55,39 @@ function doGet(e) {
     }
     return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
   }
+  else if (type === 'razones') {
+    var sheets = ss.getSheets();
+    var sheet = null;
+    for (var k = 0; k < sheets.length; k++) {
+      if (sheets[k].getSheetId() == 761213977) {
+        sheet = sheets[k];
+        break;
+      }
+    }
+    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var data = sheet.getDataRange().getValues();
+    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var headers = data[0];
+    var results = [];
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var obj = {};
+      for (var j = 0; j < headers.length; j++) {
+        var h = headers[j];
+        // Solo incluimos las columnas solicitadas
+        if(h === 'Caso' || h === 'Nombre del Ejecutor' || h === 'Nombre del Supervisor' || h === 'Localidad' || h === 'Descripcion') {
+          obj[h] = row[j];
+        }
+      }
+      // Solo agregamos si hay al menos una propiedad, y evitamos filas totalmente vacías
+      if(Object.keys(obj).length > 0 && row.join("").trim() !== "") {
+        results.push(obj);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function doPost(e) {
