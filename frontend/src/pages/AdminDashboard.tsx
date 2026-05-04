@@ -585,7 +585,7 @@ export default function AdminDashboard() {
                           onChange={async (e) => {
                             const inspector = inspectors.find(i => i.id === e.target.value);
                             if(inspector) {
-                              const success = await assignRazonIndividual(r.Casos, inspector.id, inspector.nombre);
+                              const success = await assignRazonIndividual(r.Casos || '', inspector.id, inspector.nombre);
                               if(success) {
                                 alert(`Caso ${r.Casos} asignado a ${inspector.nombre}`);
                                 loadRazones();
