@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Supervisor {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  tickets   Ticket[]
+}
+
+model Technician {
+  id              Int      @id @default(autoincrement())
+  tarjeta_tecnico String   @unique // Ej. 601228
+  nombre          String
+  email           String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tickets         Ticket[]
+}
+
+model Ticket {
+  id              Int      @id @default(autoincrement())
+  trabajo         String   @unique // TRB-8921
+  estado_ticket   String   // Pendiente, En proceso, etc.
+  sector          String
+  prioridad       String   // Alta, Media, Baja
+  fecha_asignacion DateTime?
+
+  technicianId    Int?
+  technician      Technician? @relation(fields: [technicianId], references: [id])
+  
+  supervisorId    Int?
+  supervisor      Supervisor? @relation(fields: [supervisorId], references: [id])
+
+  inspections     Inspection[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Inspection {
+  id              Int      @id @default(autoincrement())
+  ticketId        Int      @unique
+  ticket          Ticket   @relation(fields: [ticketId], references: [id])
+  
+  causa_raiz      String
+  observaciones   String?
+  evidencia_foto  String?  // URL/Path to image
+  resultado       String   // Aprobado, Requiere corrección, Rechazado
+  latitud         Float?
+  longitud        Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
