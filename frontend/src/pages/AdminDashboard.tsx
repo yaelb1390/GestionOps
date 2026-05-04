@@ -448,7 +448,8 @@ export default function AdminDashboard() {
               <table>
                 <thead>
                   <tr>
-                    <th>Caso</th>
+                    <th>Casos</th>
+                    <th>Tarjeta del Ejecutor</th>
                     <th>Ejecutor</th>
                     <th>Supervisor</th>
                     <th>Localidad</th>
@@ -457,12 +458,13 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {loadingRazones ? (
-                    <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : razones.length === 0 ? (
-                    <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos en esta hoja de cálculo.</td></tr>
+                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos en esta hoja de cálculo.</td></tr>
                   ) : razones.map((r, idx) => (
                     <tr key={idx}>
-                      <td><span className="badge info">{r.Caso || '-'}</span></td>
+                      <td><span className="badge info">{r.Casos || '-'}</span></td>
+                      <td>{r['Tarjeta del Ejecutor'] || '-'}</td>
                       <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>{r['Nombre del Ejecutor'] || '-'}</td>
                       <td>{r['Nombre del Supervisor'] || '-'}</td>
                       <td>{r.Localidad || '-'}</td>

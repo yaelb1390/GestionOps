@@ -77,7 +77,7 @@ function doGet(e) {
       for (var j = 0; j < headers.length; j++) {
         var h = headers[j];
         // Solo incluimos las columnas solicitadas
-        if(h === 'Caso' || h === 'Nombre del Ejecutor' || h === 'Nombre del Supervisor' || h === 'Localidad' || h === 'Descripcion') {
+        if(h === 'Casos' || h === 'Nombre del Ejecutor' || h === 'Tarjeta del Ejecutor' || h === 'Nombre del Supervisor' || h === 'Localidad' || h === 'Descripcion') {
           obj[h] = row[j];
         }
       }

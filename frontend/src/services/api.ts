@@ -164,7 +164,8 @@ export const autoAssignTickets = async (): Promise<{success: boolean, updated: n
 };
 
 export interface RazonCliente {
-  Caso?: string;
+  Casos?: string;
+  'Tarjeta del Ejecutor'?: string;
   'Nombre del Ejecutor'?: string;
   'Nombre del Supervisor'?: string;
   Localidad?: string;
