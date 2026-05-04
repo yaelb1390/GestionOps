@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   // Estados de Razones
   const [razones, setRazones] = useState<RazonCliente[]>([]);
   const [loadingRazones, setLoadingRazones] = useState(false);
+  const [razonesSearch, setRazonesSearch] = useState('');
 
   useEffect(() => {
     loadTickets();
@@ -74,6 +75,18 @@ export default function AdminDashboard() {
     setTickets(data);
     setLoading(false);
   };
+  
+  const filteredRazones = razones.filter(r => {
+    const term = razonesSearch.toLowerCase();
+    return (
+      (r.Casos?.toString().toLowerCase().includes(term)) ||
+      (r['Nombre del Ejecutor']?.toLowerCase().includes(term)) ||
+      (r['Tarjeta del Ejecutor']?.toString().toLowerCase().includes(term)) ||
+      (r['Nombre del Supervisor']?.toLowerCase().includes(term)) ||
+      (r.Localidad?.toLowerCase().includes(term)) ||
+      (r.Descripcion?.toLowerCase().includes(term))
+    );
+  });
   
   return (
     <div className="app-container">
@@ -442,6 +455,15 @@ export default function AdminDashboard() {
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <BookOpen size={20} color="var(--primary-color)" /> Códigos de Razón de Cliente
               </h3>
+              <div className="search-bar">
+                <Search size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar en cliente, supervisor, localidad..." 
+                  value={razonesSearch}
+                  onChange={(e) => setRazonesSearch(e.target.value)}
+                />
+              </div>
             </div>
             
             <div className="table-container">
@@ -459,9 +481,9 @@ export default function AdminDashboard() {
                 <tbody>
                   {loadingRazones ? (
                     <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
-                  ) : razones.length === 0 ? (
-                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos en esta hoja de cálculo.</td></tr>
-                  ) : razones.map((r, idx) => (
+                  ) : filteredRazones.length === 0 ? (
+                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos que coincidan con la búsqueda.</td></tr>
+                  ) : filteredRazones.map((r, idx) => (
                     <tr key={idx}>
                       <td><span className="badge info">{r.Casos || '-'}</span></td>
                       <td>{r['Tarjeta del Ejecutor'] || '-'}</td>
