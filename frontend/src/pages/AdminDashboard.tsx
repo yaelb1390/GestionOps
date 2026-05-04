@@ -27,6 +27,19 @@ export default function AdminDashboard() {
   const [razonesSupervisorFilter, setRazonesSupervisorFilter] = useState('');
   const [razonesBulkAssignInspector, setRazonesBulkAssignInspector] = useState('');
 
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success'|'error'>('success');
+  const [showToast, setShowToast] = useState(false);
+
+  const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
+    setToastMessage(msg);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
+  };
+
   useEffect(() => {
     loadTickets();
     loadInspectors();
@@ -63,10 +76,10 @@ export default function AdminDashboard() {
     if(inspector) {
       const success = await assignTicket(ticketId, inspector.id, inspector.nombre);
       if(success) {
-        alert(`Ticket asignado a ${inspector.nombre}`);
+        displayToast(`Ticket asignado a ${inspector.nombre}`, 'success');
         loadTickets();
       } else {
-        alert('Error al asignar el ticket');
+        displayToast('Error al asignar el ticket', 'error');
       }
     }
   };
@@ -256,13 +269,13 @@ export default function AdminDashboard() {
                       if (!inspector) return;
                       const pendingCount = tickets.filter(t => t.supervisor === supervisorFilter && t.status === 'Pendiente').length;
                       if(pendingCount === 0) {
-                        alert(`El supervisor ${supervisorFilter} no tiene tickets pendientes para asignar.`);
+                        displayToast(`El supervisor ${supervisorFilter} no tiene tickets pendientes para asignar.`, 'error');
                         return;
                       }
                       const confirmed = confirm(`¿Asignar ${pendingCount} tickets pendientes de ${supervisorFilter} a ${inspector.nombre}?`);
                       if (confirmed) {
                         const updated = await assignTicketsBySupervisor(supervisorFilter, inspector.id, inspector.nombre);
-                        alert(`Se han asignado ${updated} tickets a ${inspector.nombre}.`);
+                        displayToast(`Se han asignado ${updated} tickets a ${inspector.nombre}.`, 'success');
                         loadTickets();
                       }
                     }}
@@ -343,10 +356,10 @@ export default function AdminDashboard() {
                 <button className="btn-secondary" onClick={async () => {
                   const res = await autoAssignTickets();
                   if(res.success) {
-                    alert(`¡Carga balanceada! Se asignaron ${res.updated} tickets.`);
+                    displayToast(`¡Carga balanceada! Se asignaron ${res.updated} tickets.`, 'success');
                     loadTickets();
                   } else {
-                    alert('Error al auto-asignar tickets. Asegúrate de tener la pestaña "Inspectores" en tu Google Sheet.');
+                    displayToast('Error al auto-asignar tickets. Asegúrate de tener la pestaña "Inspectores" en tu Google Sheet.', 'error');
                   }
                 }}>
                   <Filter size={16} style={{marginRight: '0.5rem'}}/> Auto-Balancear Carga
@@ -381,7 +394,7 @@ export default function AdminDashboard() {
                   setEditingInspector(null);
                   loadInspectors();
                 } else {
-                  alert('Error al guardar inspector');
+                  displayToast('Error al guardar inspector', 'error');
                 }
               }}>
                 <h4 style={{ marginBottom: '1rem', color: 'var(--text-main)' }}>{editingInspector ? 'Editar Inspector' : 'Nuevo Inspector'}</h4>
@@ -409,7 +422,6 @@ export default function AdminDashboard() {
                     <>
                      <button type="button" className="btn-secondary" style={{ padding: '0.8rem 1.5rem', height: '42px', borderColor: 'var(--danger-color)', color: 'var(--danger-color)' }} onClick={async (e) => {
                        e.preventDefault();
-                       // Use a custom inline confirmation to prevent browser blocks on window.confirm
                        if (e.currentTarget.textContent === '¿Seguro?') {
                          e.currentTarget.textContent = 'Eliminando...';
                          const success = await deleteInspector(editingInspector.id);
@@ -417,8 +429,9 @@ export default function AdminDashboard() {
                            setShowAddInspector(false);
                            setEditingInspector(null);
                            loadInspectors();
+                           displayToast('Inspector eliminado', 'success');
                          } else {
-                           alert('Error al eliminar inspector');
+                           displayToast('Error al eliminar inspector', 'error');
                            e.currentTarget.textContent = 'Eliminar';
                          }
                        } else {
@@ -539,13 +552,13 @@ export default function AdminDashboard() {
                         if (!inspector) return;
                         const count = filteredRazones.length;
                         if(count === 0) {
-                          alert(`No hay registros filtrados para asignar.`);
+                          displayToast(`No hay registros filtrados para asignar.`, 'error');
                           return;
                         }
                         const confirmed = confirm(`¿Asignar ${count} registros de ${razonesSupervisorFilter} a ${inspector.nombre}?`);
                         if (confirmed) {
                           const updated = await assignRazonesBySupervisor(razonesSupervisorFilter, inspector.id, inspector.nombre);
-                          alert(`Se han asignado ${updated} registros a ${inspector.nombre}.`);
+                          displayToast(`Se han asignado ${updated} registros a ${inspector.nombre}.`, 'success');
                           loadRazones();
                         }
                       }}
@@ -587,10 +600,10 @@ export default function AdminDashboard() {
                             if(inspector) {
                               const success = await assignRazonIndividual(r.Casos || '', inspector.id, inspector.nombre);
                               if(success) {
-                                alert(`Caso ${r.Casos} asignado a ${inspector.nombre}`);
+                                displayToast(`Caso ${r.Casos} asignado a ${inspector.nombre}`, 'success');
                                 loadRazones();
                               } else {
-                                alert('Error al asignar');
+                                displayToast('Error al asignar', 'error');
                               }
                             }
                           }}
@@ -614,6 +627,14 @@ export default function AdminDashboard() {
 
 
       </main>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <div className={`toast-notification ${toastType}`}>
+          {toastType === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

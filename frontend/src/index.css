@@ -475,3 +475,47 @@ tbody tr:hover {
     padding: 1rem;
   }
 }
+
+/* Toast Notification */
+.toast-notification {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: var(--surface-color);
+  color: var(--text-main);
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 9999;
+  animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.toast-notification.success {
+  border-left: 4px solid var(--secondary-color);
+}
+.toast-notification.success svg {
+  color: var(--secondary-color);
+}
+
+.toast-notification.error {
+  border-left: 4px solid var(--danger-color);
+}
+.toast-notification.error svg {
+  color: var(--danger-color);
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
