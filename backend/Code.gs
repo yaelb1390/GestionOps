@@ -134,6 +134,26 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Ticket no encontrado"})).setMimeType(ContentService.MimeType.JSON);
   }
   
+  if (action === 'assign_tickets_by_supervisor') {
+    var sheet = ss.getSheetByName('Tickets');
+    var data = sheet.getDataRange().getValues();
+    var supervisorCol = data[0].indexOf('supervisor');
+    var statusCol = data[0].indexOf('status');
+    var techIdCol = data[0].indexOf('tech_id');
+    var techCol = data[0].indexOf('tech');
+    
+    var updatedCount = 0;
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][supervisorCol] == params.supervisor && data[i][statusCol] == 'Pendiente') {
+        if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_name);
+        if (techCol > -1) sheet.getRange(i + 1, techCol + 1).setValue(params.tech_id);
+        if (statusCol > -1) sheet.getRange(i + 1, statusCol + 1).setValue('Asignado');
+        updatedCount++;
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updatedCount})).setMimeType(ContentService.MimeType.JSON);
+  }
+
   if (action === 'add_inspector') {
     var sheet = ss.getSheetByName('Inspectores');
     if (!sheet) {

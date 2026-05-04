@@ -4,7 +4,7 @@ import {
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, type Inspector, fetchRazones, type RazonCliente } from '../services/api';
+import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchRazones, type RazonCliente } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [supervisorFilter, setSupervisorFilter] = useState('');
+  const [bulkAssignInspector, setBulkAssignInspector] = useState('');
 
   // Estados de Inspectores
   const [inspectors, setInspectors] = useState<Inspector[]>([]);
@@ -230,8 +231,43 @@ export default function AdminDashboard() {
 
         {activeTab === 'tickets' && (
           <div className="glass-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={20} color="var(--primary-color)" /> Todos los Tickets</h3>
+              {supervisorFilter && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(218, 41, 28, 0.05)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(218, 41, 28, 0.1)' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>Asignar pendientes a:</span>
+                  <select 
+                    className="assign-select"
+                    value={bulkAssignInspector}
+                    onChange={e => setBulkAssignInspector(e.target.value)}
+                  >
+                    <option value="" disabled>Seleccionar inspector...</option>
+                    {inspectors.map(insp => <option key={insp.id} value={insp.id}>{insp.nombre}</option>)}
+                  </select>
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                    disabled={!bulkAssignInspector}
+                    onClick={async () => {
+                      const inspector = inspectors.find(i => i.id === bulkAssignInspector);
+                      if (!inspector) return;
+                      const pendingCount = tickets.filter(t => t.supervisor === supervisorFilter && t.status === 'Pendiente').length;
+                      if(pendingCount === 0) {
+                        alert(`El supervisor ${supervisorFilter} no tiene tickets pendientes para asignar.`);
+                        return;
+                      }
+                      const confirmed = confirm(`¿Asignar ${pendingCount} tickets pendientes de ${supervisorFilter} a ${inspector.nombre}?`);
+                      if (confirmed) {
+                        const updated = await assignTicketsBySupervisor(supervisorFilter, inspector.id, inspector.nombre);
+                        alert(`Se han asignado ${updated} tickets a ${inspector.nombre}.`);
+                        loadTickets();
+                      }
+                    }}
+                  >
+                    Asignar Todos
+                  </button>
+                </div>
+              )}
             </div>
             <div className="table-container">
               <table>

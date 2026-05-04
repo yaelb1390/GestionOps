@@ -83,6 +83,29 @@ export async function assignTicket(id: number | string, tech_id: string, tech_na
   }
 }
 
+export async function assignTicketsBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_tickets_by_supervisor",
+        supervisor: supervisor,
+        tech_id: tech_id, // inspector id
+        tech_name: tech_name // inspector name
+      }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      }
+    });
+
+    const result = await response.json();
+    return result.status === "success" ? result.updated : 0;
+  } catch (error) {
+    console.error("Error bulk assigning tickets:", error);
+    return 0;
+  }
+}
+
 export interface Inspector {
   id: string;
   nombre: string;
