@@ -4,7 +4,7 @@ import {
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchRazones, type RazonCliente } from '../services/api';
+import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchRazones, assignRazonesBySupervisor, assignRazonIndividual, type RazonCliente } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -21,10 +21,11 @@ export default function AdminDashboard() {
   const [showAddInspector, setShowAddInspector] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(null);
 
-  // Estados de Razones
   const [razones, setRazones] = useState<RazonCliente[]>([]);
   const [loadingRazones, setLoadingRazones] = useState(false);
   const [razonesSearch, setRazonesSearch] = useState('');
+  const [razonesSupervisorFilter, setRazonesSupervisorFilter] = useState('');
+  const [razonesBulkAssignInspector, setRazonesBulkAssignInspector] = useState('');
 
   useEffect(() => {
     loadTickets();
@@ -79,7 +80,7 @@ export default function AdminDashboard() {
   
   const filteredRazones = razones.filter(r => {
     const term = razonesSearch.toLowerCase();
-    return (
+    const matchesSearch = (
       (r.Casos?.toString().toLowerCase().includes(term)) ||
       (r['Nombre del Ejecutor']?.toLowerCase().includes(term)) ||
       (r['Tarjeta del Ejecutor']?.toString().toLowerCase().includes(term)) ||
@@ -87,6 +88,8 @@ export default function AdminDashboard() {
       (r.Localidad?.toLowerCase().includes(term)) ||
       (r.Descripcion?.toLowerCase().includes(term))
     );
+    const matchesSupervisor = razonesSupervisorFilter === '' || r['Nombre del Supervisor'] === razonesSupervisorFilter;
+    return matchesSearch && matchesSupervisor;
   });
   
   return (
@@ -487,19 +490,71 @@ export default function AdminDashboard() {
 
         {activeTab === 'codigos' && (
           <div className="glass-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <BookOpen size={20} color="var(--primary-color)" /> Códigos de Razón de Cliente
               </h3>
-              <div className="search-bar">
-                <Search size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Buscar en cliente, supervisor, localidad..." 
-                  value={razonesSearch}
-                  onChange={(e) => setRazonesSearch(e.target.value)}
-                />
+              
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <select 
+                  className="input-control" 
+                  value={razonesSupervisorFilter} 
+                  onChange={(e) => setRazonesSupervisorFilter(e.target.value)}
+                  style={{ width: 'auto', minWidth: '200px' }}
+                >
+                  <option value="">Todos los supervisores</option>
+                  {Array.from(new Set(razones.map(r => r['Nombre del Supervisor']).filter(Boolean))).map(sup => (
+                    <option key={sup} value={sup}>{sup}</option>
+                  ))}
+                </select>
+                <div className="search-bar">
+                  <Search size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar código o detalle..." 
+                    value={razonesSearch}
+                    onChange={(e) => setRazonesSearch(e.target.value)}
+                  />
+                </div>
               </div>
+              
+              {razonesSupervisorFilter && (
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginTop: '-0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(218, 41, 28, 0.05)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(218, 41, 28, 0.1)' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>Asignar filtrados a:</span>
+                    <select 
+                      className="assign-select"
+                      value={razonesBulkAssignInspector}
+                      onChange={e => setRazonesBulkAssignInspector(e.target.value)}
+                    >
+                      <option value="" disabled>Seleccionar inspector...</option>
+                      {inspectors.map(insp => <option key={insp.id} value={insp.id}>{insp.nombre}</option>)}
+                    </select>
+                    <button 
+                      className="btn-primary" 
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                      disabled={!razonesBulkAssignInspector}
+                      onClick={async () => {
+                        const inspector = inspectors.find(i => i.id === razonesBulkAssignInspector);
+                        if (!inspector) return;
+                        const count = filteredRazones.length;
+                        if(count === 0) {
+                          alert(`No hay registros filtrados para asignar.`);
+                          return;
+                        }
+                        const confirmed = confirm(`¿Asignar ${count} registros de ${razonesSupervisorFilter} a ${inspector.nombre}?`);
+                        if (confirmed) {
+                          const updated = await assignRazonesBySupervisor(razonesSupervisorFilter, inspector.id, inspector.nombre);
+                          alert(`Se han asignado ${updated} registros a ${inspector.nombre}.`);
+                          loadRazones();
+                        }
+                      }}
+                    >
+                      Asignar Todos
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="table-container">
@@ -523,7 +578,29 @@ export default function AdminDashboard() {
                     <tr key={idx}>
                       <td><span className="badge info">{r.Casos || '-'}</span></td>
                       <td>{r['Tarjeta del Ejecutor'] || '-'}</td>
-                      <td style={{ color: 'var(--text-main)', fontWeight: 500 }}>{r['Nombre del Ejecutor'] || '-'}</td>
+                      <td>
+                        <select 
+                          className="assign-select" 
+                          value={inspectors.find(i => i.nombre == r['Nombre del Ejecutor'] || i.id == r['Tarjeta del Ejecutor'])?.id || ''}
+                          onChange={async (e) => {
+                            const inspector = inspectors.find(i => i.id === e.target.value);
+                            if(inspector) {
+                              const success = await assignRazonIndividual(r.Casos, inspector.id, inspector.nombre);
+                              if(success) {
+                                alert(`Caso ${r.Casos} asignado a ${inspector.nombre}`);
+                                loadRazones();
+                              } else {
+                                alert('Error al asignar');
+                              }
+                            }
+                          }}
+                        >
+                          <option value="" disabled>Sin asignar</option>
+                          {inspectors.map(insp => (
+                            <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td>{r['Nombre del Supervisor'] || '-'}</td>
                       <td>{r.Localidad || '-'}</td>
                       <td>{r.Descripcion || '-'}</td>

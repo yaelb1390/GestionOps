@@ -106,6 +106,53 @@ export async function assignTicketsBySupervisor(supervisor: string, tech_id: str
   }
 }
 
+export async function assignRazonesBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_razones_by_supervisor",
+        supervisor: supervisor,
+        tech_id: tech_id, // inspector id
+        tech_name: tech_name // inspector name
+      }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      }
+    });
+
+    const result = await response.json();
+    return result.status === "success" ? result.updated : 0;
+  } catch (error) {
+    console.error("Error bulk assigning razones:", error);
+    return 0;
+  }
+}
+
+export async function assignRazonIndividual(caso: string | number, tech_id: string, tech_name: string): Promise<boolean> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_razon_individual",
+        caso: caso,
+        tech_id: tech_id, // inspector id
+        tech_name: tech_name // inspector name
+      }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      }
+    });
+
+    const result = await response.json();
+    return result.status === "success";
+  } catch (error) {
+    console.error("Error assigning razon:", error);
+    return false;
+  }
+}
+
+
 export interface Inspector {
   id: string;
   nombre: string;

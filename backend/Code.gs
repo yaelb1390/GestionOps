@@ -154,6 +154,48 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updatedCount})).setMimeType(ContentService.MimeType.JSON);
   }
 
+  if (action === 'assign_razones_by_supervisor' || action === 'assign_razon_individual') {
+    var ssTarget = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit");
+    var sheets = ssTarget.getSheets();
+    var sheet = null;
+    for (var k = 0; k < sheets.length; k++) {
+      if (sheets[k].getSheetId() == 761213977) {
+        sheet = sheets[k];
+        break;
+      }
+    }
+    
+    if(!sheet) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Hoja de razones no encontrada"})).setMimeType(ContentService.MimeType.JSON);
+
+    var data = sheet.getDataRange().getValues();
+    var supervisorCol = data[0].indexOf('Nombre del Supervisor');
+    var techIdCol = data[0].indexOf('Tarjeta del Ejecutor');
+    var techNameCol = data[0].indexOf('Nombre del Ejecutor');
+    var casosCol = data[0].indexOf('Casos');
+    
+    if(action === 'assign_razones_by_supervisor') {
+      var updatedCount = 0;
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][supervisorCol] == params.supervisor) {
+          if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_id);
+          if (techNameCol > -1) sheet.getRange(i + 1, techNameCol + 1).setValue(params.tech_name);
+          updatedCount++;
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updatedCount})).setMimeType(ContentService.MimeType.JSON);
+    } 
+    else if (action === 'assign_razon_individual') {
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][casosCol] == params.caso) {
+          if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_id);
+          if (techNameCol > -1) sheet.getRange(i + 1, techNameCol + 1).setValue(params.tech_name);
+          return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Caso no encontrado"})).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   if (action === 'add_inspector') {
     var sheet = ss.getSheetByName('Inspectores');
     if (!sheet) {
