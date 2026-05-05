@@ -5,6 +5,8 @@ export interface Ticket {
   ticket: string;
   tech_id: string;
   tech: string;
+  inspector_id?: string | number;
+  inspector?: string;
   supervisor: string;
   sector: string;
   priority: string;
@@ -237,6 +239,8 @@ export interface RazonCliente {
   Casos?: string;
   'Tarjeta del Ejecutor'?: string;
   'Nombre del Ejecutor'?: string;
+  'Inspector ID'?: string | number;
+  'Nombre del Inspector'?: string;
   'Nombre del Supervisor'?: string;
   Localidad?: string;
   Descripcion?: string;

@@ -4,6 +4,10 @@ import {
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from 'recharts';
 import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchRazones, assignRazonesBySupervisor, assignRazonIndividual, type RazonCliente } from '../services/api';
 
 export default function AdminDashboard() {
@@ -31,6 +35,8 @@ export default function AdminDashboard() {
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [showToast, setShowToast] = useState(false);
 
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
+
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
@@ -49,7 +55,7 @@ export default function AdminDashboard() {
     if (activeTab === 'personal') {
       loadInspectors();
     }
-    if (activeTab === 'codigos' && razones.length === 0) {
+    if ((activeTab === 'codigos' || activeTab === 'dashboard') && razones.length === 0) {
       loadRazones();
     }
   }, [activeTab]);
@@ -215,12 +221,28 @@ export default function AdminDashboard() {
                   <tbody>
                     {loading ? (
                       <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
-                    ) : tickets.slice(0, 5).map(t => (
-                      <tr key={t.id}>
+                    ) : tickets.slice(0, 5).map((t, idx) => (
+                      <tr key={t.id || t.ticket || idx}>
                         <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
                         <td>
-                          <div>{t.tech_id || t.tech}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.tech || t.tech_id}</div>
+                          <div>{t.tech || t.tech_id || '-'}</div>
+                          {(t.tech || t.tech_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.tech_id || t.tech}</div>}
+                        </td>
+                        <td>
+                          <div>{t.inspector || t.inspector_id || <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>}</div>
+                          {(t.inspector || t.inspector_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.inspector_id || t.inspector}</div>}
+                        </td>
+                        <td>
+                          <select 
+                            className="assign-select" 
+                            value=""
+                            onChange={(e) => handleAssign(t.id || t.ticket, e.target.value)}
+                          >
+                            <option value="" disabled>Reasignar...</option>
+                            {inspectors.map(insp => (
+                              <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                            ))}
+                          </select>
                         </td>
                         <td>{t.supervisor}</td>
                         <td>{t.sector}</td>
@@ -240,8 +262,204 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </div>
+
+            {/* ══ Charts Section (Recharts Premium) ══ */}
+            {(() => {
+              // Dynamic color based on percentage
+              const pctColor = (pct: number): string => {
+                if (pct >= 80) return '#da291c';
+                if (pct >= 60) return '#e84d4d';
+                if (pct >= 45) return '#f07a50';
+                if (pct >= 30) return '#f0a030';
+                if (pct >= 20) return '#d4b800';
+                if (pct >= 12) return '#4fb86c';
+                if (pct >= 7)  return '#3399cc';
+                return '#7b68ee';
+              };
+
+              // Build bar chart data from Razones
+              const techMap: Record<string, number> = {};
+              razones.forEach(r => {
+                const name = r['Nombre del Ejecutor'];
+                if (name && String(name).trim()) {
+                  const key = String(name).trim();
+                  techMap[key] = (techMap[key] || 0) + 1;
+                }
+              });
+              const allSorted = Object.entries(techMap).sort((a, b) => b[1] - a[1]);
+              const maxVal = allSorted.length > 0 ? allSorted[0][1] : 1;
+              const totalCases = allSorted.reduce((s, [, c]) => s + c, 0);
+
+              const barData = allSorted
+                .slice(0, 10)
+                .map(([name, casos], i) => {
+                  const pct = Math.round((casos / maxVal) * 100);
+                  return { name: name.length > 18 ? name.slice(0, 16) + '…' : name, fullName: name, casos, pct, color: pctColor(pct), rank: i + 1 };
+                });
+
+              const pieTop = allSorted.slice(0, 7);
+              const othersTotal = allSorted.slice(7).reduce((s, [, c]) => s + c, 0);
+              const pieData = [
+                ...pieTop.map(([name, value]) => ({ name, value, color: pctColor(Math.round((value / (maxVal || 1)) * 100)) })),
+                ...(othersTotal > 0 ? [{ name: 'Otros', value: othersTotal, color: '#555e72' }] : []),
+              ];
+
+              // Gradient bar shape
+              const GradientBar = (props: any) => {
+                const { x, y, width, height, color, rank } = props;
+                const id = `gb-${rank}`;
+                return (
+                  <g>
+                    <defs>
+                      <linearGradient id={id} x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+                        <stop offset="100%" stopColor={color} stopOpacity={1} />
+                      </linearGradient>
+                      {rank === 1 && <filter id="glow-top"><feGaussianBlur stdDeviation="2.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>}
+                    </defs>
+                    <rect x={x} y={y+2} width={width} height={height-4} rx={5} ry={5} fill={`url(#${id})`} filter={rank===1?'url(#glow-top)':undefined} />
+                  </g>
+                );
+              };
+
+              // Custom Y-axis tick with rank badge
+              const CustomYTick = ({ x, y, payload }: any) => {
+                const e = barData.find(d => d.name === payload.value);
+                return (
+                  <g transform={`translate(${x},${y})`}>
+                    {e && <rect x={-112} y={-9} width={14} height={14} rx={3} fill={e.color} opacity={0.9} />}
+                    {e && <text x={-105} y={1} textAnchor="middle" fill="#fff" fontSize={8} fontWeight={700}>{e.rank}</text>}
+                    <text x={-92} y={4} fill="#c8d4e8" fontSize={11} fontWeight={500}>{payload.value}</text>
+                  </g>
+                );
+              };
+
+              const CustomTooltipBar = ({ active, payload }: any) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0]?.payload;
+                const sharePct = totalCases > 0 ? Math.round((d.casos / totalCases) * 100) : 0;
+                return (
+                  <div style={{ background: 'rgba(255,255,255,0.97)', border: `1px solid ${d.color}30`, borderRadius: '14px', padding: '0.85rem 1.1rem', boxShadow: `0 0 20px ${d.color}22, 0 8px 24px rgba(0,0,0,0.1)`, backdropFilter: 'blur(12px)', minWidth: 160 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, boxShadow: `0 0 6px ${d.color}` }} />
+                      <span style={{ color: '#111827', fontWeight: 700, fontSize: '0.82rem' }}>{d.fullName}</span>
+                    </div>
+                    <div style={{ color: d.color, fontWeight: 900, fontSize: '1.5rem', lineHeight: 1 }}>{d.casos}</div>
+                    <div style={{ color: '#9ca3af', fontSize: '0.72rem', marginTop: 3 }}>casos · <span style={{ color: '#6b7280' }}>{sharePct}% del total</span></div>
+                  </div>
+                );
+              };
+
+              const CustomTooltipPie = ({ active, payload }: any) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0];
+                const c = (d.payload as any).color;
+                const pct = totalCases > 0 ? Math.round((d.value / totalCases) * 100) : 0;
+                return (
+                  <div style={{ background: 'rgba(255,255,255,0.97)', border: `1px solid ${c}30`, borderRadius: '14px', padding: '0.85rem 1.1rem', boxShadow: `0 0 20px ${c}22, 0 8px 24px rgba(0,0,0,0.1)`, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}` }} />
+                      <span style={{ color: '#111827', fontWeight: 700, fontSize: '0.82rem' }}>{d.name}</span>
+                    </div>
+                    <div style={{ color: c, fontWeight: 900, fontSize: '1.5rem', lineHeight: 1 }}>{d.value}</div>
+                    <div style={{ color: '#9ca3af', fontSize: '0.72rem', marginTop: 3 }}>casos · <span style={{ color: '#6b7280' }}>{pct}% del total</span></div>
+                  </div>
+                );
+              };
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+
+                  {/* ── Bar Chart Panel ── */}
+                  <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '20px', padding: '1.5rem', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.05),inset 0 1px 0 rgba(255,255,255,0.8)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'linear-gradient(135deg,#da291c,#f07a50)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(218,41,28,0.35)' }}>
+                          <Activity size={18} color="#fff" />
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '0.95rem' }}>Top Técnicos</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Código Razón Cliente</div>
+                        </div>
+                      </div>
+                      <span style={{ background: 'rgba(218,41,28,0.08)', color: 'var(--primary-color)', fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.7rem', borderRadius: '999px', border: '1px solid rgba(218,41,28,0.2)' }}>
+                        {barData.length} técnicos
+                      </span>
+                    </div>
+                    {loadingRazones ? (
+                      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 className="spinner" size={32} color="var(--primary-color)" /></div>
+                    ) : barData.length === 0 ? (
+                      <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0', fontSize: '0.85rem' }}>Sin datos — visita el módulo Código Razón Cliente.</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={290}>
+                        <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 18, left: 118, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 6" stroke="rgba(0,0,0,0.05)" horizontal={false} />
+                          <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={{ stroke: 'rgba(0,0,0,0.06)' }} tickLine={false} allowDecimals={false} />
+                          <YAxis dataKey="name" type="category" width={0} tick={<CustomYTick />} axisLine={false} tickLine={false} />
+                          <Tooltip content={<CustomTooltipBar />} cursor={{ fill: 'rgba(218,41,28,0.04)' }} />
+                          <Bar dataKey="casos" maxBarSize={20}
+                            shape={(props: any) => { const e = barData[props.index]; return <GradientBar {...props} color={e?.color} rank={e?.rank} />; }}
+                          >
+                            {barData.map((_, i) => <Cell key={i} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* ── Pie Chart Panel ── */}
+                  <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '20px', padding: '1.5rem', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.05),inset 0 1px 0 rgba(255,255,255,0.8)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'linear-gradient(135deg,#3a0ca3,#7b2ff7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(123,47,247,0.35)' }}>
+                          <BookOpen size={18} color="#fff" />
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '0.95rem' }}>Distribución</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Casos por técnico</div>
+                        </div>
+                      </div>
+                      <span style={{ background: 'rgba(123,47,247,0.08)', color: '#7b2ff7', fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.7rem', borderRadius: '999px', border: '1px solid rgba(123,47,247,0.2)' }}>
+                        {totalCases} casos
+                      </span>
+                    </div>
+                    {loadingRazones ? (
+                      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 className="spinner" size={32} color="var(--primary-color)" /></div>
+                    ) : pieData.length === 0 ? (
+                      <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0', fontSize: '0.85rem' }}>Sin datos disponibles.</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={290}>
+                        <PieChart>
+                          <defs>
+                            {pieData.map((d, i) => (
+                              <radialGradient key={i} id={`pg-${i}`} cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stopColor={d.color} stopOpacity={1} />
+                                <stop offset="100%" stopColor={d.color} stopOpacity={0.65} />
+                              </radialGradient>
+                            ))}
+                          </defs>
+                          <Pie data={pieData} cx="50%" cy="43%" innerRadius={66} outerRadius={100} paddingAngle={2.5} dataKey="value" animationBegin={0} animationDuration={1000} strokeWidth={0}>
+                            {pieData.map((_d, i) => (
+                              <Cell key={i} fill={`url(#pg-${i})`} stroke="#fff" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <text x="50%" y="40%" textAnchor="middle">
+                            <tspan x="50%" dy="-6" fontSize="22" fontWeight="900" fill="#111827">{totalCases}</tspan>
+                            <tspan x="50%" dy="20" fontSize="9" fill="#9ca3af" letterSpacing="0.1em">TOTAL CASOS</tspan>
+                          </text>
+                          <Tooltip content={<CustomTooltipPie />} />
+                          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: '0.71rem', paddingTop: '6px' }} formatter={(v) => <span style={{ color: 'var(--text-muted)' }}>{v}</span>} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                </div>
+              );
+            })()}
           </>
         )}
+
 
 
 
@@ -272,12 +490,16 @@ export default function AdminDashboard() {
                         displayToast(`El supervisor ${supervisorFilter} no tiene tickets pendientes para asignar.`, 'error');
                         return;
                       }
-                      const confirmed = confirm(`¿Asignar ${pendingCount} tickets pendientes de ${supervisorFilter} a ${inspector.nombre}?`);
-                      if (confirmed) {
-                        const updated = await assignTicketsBySupervisor(supervisorFilter, inspector.id, inspector.nombre);
-                        displayToast(`Se han asignado ${updated} tickets a ${inspector.nombre}.`, 'success');
-                        loadTickets();
-                      }
+                      setConfirmModal({
+                        isOpen: true,
+                        message: `¿Asignar ${pendingCount} tickets pendientes de ${supervisorFilter} a ${inspector.nombre}?`,
+                        onConfirm: async () => {
+                          const updated = await assignTicketsBySupervisor(supervisorFilter, inspector.id, inspector.nombre);
+                          displayToast(`Se han asignado ${updated} tickets a ${inspector.nombre}.`, 'success');
+                          loadTickets();
+                          setConfirmModal(null);
+                        }
+                      });
                     }}
                   >
                     Asignar Todos
@@ -290,7 +512,9 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Ticket</th>
-                    <th>Técnico</th>
+                    <th>Técnico Original</th>
+                    <th>Inspector Asignado</th>
+                    <th>Asignar</th>
                     <th>Supervisor</th>
                     <th>Sector</th>
                     <th>Prioridad</th>
@@ -306,27 +530,28 @@ export default function AdminDashboard() {
                                           t.tech?.toString().toLowerCase().includes(searchTerm.toLowerCase());
                     const matchesSupervisor = supervisorFilter === '' || t.supervisor === supervisorFilter;
                     return matchesSearch && matchesSupervisor;
-                  }).map(t => (
-                    <tr key={t.id}>
+                  }).map((t, idx) => (
+                    <tr key={t.id || t.ticket || idx}>
                       <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
                       <td>
-                        {t.status === 'Pendiente' ? (
-                          <select 
-                            className="assign-select" 
-                            value={inspectors.find(i => i.id == t.tech || i.nombre == t.tech_id)?.id || ''}
-                            onChange={(e) => handleAssign(t.id, e.target.value)}
-                          >
-                            <option value="" disabled>Sin asignar</option>
-                            {inspectors.map(insp => (
-                              <option key={insp.id} value={insp.id}>{insp.nombre}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <>
-                            <div>{t.tech_id || t.tech}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.tech || t.tech_id}</div>
-                          </>
-                        )}
+                        <div>{t.tech || t.tech_id || '-'}</div>
+                        {(t.tech || t.tech_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.tech_id || t.tech}</div>}
+                      </td>
+                      <td>
+                        <div>{t.inspector || t.inspector_id || <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>}</div>
+                        {(t.inspector || t.inspector_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.inspector_id || t.inspector}</div>}
+                      </td>
+                      <td>
+                        <select 
+                          className="assign-select" 
+                          value=""
+                          onChange={(e) => handleAssign(t.id || t.ticket, e.target.value)}
+                        >
+                          <option value="" disabled>Asignar a...</option>
+                          {inspectors.map(insp => (
+                            <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                          ))}
+                        </select>
                       </td>
                       <td>{t.supervisor}</td>
                       <td>{t.sector}</td>
@@ -555,12 +780,16 @@ export default function AdminDashboard() {
                           displayToast(`No hay registros filtrados para asignar.`, 'error');
                           return;
                         }
-                        const confirmed = confirm(`¿Asignar ${count} registros de ${razonesSupervisorFilter} a ${inspector.nombre}?`);
-                        if (confirmed) {
-                          const updated = await assignRazonesBySupervisor(razonesSupervisorFilter, inspector.id, inspector.nombre);
-                          displayToast(`Se han asignado ${updated} registros a ${inspector.nombre}.`, 'success');
-                          loadRazones();
-                        }
+                        setConfirmModal({
+                          isOpen: true,
+                          message: `¿Asignar ${count} registros de ${razonesSupervisorFilter} a ${inspector.nombre}?`,
+                          onConfirm: async () => {
+                            const updated = await assignRazonesBySupervisor(razonesSupervisorFilter, inspector.id, inspector.nombre);
+                            displayToast(`Se han asignado ${updated} registros a ${inspector.nombre}.`, 'success');
+                            loadRazones();
+                            setConfirmModal(null);
+                          }
+                        });
                       }}
                     >
                       Asignar Todos
@@ -575,8 +804,9 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Casos</th>
-                    <th>Tarjeta del Ejecutor</th>
-                    <th>Ejecutor</th>
+                    <th>Ejecutor Original</th>
+                    <th>Inspector Asignado</th>
+                    <th>Asignar</th>
                     <th>Supervisor</th>
                     <th>Localidad</th>
                     <th>Descripción</th>
@@ -590,11 +820,18 @@ export default function AdminDashboard() {
                   ) : filteredRazones.map((r, idx) => (
                     <tr key={idx}>
                       <td><span className="badge info">{r.Casos || '-'}</span></td>
-                      <td>{r['Tarjeta del Ejecutor'] || '-'}</td>
+                      <td style={{ fontWeight: 500 }}>
+                        {r['Nombre del Ejecutor'] || '-'}
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {r['Tarjeta del Ejecutor'] || '-'}</div>
+                      </td>
+                      <td style={{ fontWeight: 500 }}>
+                        {r['Nombre del Inspector'] || <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>}
+                        {r['Inspector ID'] && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {r['Inspector ID']}</div>}
+                      </td>
                       <td>
                         <select 
                           className="assign-select" 
-                          value={inspectors.find(i => i.nombre == r['Nombre del Ejecutor'] || i.id == r['Tarjeta del Ejecutor'])?.id || ''}
+                          value=""
                           onChange={async (e) => {
                             const inspector = inspectors.find(i => i.id === e.target.value);
                             if(inspector) {
@@ -608,7 +845,7 @@ export default function AdminDashboard() {
                             }
                           }}
                         >
-                          <option value="" disabled>Sin asignar</option>
+                          <option value="" disabled>Asignar a...</option>
                           {inspectors.map(insp => (
                             <option key={insp.id} value={insp.id}>{insp.nombre}</option>
                           ))}
@@ -633,6 +870,22 @@ export default function AdminDashboard() {
         <div className={`toast-notification ${toastType}`}>
           {toastType === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {confirmModal?.isOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+          <div className="glass-panel" style={{ width: '400px', background: 'var(--surface-color)', padding: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: 'var(--text-main)' }}>
+              <AlertTriangle size={24} color="var(--warning-color)" />
+              <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Confirmar Acción</h3>
+            </div>
+            <p style={{ marginBottom: '2rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <button className="btn-secondary" onClick={() => setConfirmModal(null)}>Cancelar</button>
+              <button className="btn-primary" onClick={confirmModal.onConfirm}>Confirmar</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

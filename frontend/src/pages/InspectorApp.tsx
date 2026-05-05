@@ -9,8 +9,20 @@ export default function InspectorApp() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success'|'error'>('success');
+  const [showToast, setShowToast] = useState(false);
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || 'Inspector Demo';
+
+  const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
+    setToastMessage(msg);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
+  };
 
   useEffect(() => {
     loadTickets();
@@ -58,17 +70,17 @@ export default function InspectorApp() {
           const remarks = formData.get('observaciones') as string;
           const result = formData.get('resultado') as string;
           
-          if(!result) { alert("Seleccione un resultado"); setSubmitting(false); return; }
+          if(!result) { displayToast("Seleccione un resultado", "error"); setSubmitting(false); return; }
 
           const success = await updateTicketStatus(selectedTicket.id, result, remarks, rootCause);
           setSubmitting(false);
 
           if (success) {
-            alert('Inspección guardada'); 
+            displayToast('Inspección guardada', 'success'); 
             setSelectedTicket(null); 
             loadTickets(); // Recargar datos
           } else {
-            alert('Error al guardar. Intenta nuevamente.');
+            displayToast('Error al guardar. Intenta nuevamente.', 'error');
           }
         }}>
           <div className="input-group">
@@ -140,9 +152,9 @@ export default function InspectorApp() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {tickets.filter(t => {
-            const isMine = t.tech_id === inspectorName || t.tech === inspectorName;
-            if (activeTab === 'pendientes') return t.status === 'Pendiente' && isMine;
-            if (activeTab === 'completadas') return t.status !== 'Pendiente' && isMine;
+            const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
+            if (activeTab === 'pendientes') return (t.status === 'Pendiente' || t.status === 'Asignado') && isMine;
+            if (activeTab === 'completadas') return (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado') && isMine;
             if (activeTab === 'mis_tickets') return isMine;
             return false;
           }).map(t => (
@@ -194,6 +206,14 @@ export default function InspectorApp() {
           <span>Mis Tickets</span>
         </button>
       </nav>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <div className={`toast-notification ${toastType}`}>
+          {toastType === 'success' ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

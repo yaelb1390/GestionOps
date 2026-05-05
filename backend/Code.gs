@@ -99,8 +99,9 @@ function doPost(e) {
     var sheet = ss.getSheetByName('Tickets');
     var data = sheet.getDataRange().getValues();
     var idColIndex = data[0].indexOf('id');
+    var ticketColIndex = data[0].indexOf('ticket');
     for (var i = 1; i < data.length; i++) {
-      if (data[i][idColIndex] == params.id) {
+      if ((idColIndex > -1 && data[i][idColIndex] == params.id) || (ticketColIndex > -1 && data[i][ticketColIndex] == params.id)) {
         var statusColIndex = data[0].indexOf('status');
         var remarksColIndex = data[0].indexOf('remarks');
         var rootCauseColIndex = data[0].indexOf('rootCause');
@@ -117,15 +118,26 @@ function doPost(e) {
   if (action === 'assign_ticket') {
     var sheet = ss.getSheetByName('Tickets');
     var data = sheet.getDataRange().getValues();
-    var idColIndex = data[0].indexOf('id');
+    var headers = data[0];
+    
+    var inspectorIdCol = headers.indexOf('inspector_id');
+    var inspectorCol = headers.indexOf('inspector');
+    var needsHeaderUpdate = false;
+    if (inspectorIdCol === -1) { headers.push('inspector_id'); inspectorIdCol = headers.length - 1; needsHeaderUpdate = true; }
+    if (inspectorCol === -1) { headers.push('inspector'); inspectorCol = headers.length - 1; needsHeaderUpdate = true; }
+    if (needsHeaderUpdate) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      data = sheet.getDataRange().getValues();
+    }
+    
+    var idColIndex = headers.indexOf('id');
+    var ticketColIndex = headers.indexOf('ticket');
+    var statusCol = headers.indexOf('status');
+    
     for (var i = 1; i < data.length; i++) {
-      if (data[i][idColIndex] == params.id) {
-        var techIdCol = data[0].indexOf('tech_id');
-        var techCol = data[0].indexOf('tech');
-        var statusCol = data[0].indexOf('status');
-        
-        if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_name);
-        if (techCol > -1) sheet.getRange(i + 1, techCol + 1).setValue(params.tech_id);
+      if ((idColIndex > -1 && data[i][idColIndex] == params.id) || (ticketColIndex > -1 && data[i][ticketColIndex] == params.id)) {
+        sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
+        sheet.getRange(i + 1, inspectorCol + 1).setValue(params.tech_name);
         if (statusCol > -1) sheet.getRange(i + 1, statusCol + 1).setValue('Asignado');
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
@@ -137,16 +149,26 @@ function doPost(e) {
   if (action === 'assign_tickets_by_supervisor') {
     var sheet = ss.getSheetByName('Tickets');
     var data = sheet.getDataRange().getValues();
-    var supervisorCol = data[0].indexOf('supervisor');
-    var statusCol = data[0].indexOf('status');
-    var techIdCol = data[0].indexOf('tech_id');
-    var techCol = data[0].indexOf('tech');
+    var headers = data[0];
+    
+    var inspectorIdCol = headers.indexOf('inspector_id');
+    var inspectorCol = headers.indexOf('inspector');
+    var needsHeaderUpdate = false;
+    if (inspectorIdCol === -1) { headers.push('inspector_id'); inspectorIdCol = headers.length - 1; needsHeaderUpdate = true; }
+    if (inspectorCol === -1) { headers.push('inspector'); inspectorCol = headers.length - 1; needsHeaderUpdate = true; }
+    if (needsHeaderUpdate) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      data = sheet.getDataRange().getValues();
+    }
+    
+    var supervisorCol = headers.indexOf('supervisor');
+    var statusCol = headers.indexOf('status');
     
     var updatedCount = 0;
     for (var i = 1; i < data.length; i++) {
       if (data[i][supervisorCol] == params.supervisor && data[i][statusCol] == 'Pendiente') {
-        if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_name);
-        if (techCol > -1) sheet.getRange(i + 1, techCol + 1).setValue(params.tech_id);
+        sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
+        sheet.getRange(i + 1, inspectorCol + 1).setValue(params.tech_name);
         if (statusCol > -1) sheet.getRange(i + 1, statusCol + 1).setValue('Asignado');
         updatedCount++;
       }
@@ -168,17 +190,27 @@ function doPost(e) {
     if(!sheet) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Hoja de razones no encontrada"})).setMimeType(ContentService.MimeType.JSON);
 
     var data = sheet.getDataRange().getValues();
-    var supervisorCol = data[0].indexOf('Nombre del Supervisor');
-    var techIdCol = data[0].indexOf('Tarjeta del Ejecutor');
-    var techNameCol = data[0].indexOf('Nombre del Ejecutor');
-    var casosCol = data[0].indexOf('Casos');
+    var headers = data[0];
+    
+    var inspectorIdCol = headers.indexOf('Inspector ID');
+    var inspectorNameCol = headers.indexOf('Nombre del Inspector');
+    var needsHeaderUpdate = false;
+    if (inspectorIdCol === -1) { headers.push('Inspector ID'); inspectorIdCol = headers.length - 1; needsHeaderUpdate = true; }
+    if (inspectorNameCol === -1) { headers.push('Nombre del Inspector'); inspectorNameCol = headers.length - 1; needsHeaderUpdate = true; }
+    if (needsHeaderUpdate) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      data = sheet.getDataRange().getValues();
+    }
+
+    var supervisorCol = headers.indexOf('Nombre del Supervisor');
+    var casosCol = headers.indexOf('Casos');
     
     if(action === 'assign_razones_by_supervisor') {
       var updatedCount = 0;
       for (var i = 1; i < data.length; i++) {
         if (data[i][supervisorCol] == params.supervisor) {
-          if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_id);
-          if (techNameCol > -1) sheet.getRange(i + 1, techNameCol + 1).setValue(params.tech_name);
+          sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
+          sheet.getRange(i + 1, inspectorNameCol + 1).setValue(params.tech_name);
           updatedCount++;
         }
       }
@@ -187,8 +219,8 @@ function doPost(e) {
     else if (action === 'assign_razon_individual') {
       for (var i = 1; i < data.length; i++) {
         if (data[i][casosCol] == params.caso) {
-          if (techIdCol > -1) sheet.getRange(i + 1, techIdCol + 1).setValue(params.tech_id);
-          if (techNameCol > -1) sheet.getRange(i + 1, techNameCol + 1).setValue(params.tech_name);
+          sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
+          sheet.getRange(i + 1, inspectorNameCol + 1).setValue(params.tech_name);
           return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
         }
       }
@@ -276,15 +308,15 @@ function doPost(e) {
     for(var j=1; j<iData.length; j++) {
       if(iEstadoCol > -1 && iData[j][iEstadoCol] !== 'Activo') continue; // Solo activos
       var insp = { name: iData[j][iNameCol], id: iData[j][iIdCol], count: 0 };
-      loadMap[insp.name] = insp;
+      loadMap[insp.id] = insp; // Key by ID instead of name
       inspectors.push(insp);
     }
     
     for(var i=1; i<tData.length; i++) {
       var tStatus = tData[i][statusCol];
-      var tTechName = tData[i][techIdCol]; 
-      if(tStatus === 'Pendiente' && loadMap[tTechName]) {
-        loadMap[tTechName].count++;
+      var tTechId = tData[i][techIdCol]; 
+      if(tStatus === 'Pendiente' && loadMap[tTechId]) {
+        loadMap[tTechId].count++;
       }
     }
     
@@ -302,8 +334,9 @@ function doPost(e) {
             }
          }
          if(minInspector) {
-            ticketSheet.getRange(i + 1, techIdCol + 1).setValue(minInspector.name); 
-            ticketSheet.getRange(i + 1, techCol + 1).setValue(minInspector.id); 
+            if (techIdCol > -1) ticketSheet.getRange(i + 1, techIdCol + 1).setValue(minInspector.id); 
+            if (techCol > -1) ticketSheet.getRange(i + 1, techCol + 1).setValue(minInspector.name); 
+            if (statusCol > -1) ticketSheet.getRange(i + 1, statusCol + 1).setValue('Asignado');
             minInspector.count++;
             updated++;
          }
