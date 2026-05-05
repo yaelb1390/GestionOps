@@ -225,6 +225,8 @@ export default function AdminDashboard() {
                     <tr>
                       <th>Ticket</th>
                       <th>Técnico</th>
+                      <th>Inspector</th>
+                      <th>Asignar</th>
                       <th>Supervisor</th>
                       <th>Sector</th>
                       <th>Prioridad</th>
@@ -233,7 +235,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                      <tr><td colSpan={8} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                     ) : tickets.slice(0, 5).map((t, idx) => (
                       <tr key={t.id || t.ticket || idx}>
                         <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
@@ -533,8 +535,8 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Ticket</th>
-                    <th>Técnico Original</th>
-                    <th>Inspector Asignado</th>
+                    <th>Técnico</th>
+                    <th>Inspector</th>
                     <th>Asignar</th>
                     <th>Supervisor</th>
                     <th>Sector</th>
@@ -544,7 +546,7 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={8} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : tickets.filter(t => {
                     const matchesSearch = t.ticket?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech_id?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -825,8 +827,8 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Casos</th>
-                    <th>Ejecutor Original</th>
-                    <th>Inspector Asignado</th>
+                    <th>Técnico</th>
+                    <th>Inspector</th>
                     <th>Asignar</th>
                     <th>Supervisor</th>
                     <th>Localidad</th>
@@ -835,9 +837,9 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {loadingRazones ? (
-                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={7} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : filteredRazones.length === 0 ? (
-                    <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos que coincidan con la búsqueda.</td></tr>
+                    <tr><td colSpan={7} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos que coincidan con la búsqueda.</td></tr>
                   ) : filteredRazones.map((r, idx) => (
                     <tr key={idx}>
                       <td><span className="badge info">{r.Casos || '-'}</span></td>

@@ -213,23 +213,27 @@ button {
 /* Data Table */
 .table-container {
   overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
 }
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
 }
 
 th {
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.75rem;
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--surface-hover);
+  letter-spacing: 0.1em;
+  padding: 1.1rem 1rem;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--surface-color);
+  white-space: nowrap;
 }
 
 td {
