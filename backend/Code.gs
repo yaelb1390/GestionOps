@@ -91,9 +91,10 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  var params = JSON.parse(e.postData.contents);
-  var action = params.action;
-  var ss = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit");
+  try {
+    var params = JSON.parse(e.postData.contents);
+    var action = params.action;
+    var ss = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit");
   
   if (action === 'update_status') {
     var sheet = ss.getSheetByName('Tickets');
@@ -110,7 +111,7 @@ function doPost(e) {
         if (remarksColIndex > -1) sheet.getRange(i + 1, remarksColIndex + 1).setValue(params.remarks);
         if (rootCauseColIndex > -1) sheet.getRange(i + 1, rootCauseColIndex + 1).setValue(params.rootCause);
         
-        // Manejo de Imágenes
+        // Manejo de Imágenes (Si existen)
         if (params.images && params.images.length > 0) {
           var evidenceColIndex = data[0].indexOf('evidence');
           if (evidenceColIndex === -1) {
@@ -119,8 +120,14 @@ function doPost(e) {
             sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
             evidenceColIndex = headers.length - 1;
           }
-          var imageUrls = saveImages(params.images, params.id);
-          sheet.getRange(i + 1, evidenceColIndex + 1).setValue(imageUrls);
+          try {
+            var imageUrls = saveImages(params.images, params.id);
+            if (imageUrls) {
+              sheet.getRange(i + 1, evidenceColIndex + 1).setValue(imageUrls);
+            }
+          } catch (imageErr) {
+            Logger.log("Error saving images for ticket " + params.id + ": " + imageErr.message);
+          }
         }
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
@@ -357,6 +364,8 @@ function doPost(e) {
       }
     }
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updated})).setMimeType(ContentService.MimeType.JSON);
+  } catch (globalErr) {
+    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": globalErr.message})).setMimeType(ContentService.MimeType.JSON);
   }
 }
 function saveImages(images, ticketId) {

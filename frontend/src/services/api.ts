@@ -57,6 +57,9 @@ export async function updateTicketStatus(id: number | string, newStatus: string,
     });
 
     const result = await response.json();
+    if (result.status !== "success") {
+      console.error("API Error updating status:", result.message);
+    }
     return result.status === "success";
   } catch (error) {
     console.error("Error updating ticket in Google Sheets:", error);

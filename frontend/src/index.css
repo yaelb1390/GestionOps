@@ -499,17 +499,18 @@ tbody tr:hover {
 /* Toast Notification */
 .toast-notification {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
+  bottom: 5.5rem;
+  right: 1.5rem;
+  left: 1.5rem;
   background: var(--surface-color);
   color: var(--text-main);
   padding: 1rem 1.5rem;
   border-radius: 12px;
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--border-color);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--border-color);
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  z-index: 9999;
+  z-index: 10000;
   animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   font-weight: 500;
   font-size: 0.95rem;
