@@ -14,6 +14,7 @@ export default function InspectorApp() {
   const [showToast, setShowToast] = useState(false);
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || 'Inspector Demo';
+  const [selectedResult, setSelectedResult] = useState('');
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
   const toggleTheme = () => {
@@ -83,11 +84,12 @@ export default function InspectorApp() {
           const success = await updateTicketStatus(selectedTicket.id, result, remarks, rootCause);
           setSubmitting(false);
 
-          if (success) {
-            displayToast('Inspección guardada', 'success'); 
-            setSelectedTicket(null); 
-            loadTickets(); // Recargar datos
-          } else {
+            if (success) {
+              displayToast('Inspección guardada', 'success'); 
+              setSelectedTicket(null); 
+              setSelectedResult(''); // Reset state
+              loadTickets(); 
+            } else {
             displayToast('Error al guardar. Intenta nuevamente.', 'error');
           }
         }}>
@@ -119,14 +121,35 @@ export default function InspectorApp() {
           <div className="input-group">
             <label>Resultado Inspección</label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <label style={{ flex: 1, padding: '0.75rem', border: '1px solid var(--secondary-color)', borderRadius: '8px', textAlign: 'center', color: 'var(--secondary-color)', cursor: 'pointer' }}>
-                <input type="radio" name="resultado" value="Aprobado" hidden /> Aprobado
+              <label style={{ 
+                flex: 1, padding: '0.75rem', 
+                border: '1px solid var(--secondary-color)', 
+                borderRadius: '8px', textAlign: 'center', 
+                color: selectedResult === 'Aprobado' ? 'white' : 'var(--secondary-color)', 
+                background: selectedResult === 'Aprobado' ? 'var(--secondary-color)' : 'transparent',
+                cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600
+              }}>
+                <input type="radio" name="resultado" value="Aprobado" hidden onChange={(e) => setSelectedResult(e.target.value)} /> Aprobado
               </label>
-              <label style={{ flex: 1, padding: '0.75rem', border: '1px solid var(--warning-color)', borderRadius: '8px', textAlign: 'center', color: 'var(--warning-color)', cursor: 'pointer' }}>
-                <input type="radio" name="resultado" value="Requiere corrección" hidden /> Requiere Corrección
+              <label style={{ 
+                flex: 1, padding: '0.75rem', 
+                border: '1px solid var(--warning-color)', 
+                borderRadius: '8px', textAlign: 'center', 
+                color: selectedResult === 'Requiere corrección' ? 'white' : 'var(--warning-color)', 
+                background: selectedResult === 'Requiere corrección' ? 'var(--warning-color)' : 'transparent',
+                cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600
+              }}>
+                <input type="radio" name="resultado" value="Requiere corrección" hidden onChange={(e) => setSelectedResult(e.target.value)} /> Requiere Corrección
               </label>
-              <label style={{ flex: 1, padding: '0.75rem', border: '1px solid var(--danger-color)', borderRadius: '8px', textAlign: 'center', color: 'var(--danger-color)', cursor: 'pointer' }}>
-                <input type="radio" name="resultado" value="Rechazado" hidden /> Rechazado
+              <label style={{ 
+                flex: 1, padding: '0.75rem', 
+                border: '1px solid var(--danger-color)', 
+                borderRadius: '8px', textAlign: 'center', 
+                color: selectedResult === 'Rechazado' ? 'white' : 'var(--danger-color)', 
+                background: selectedResult === 'Rechazado' ? 'var(--danger-color)' : 'transparent',
+                cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600
+              }}>
+                <input type="radio" name="resultado" value="Rechazado" hidden onChange={(e) => setSelectedResult(e.target.value)} /> Rechazado
               </label>
             </div>
           </div>
