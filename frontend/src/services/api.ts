@@ -11,6 +11,7 @@ export interface Ticket {
   sector: string;
   priority: string;
   status: string;
+  evidence?: string;
 }
 
 export async function fetchTickets(): Promise<Ticket[]> {
@@ -33,10 +34,10 @@ export async function fetchTickets(): Promise<Ticket[]> {
   }
 }
 
-export async function updateTicketStatus(id: number | string, newStatus: string, remarks?: string, rootCause?: string): Promise<boolean> {
+export async function updateTicketStatus(id: number | string, newStatus: string, remarks?: string, rootCause?: string, images: string[] = []): Promise<boolean> {
   try {
     if (SCRIPT_URL === "URL_DE_TU_GOOGLE_APPS_SCRIPT_AQUI") {
-      console.log(`[MOCK] Ticket ${id} actualizado a ${newStatus}. Observaciones: ${remarks}`);
+      console.log(`[MOCK] Ticket ${id} actualizado a ${newStatus}. Imágenes: ${images.length}`);
       return true;
     }
 
@@ -47,7 +48,8 @@ export async function updateTicketStatus(id: number | string, newStatus: string,
         id: id,
         status: newStatus,
         remarks: remarks || "",
-        rootCause: rootCause || ""
+        rootCause: rootCause || "",
+        images: images
       }),
       headers: {
         "Content-Type": "text/plain;charset=utf-8",

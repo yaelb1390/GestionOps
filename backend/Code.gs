@@ -109,6 +109,20 @@ function doPost(e) {
         if (statusColIndex > -1) sheet.getRange(i + 1, statusColIndex + 1).setValue(params.status);
         if (remarksColIndex > -1) sheet.getRange(i + 1, remarksColIndex + 1).setValue(params.remarks);
         if (rootCauseColIndex > -1) sheet.getRange(i + 1, rootCauseColIndex + 1).setValue(params.rootCause);
+        
+        // Manejo de Imágenes
+        if (params.images && params.images.length > 0) {
+          var evidenceColIndex = data[0].indexOf('evidence');
+          if (evidenceColIndex === -1) {
+            var headers = data[0];
+            headers.push('evidence');
+            sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+            evidenceColIndex = headers.length - 1;
+          }
+          var imageUrls = saveImages(params.images, params.id);
+          sheet.getRange(i + 1, evidenceColIndex + 1).setValue(imageUrls);
+        }
+        
         return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
       }
     }
@@ -344,4 +358,29 @@ function doPost(e) {
     }
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updated})).setMimeType(ContentService.MimeType.JSON);
   }
+}
+function saveImages(images, ticketId) {
+  if (!images || images.length === 0) return "";
+  var folderName = "Evidencias Claro";
+  var folders = DriveApp.getFoldersByName(folderName);
+  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  
+  var links = [];
+  for (var i = 0; i < images.length; i++) {
+    try {
+      var parts = images[i].split(',');
+      if (parts.length < 2) continue;
+      var base64Data = parts[1];
+      var contentType = parts[0].split(';')[0].split(':')[1];
+      var extension = contentType.split('/')[1] || "jpg";
+      
+      var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), contentType, "Ticket_" + ticketId + "_" + i + "." + extension);
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      links.push(file.getUrl());
+    } catch (e) {
+      Logger.log("Error saving image: " + e.message);
+    }
+  }
+  return links.join(", ");
 }

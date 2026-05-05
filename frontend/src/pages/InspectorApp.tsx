@@ -15,6 +15,7 @@ export default function InspectorApp() {
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || 'Inspector Demo';
   const [selectedResult, setSelectedResult] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
   const toggleTheme = () => {
@@ -31,6 +32,23 @@ export default function InspectorApp() {
     setTimeout(() => {
       setShowToast(false);
     }, 3000);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImages(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -81,15 +99,16 @@ export default function InspectorApp() {
           
           if(!result) { displayToast("Seleccione un resultado", "error"); setSubmitting(false); return; }
 
-          const success = await updateTicketStatus(selectedTicket.id, result, remarks, rootCause);
+          const success = await updateTicketStatus(selectedTicket.id, result, remarks, rootCause, images);
           setSubmitting(false);
 
-            if (success) {
-              displayToast('Inspección guardada', 'success'); 
-              setSelectedTicket(null); 
-              setSelectedResult(''); // Reset state
-              loadTickets(); 
-            } else {
+          if (success) {
+            displayToast('Inspección guardada', 'success'); 
+            setSelectedTicket(null); 
+            setSelectedResult('');
+            setImages([]); // Limpiar imágenes
+            loadTickets(); 
+          } else {
             displayToast('Error al guardar. Intenta nuevamente.', 'error');
           }
         }}>
@@ -112,10 +131,30 @@ export default function InspectorApp() {
           </div>
 
           <div className="input-group">
-            <label>Evidencia Fotográfica</label>
-            <button type="button" className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-              <Camera size={18} /> Tomar Foto
-            </button>
+            <label>Evidencia Fotográfica ({images.length})</label>
+            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
+              {images.map((img, idx) => (
+                <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
+                  <img src={img} alt={`Evidencia ${idx}`} style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover', border: '2px solid var(--border-color)' }} />
+                  <button 
+                    type="button" 
+                    onClick={() => removeImage(idx)}
+                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger-color)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              <label style={{ 
+                width: '80px', height: '80px', borderRadius: '12px', border: '2px dashed var(--border-color)', 
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+                cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0
+              }}>
+                <Camera size={24} />
+                <span style={{ fontSize: '10px', marginTop: '4px' }}>Agregar</span>
+                <input type="file" accept="image/*" capture="environment" multiple hidden onChange={handleImageChange} />
+              </label>
+            </div>
           </div>
 
           <div className="input-group">
