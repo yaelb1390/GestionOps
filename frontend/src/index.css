@@ -201,13 +201,22 @@ button {
 }
 
 .nav-item:hover, .nav-item.active {
-  background: var(--surface-hover);
-  color: var(--primary-color);
+  background: var(--primary-color);
+  color: white;
+  box-shadow: 0 4px 12px var(--primary-glow);
 }
 
-.nav-item.active {
-  background: rgba(218, 41, 28, 0.05);
-  border-left: 3px solid var(--primary-color);
+.nav-badge {
+  margin-left: auto;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.nav-item.active .nav-badge {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* Data Table */

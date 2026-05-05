@@ -132,13 +132,13 @@ export default function AdminDashboard() {
             <LayoutDashboard size={20} /> Dashboard
           </button>
           <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
-            <FileText size={20} /> Tickets
+            <FileText size={20} /> Tickets <span className="nav-badge">{tickets.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
-            <Users size={20} /> Personal
+            <Users size={20} /> Personal <span className="nav-badge">{inspectors.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'codigos' ? 'active' : ''}`} onClick={() => setActiveTab('codigos')}>
-            <BookOpen size={20} /> Código Razón Cliente
+            <BookOpen size={20} /> Código Razón Cliente <span className="nav-badge">{razones.length}</span>
           </button>
           <div style={{ flex: 1 }}></div>
           <button className="nav-item" onClick={toggleTheme} style={{ marginBottom: '0.5rem' }}>
@@ -157,9 +157,9 @@ export default function AdminDashboard() {
           <div>
             <h1 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
-               activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Gestión de Tickets</> : 
-               activeTab === 'codigos' ? <><BookOpen size={28} color="var(--primary-color)" /> Código Razón Cliente</> :
-               <><Users size={28} color="var(--primary-color)" /> Directorio de Personal</>}
+               activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Gestión de Tickets ({tickets.length})</> : 
+               activeTab === 'codigos' ? <><BookOpen size={28} color="var(--primary-color)" /> Código Razón Cliente ({razones.length})</> :
+               <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
           </div>
@@ -213,6 +213,13 @@ export default function AdminDashboard() {
                 <div className="kpi-info">
                   <h3>Requieren Corrección</h3>
                   <p>{tickets.filter(t => t.status === 'Requiere corrección').length}</p>
+                </div>
+              </div>
+              <div className="glass-panel kpi-card">
+                <div className="kpi-icon blue"><BookOpen /></div>
+                <div className="kpi-info">
+                  <h3>Casos Razón Cliente</h3>
+                  <p>{razones.length}</p>
                 </div>
               </div>
             </div>
@@ -753,7 +760,7 @@ export default function AdminDashboard() {
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <BookOpen size={20} color="var(--primary-color)" /> Códigos de Razón de Cliente
+                <BookOpen size={20} color="var(--primary-color)" /> Códigos de Razón de Cliente ({razones.length})
               </h3>
               
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>

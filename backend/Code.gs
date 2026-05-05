@@ -364,7 +364,8 @@ function doPost(e) {
       }
     }
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updated})).setMimeType(ContentService.MimeType.JSON);
-  } catch (globalErr) {
+  } 
+} catch (globalErr) {
     return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": globalErr.message})).setMimeType(ContentService.MimeType.JSON);
   }
 }
