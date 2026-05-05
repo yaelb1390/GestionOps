@@ -120,6 +120,12 @@ export default function AdminDashboard() {
     return matchesSearch && matchesSupervisor;
   });
   
+  const handleLogout = () => {
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('inspectorName');
+    navigate('/login');
+  };
+
   return (
     <div className="app-container">
       {/* Sidebar */}
@@ -145,7 +151,7 @@ export default function AdminDashboard() {
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             {theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
           </button>
-          <button className="nav-item" onClick={() => navigate('/login')} style={{ color: 'var(--danger-color)' }}>
+          <button className="nav-item" onClick={handleLogout} style={{ color: 'var(--danger-color)' }}>
             <LogOut size={20} /> Salir
           </button>
         </nav>

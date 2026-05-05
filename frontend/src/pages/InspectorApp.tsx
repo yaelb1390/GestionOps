@@ -13,7 +13,7 @@ export default function InspectorApp() {
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [showToast, setShowToast] = useState(false);
   const navigate = useNavigate();
-  const inspectorName = localStorage.getItem('inspectorName') || 'Inspector Demo';
+  const inspectorName = localStorage.getItem('inspectorName') || '';
   const [selectedResult, setSelectedResult] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
@@ -23,6 +23,12 @@ export default function InspectorApp() {
     setTheme(newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('inspectorName');
+    navigate('/login');
   };
 
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
@@ -216,7 +222,7 @@ export default function InspectorApp() {
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
             <button 
-              onClick={() => navigate('/login')}
+              onClick={handleLogout}
               style={{ padding: '0.5rem', borderRadius: '12px', background: 'rgba(218, 41, 28, 0.1)', border: '1px solid rgba(218, 41, 28, 0.2)', color: 'var(--primary-color)' }}
             >
               <LogOut size={20} />

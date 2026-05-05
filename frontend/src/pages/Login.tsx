@@ -18,6 +18,7 @@ export default function Login() {
 
     if (role === 'admin') {
       if (username === 'admin' && password === 'admin123') {
+        localStorage.setItem('userRole', 'admin');
         navigate('/admin');
       } else {
         setError('Usuario o contraseña de administrador incorrectos');
@@ -29,6 +30,7 @@ export default function Login() {
         const inspector = inspectors.find(i => String(i.usuario) === String(username) && String(i.password) === String(password) && i.estado === 'Activo');
         
         if (inspector) {
+          localStorage.setItem('userRole', 'inspector');
           localStorage.setItem('inspectorName', inspector.nombre); // Para filtrar tickets
           navigate('/inspector');
         } else {
