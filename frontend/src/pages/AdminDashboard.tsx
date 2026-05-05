@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { 
   Activity, LayoutDashboard, Users, FileText, BookOpen,
-  LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2
+  LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2,
+  Sun, Moon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -36,6 +37,14 @@ export default function AdminDashboard() {
   const [showToast, setShowToast] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
+  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
 
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
     setToastMessage(msg);
@@ -132,6 +141,10 @@ export default function AdminDashboard() {
             <BookOpen size={20} /> Código Razón Cliente
           </button>
           <div style={{ flex: 1 }}></div>
+          <button className="nav-item" onClick={toggleTheme} style={{ marginBottom: '0.5rem' }}>
+            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            {theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}
+          </button>
           <button className="nav-item" onClick={() => navigate('/login')} style={{ color: 'var(--danger-color)' }}>
             <LogOut size={20} /> Salir
           </button>
@@ -338,14 +351,18 @@ export default function AdminDashboard() {
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
                 const sharePct = totalCases > 0 ? Math.round((d.casos / totalCases) * 100) : 0;
+                const tooltipBg = theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(30,41,59,0.97)';
+                const tooltipText = theme === 'light' ? '#111827' : '#f8fafc';
+                const subText = theme === 'light' ? '#9ca3af' : '#94a3b8';
+
                 return (
-                  <div style={{ background: 'rgba(255,255,255,0.97)', border: `1px solid ${d.color}30`, borderRadius: '14px', padding: '0.85rem 1.1rem', boxShadow: `0 0 20px ${d.color}22, 0 8px 24px rgba(0,0,0,0.1)`, backdropFilter: 'blur(12px)', minWidth: 160 }}>
+                  <div style={{ background: tooltipBg, border: `1px solid ${d.color}30`, borderRadius: '14px', padding: '0.85rem 1.1rem', boxShadow: `0 0 20px ${d.color}22, 0 8px 24px rgba(0,0,0,0.1)`, backdropFilter: 'blur(12px)', minWidth: 160 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, boxShadow: `0 0 6px ${d.color}` }} />
-                      <span style={{ color: '#111827', fontWeight: 700, fontSize: '0.82rem' }}>{d.fullName}</span>
+                      <span style={{ color: tooltipText, fontWeight: 700, fontSize: '0.82rem' }}>{d.fullName}</span>
                     </div>
                     <div style={{ color: d.color, fontWeight: 900, fontSize: '1.5rem', lineHeight: 1 }}>{d.casos}</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.72rem', marginTop: 3 }}>casos · <span style={{ color: '#6b7280' }}>{sharePct}% del total</span></div>
+                    <div style={{ color: subText, fontSize: '0.72rem', marginTop: 3 }}>casos · <span style={{ color: theme === 'light' ? '#6b7280' : '#cbd5e1' }}>{sharePct}% del total</span></div>
                   </div>
                 );
               };
@@ -355,14 +372,18 @@ export default function AdminDashboard() {
                 const d = payload[0];
                 const c = (d.payload as any).color;
                 const pct = totalCases > 0 ? Math.round((d.value / totalCases) * 100) : 0;
+                const tooltipBg = theme === 'light' ? 'rgba(255,255,255,0.97)' : 'rgba(30,41,59,0.97)';
+                const tooltipText = theme === 'light' ? '#111827' : '#f8fafc';
+                const subText = theme === 'light' ? '#9ca3af' : '#94a3b8';
+
                 return (
-                  <div style={{ background: 'rgba(255,255,255,0.97)', border: `1px solid ${c}30`, borderRadius: '14px', padding: '0.85rem 1.1rem', boxShadow: `0 0 20px ${c}22, 0 8px 24px rgba(0,0,0,0.1)`, backdropFilter: 'blur(12px)' }}>
+                  <div style={{ background: tooltipBg, border: `1px solid ${c}30`, borderRadius: '14px', padding: '0.85rem 1.1rem', boxShadow: `0 0 20px ${c}22, 0 8px 24px rgba(0,0,0,0.1)`, backdropFilter: 'blur(12px)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}` }} />
-                      <span style={{ color: '#111827', fontWeight: 700, fontSize: '0.82rem' }}>{d.name}</span>
+                      <span style={{ color: tooltipText, fontWeight: 700, fontSize: '0.82rem' }}>{d.name}</span>
                     </div>
                     <div style={{ color: c, fontWeight: 900, fontSize: '1.5rem', lineHeight: 1 }}>{d.value}</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.72rem', marginTop: 3 }}>casos · <span style={{ color: '#6b7280' }}>{pct}% del total</span></div>
+                    <div style={{ color: subText, fontSize: '0.72rem', marginTop: 3 }}>casos · <span style={{ color: theme === 'light' ? '#6b7280' : '#cbd5e1' }}>{pct}% del total</span></div>
                   </div>
                 );
               };
@@ -444,8 +465,8 @@ export default function AdminDashboard() {
                             ))}
                           </Pie>
                           <text x="50%" y="40%" textAnchor="middle">
-                            <tspan x="50%" dy="-6" fontSize="22" fontWeight="900" fill="#111827">{totalCases}</tspan>
-                            <tspan x="50%" dy="20" fontSize="9" fill="#9ca3af" letterSpacing="0.1em">TOTAL CASOS</tspan>
+                            <tspan x="50%" dy="-6" fontSize="22" fontWeight="900" fill={theme === 'light' ? '#111827' : '#f1f5f9'}>{totalCases}</tspan>
+                            <tspan x="50%" dy="20" fontSize="9" fill={theme === 'light' ? '#9ca3af' : '#94a3b8'} letterSpacing="0.1em">TOTAL CASOS</tspan>
                           </text>
                           <Tooltip content={<CustomTooltipPie />} />
                           <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: '0.71rem', paddingTop: '6px' }} formatter={(v) => <span style={{ color: 'var(--text-muted)' }}>{v}</span>} />

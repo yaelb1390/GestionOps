@@ -23,6 +23,22 @@
   --font-family: 'Inter', sans-serif;
 }
 
+[data-theme='dark'] {
+  --bg-color: #0f172a;
+  --surface-color: #1e293b;
+  --surface-hover: #334155;
+  
+  --primary-color: #ef4444; 
+  --primary-glow: rgba(239, 68, 68, 0.3);
+  
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

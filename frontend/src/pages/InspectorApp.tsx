@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClipboardList, CheckCircle, Camera, AlertTriangle, ChevronRight, X, LogOut, Loader2, User } from 'lucide-react';
+import { ClipboardList, CheckCircle, Camera, AlertTriangle, ChevronRight, X, LogOut, Loader2, Sun, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTickets, updateTicketStatus, type Ticket } from '../services/api';
 
@@ -14,6 +14,14 @@ export default function InspectorApp() {
   const [showToast, setShowToast] = useState(false);
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || 'Inspector Demo';
+  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
 
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
     setToastMessage(msg);
@@ -133,15 +141,26 @@ export default function InspectorApp() {
 
   return (
     <div className="mobile-view">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingTop: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><User size={24} color="var(--primary-color)" /> Inspector</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{inspectorName}</p>
-        </div>
-        <button onClick={() => navigate('/login')} style={{ background: 'transparent', color: 'var(--danger-color)' }}>
-          <LogOut size={24} />
-        </button>
-      </div>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div>
+            <h1 style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 700 }}>Hola, {inspectorName.split(' ')[0]}</h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gestiona tus inspecciones diarias</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              onClick={toggleTheme}
+              style={{ padding: '0.5rem', borderRadius: '12px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
+            >
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+            <button 
+              onClick={() => navigate('/login')}
+              style={{ padding: '0.5rem', borderRadius: '12px', background: 'rgba(218, 41, 28, 0.1)', border: '1px solid rgba(218, 41, 28, 0.2)', color: 'var(--primary-color)' }}
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
+        </header>
 
       <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><ClipboardList size={20} color="var(--primary-color)" /> Tickets Asignados</h3>
 
