@@ -1,4 +1,4 @@
-export const SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbw5ZVODZMur-NiBUHcw73txQtOt7FjhVif2burD_Ys8tMFCuBLvmfpT5yQDqEHQgK8O2Q/exec"; // Reemplazar con la URL del Web App de Google
+export const SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbwAkYRYJnsXWZYurVKLgR4jrdfFf1tCfPyHawXMJPrpdGpSHhKuSTf1HhATCCbKQz6_Hg/exec"; // Reemplazar con la URL del Web App de Google
 
 export interface Ticket {
   id: number | string;
@@ -113,53 +113,6 @@ export async function assignTicketsBySupervisor(supervisor: string, tech_id: str
   }
 }
 
-export async function assignRazonesBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_razones_by_supervisor",
-        supervisor: supervisor,
-        tech_id: tech_id, // inspector id
-        tech_name: tech_name // inspector name
-      }),
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      }
-    });
-
-    const result = await response.json();
-    return result.status === "success" ? result.updated : 0;
-  } catch (error) {
-    console.error("Error bulk assigning razones:", error);
-    return 0;
-  }
-}
-
-export async function assignRazonIndividual(caso: string | number, tech_id: string, tech_name: string): Promise<boolean> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_razon_individual",
-        caso: caso,
-        tech_id: tech_id, // inspector id
-        tech_name: tech_name // inspector name
-      }),
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      }
-    });
-
-    const result = await response.json();
-    return result.status === "success";
-  } catch (error) {
-    console.error("Error assigning razon:", error);
-    return false;
-  }
-}
-
-
 export interface Inspector {
   id: string;
   nombre: string;
@@ -167,6 +120,8 @@ export interface Inspector {
   estado: string;
   usuario?: string;
   password?: string;
+  rol?: 'Admin' | 'Inspector';
+  correo_recuperacion?: string;
 }
 
 export const fetchInspectors = async (): Promise<Inspector[]> => {
@@ -180,11 +135,11 @@ export const fetchInspectors = async (): Promise<Inspector[]> => {
   }
 };
 
-export const createInspector = async (nombre: string, sector: string, usuario: string, password: string): Promise<boolean> => {
+export const createInspector = async (nombre: string, sector: string, usuario: string, password: string, rol: string = 'Inspector', correo_recuperacion: string = ''): Promise<boolean> => {
   try {
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'add_inspector', nombre, sector, usuario, password }),
+      body: JSON.stringify({ action: 'add_inspector', nombre, sector, usuario, password, rol, correo_recuperacion }),
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }
     });
     const data = await res.json();
@@ -240,24 +195,95 @@ export const autoAssignTickets = async (): Promise<{success: boolean, updated: n
   }
 };
 
-export interface RazonCliente {
-  Casos?: string;
-  'Tarjeta del Ejecutor'?: string;
-  'Nombre del Ejecutor'?: string;
-  'Inspector ID'?: string | number;
-  'Nombre del Inspector'?: string;
-  'Nombre del Supervisor'?: string;
-  Localidad?: string;
-  Descripcion?: string;
-}
+export const fetchConfig = async (): Promise<any> => {
+  try {
+    const res = await fetch(`${SCRIPT_URL}?type=config`);
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching config:", error);
+    return {};
+  }
+};
 
-export const fetchRazones = async (): Promise<RazonCliente[]> => {
+export const updateAdminProfile = async (username: string, password: string, recovery_email: string): Promise<boolean> => {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update_admin_profile', username, password, recovery_email }),
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    });
+    const data = await res.json();
+    return data.status === 'success';
+  } catch (error) {
+    console.error("Error updating admin profile:", error);
+    return false;
+  }
+};
+
+export const fetchCalidad = async (): Promise<any[]> => {
+  try {
+    const res = await fetch(`${SCRIPT_URL}?type=calidad`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Error fetching calidad data:", error);
+    return [];
+  }
+};
+
+export const fetchRazones = async (): Promise<any[]> => {
   try {
     const res = await fetch(`${SCRIPT_URL}?type=razones`);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("Error fetching razones:", error);
+    console.error("Error fetching razones data:", error);
     return [];
   }
 };
+
+export async function assignCalidadBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_calidad_by_supervisor",
+        supervisor: supervisor,
+        tech_id: tech_id, // inspector id
+        tech_name: tech_name // inspector name
+      })
+    });
+
+    const result = await response.json();
+    if (result.status !== "success") {
+      throw new Error(result.message || "Error desconocido en la asignación masiva");
+    }
+    return result.updated;
+  } catch (error: any) {
+    console.error("Error bulk assigning calidad:", error);
+    throw error;
+  }
+}
+
+export async function assignCalidadIndividual(technician: string, tech_id: string, tech_name: string): Promise<boolean> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_calidad_individual",
+        technician: technician,
+        tech_id: tech_id, // inspector id
+        tech_name: tech_name // inspector name
+      })
+    });
+
+    const result = await response.json();
+    if (result.status !== "success") {
+      throw new Error(result.message || "Error al asignar técnico individual");
+    }
+    return true;
+  } catch (error: any) {
+    console.error("Error assigning individual calidad:", error);
+    throw error;
+  }
+}

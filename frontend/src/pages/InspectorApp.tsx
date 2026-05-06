@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ClipboardList, CheckCircle, Camera, AlertTriangle, ChevronRight, X, LogOut, Loader2, Sun, Moon } from 'lucide-react';
+import { ClipboardList, CheckCircle, Camera, AlertTriangle, ChevronRight, X, LogOut, Loader2, Sun, Moon, RotateCcw, User, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, updateTicketStatus, type Ticket } from '../services/api';
+import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad } from '../services/api';
 
 export default function InspectorApp() {
   const [activeTab, setActiveTab] = useState('pendientes');
@@ -12,6 +12,8 @@ export default function InspectorApp() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [showToast, setShowToast] = useState(false);
+  const [calidadAssignments, setCalidadAssignments] = useState<any[]>([]);
+  const [loadingCalidad, setLoadingCalidad] = useState(false);
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || '';
   const [selectedResult, setSelectedResult] = useState('');
@@ -59,7 +61,15 @@ export default function InspectorApp() {
 
   useEffect(() => {
     loadTickets();
+    loadCalidadAssignments();
   }, []);
+
+  const loadCalidadAssignments = async () => {
+    setLoadingCalidad(true);
+    const data = await fetchCalidad();
+    setCalidadAssignments(data);
+    setLoadingCalidad(false);
+  };
 
   const loadTickets = async () => {
     setLoading(true);
@@ -230,7 +240,13 @@ export default function InspectorApp() {
           </div>
         </header>
 
-      <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><ClipboardList size={20} color="var(--primary-color)" /> Tickets Asignados</h3>
+      <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {activeTab === 'repetidas' ? (
+          <><RotateCcw size={20} color="var(--primary-color)" /> Tecnico averia repetida</>
+        ) : (
+          <><ClipboardList size={20} color="var(--primary-color)" /> Tickets Asignados</>
+        )}
+      </h3>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: 'var(--primary-color)' }}>
@@ -238,44 +254,100 @@ export default function InspectorApp() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {tickets.filter(t => {
-            const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
-            if (activeTab === 'pendientes') return (t.status === 'Pendiente' || t.status === 'Asignado') && isMine;
-            if (activeTab === 'completadas') return (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado') && isMine;
-            if (activeTab === 'mis_tickets') return isMine;
-            return false;
-          }).map(t => (
-            <div key={t.id} className="mobile-card" style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', padding: '1.25rem', gap: '0.75rem' }} onClick={() => setSelectedTicket(t)}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
-                  TICKET
-                </div>
-                <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{t.ticket}</div>
-              </div>
-              <ChevronRight color="var(--text-muted)" size={20} />
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '0.25rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(218, 41, 28, 0.1)', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
-                    {String(t.tech_id || t.tech || 'T').charAt(0).toUpperCase()}
+          {(activeTab === 'pendientes' || activeTab === 'completadas' || activeTab === 'mis_tickets') && (
+            <>
+              {tickets.filter(t => {
+                const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
+                if (activeTab === 'pendientes') return (t.status === 'Pendiente' || t.status === 'Asignado') && isMine;
+                if (activeTab === 'completadas') return (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado') && isMine;
+                if (activeTab === 'mis_tickets') return isMine;
+                return false;
+              }).map(t => (
+                <div key={t.id} className="mobile-card" style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', padding: '1.25rem', gap: '0.75rem' }} onClick={() => setSelectedTicket(t)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+                        TICKET
+                      </div>
+                      <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{t.ticket}</div>
+                    </div>
+                    <ChevronRight color="var(--text-muted)" size={20} />
                   </div>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>{t.tech_id || t.tech}</span>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '0.25rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(218, 41, 28, 0.1)', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
+                          {String(t.tech_id || t.tech || 'T').charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>{t.tech_id || t.tech}</span>
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--secondary-color)', display: 'inline-block' }}></span> {t.sector}
+                      </div>
+                    </div>
+                    <div>
+                      <span className={`badge ${t.priority === 'Alta' ? 'danger' : 'warning'}`}>{t.priority}</span>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--secondary-color)', display: 'inline-block' }}></span> {t.sector}
-                </div>
-              </div>
-              <div>
-                <span className={`badge ${t.priority === 'Alta' ? 'danger' : 'warning'}`}>{t.priority}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-        {tickets.length === 0 && <p style={{textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem'}}>No hay tickets</p>}
-      </div>
+              ))}
+              {tickets.filter(t => {
+                const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
+                if (activeTab === 'pendientes') return (t.status === 'Pendiente' || t.status === 'Asignado') && isMine;
+                if (activeTab === 'completadas') return (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado') && isMine;
+                if (activeTab === 'mis_tickets') return isMine;
+                return false;
+              }).length === 0 && <p style={{textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem'}}>No hay tickets en esta sección</p>}
+            </>
+          )}
+
+          {activeTab === 'repetidas' && (
+            <>
+              {calidadAssignments
+                .filter(c => {
+                  const inspectorKey = Object.keys(c).find(k => k.toLowerCase().trim() === 'inspector') || 'Inspector';
+                  const inspectorIdKey = Object.keys(c).find(k => k.toLowerCase().trim() === 'inspector id') || 'Inspector ID';
+                  return c[inspectorKey] === inspectorName || c[inspectorIdKey] == inspectorName;
+                })
+                .map((c, idx) => {
+                  const percVal = c['% Repetidas'] || c['Porcentaje'] || '0%';
+                  const numVal = parseFloat(String(percVal).replace('%', ''));
+                  const cardColor = numVal < 7 ? '#10b981' : numVal < 15 ? '#f59e0b' : '#ef4444';
+                  const badgeClass = numVal < 7 ? 'success' : numVal < 15 ? 'warning' : 'danger';
+
+                  return (
+                    <div key={idx} className="mobile-card" style={{ borderLeft: `4px solid ${cardColor}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Users size={18} color="var(--primary-color)" />
+                          <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{c['Nombre'] || c['Nombre del Técnico'] || c['Técnico']}</span>
+                        </div>
+                        <span className={`badge ${badgeClass}`}>Repetidas</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div>
+                          <label style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>% Repetidas</label>
+                          <span style={{ fontWeight: 'bold', color: cardColor, fontSize: '1.1rem' }}>{percVal}</span>
+                        </div>
+                        <div>
+                          <label style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>Supervisor</label>
+                          <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{c['Supervisor'] || c['Nombre del Supervisor'] || '-'}</span>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <AlertTriangle size={14} color="var(--warning-color)" />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Seguimiento requerido por alto índice de fallas.</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              {calidadAssignments.filter(c => c['Inspector'] === inspectorName || c['Inspector ID'] == inspectorName).length === 0 && (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No tienes técnicos asignados para seguimiento.</p>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {/* Bottom Navigation */}
@@ -284,9 +356,9 @@ export default function InspectorApp() {
           <AlertTriangle size={24} />
           <span>Pendientes</span>
         </button>
-        <button className={`bottom-nav-item ${activeTab === 'completadas' ? 'active' : ''}`} onClick={() => setActiveTab('completadas')}>
-          <CheckCircle size={24} />
-          <span>Completadas</span>
+        <button className={`bottom-nav-item ${activeTab === 'repetidas' ? 'active' : ''}`} onClick={() => setActiveTab('repetidas')}>
+          <RotateCcw size={24} />
+          <span>Repetidas</span>
         </button>
         <button className={`bottom-nav-item ${activeTab === 'mis_tickets' ? 'active' : ''}`} onClick={() => setActiveTab('mis_tickets')}>
           <ClipboardList size={24} />

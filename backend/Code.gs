@@ -32,12 +32,14 @@ function doGet(e) {
       var needsHeaderUpdate = false;
       if(headers.indexOf('usuario') === -1) { headers.push('usuario'); needsHeaderUpdate = true; }
       if(headers.indexOf('password') === -1) { headers.push('password'); needsHeaderUpdate = true; }
+      if(headers.indexOf('rol') === -1) { headers.push('rol'); needsHeaderUpdate = true; }
+      if(headers.indexOf('correo_recuperacion') === -1) { headers.push('correo_recuperacion'); needsHeaderUpdate = true; }
       if(needsHeaderUpdate) {
          sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
          data = sheet.getDataRange().getValues(); 
       }
     } else {
-      sheet.appendRow(['id', 'nombre', 'usuario', 'password', 'sector', 'estado']);
+      sheet.appendRow(['id', 'nombre', 'usuario', 'password', 'sector', 'estado', 'rol', 'correo_recuperacion']);
       data = sheet.getDataRange().getValues();
     }
 
@@ -83,6 +85,52 @@ function doGet(e) {
       }
       // Solo agregamos si hay al menos una propiedad, y evitamos filas totalmente vacías
       if(Object.keys(obj).length > 0 && row.join("").trim() !== "") {
+        results.push(obj);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
+  }
+  else if (type === 'config') {
+    var sheet = ss.getSheetByName('Config');
+    if (!sheet) {
+      sheet = ss.insertSheet('Config');
+      sheet.appendRow(['param', 'value']);
+      sheet.appendRow(['admin_username', 'admin']);
+      sheet.appendRow(['admin_password', 'admin123']);
+      sheet.appendRow(['admin_recovery_email', '']);
+    }
+    var data = sheet.getDataRange().getValues();
+    var config = {};
+    for (var i = 1; i < data.length; i++) {
+      config[data[i][0]] = data[i][1];
+    }
+    return ContentService.createTextOutput(JSON.stringify(config)).setMimeType(ContentService.MimeType.JSON);
+  }
+  else if (type === 'calidad') {
+    var sheets = ss.getSheets();
+    var sheet = null;
+    for (var k = 0; k < sheets.length; k++) {
+      if (sheets[k].getSheetId() == 1724783398) {
+        sheet = sheets[k];
+        break;
+      }
+    }
+    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var data = sheet.getDataRange().getValues();
+    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var headers = data[0];
+    var results = [];
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var obj = {};
+      for (var j = 0; j < headers.length; j++) {
+        if (row[j] !== "" && row[j] !== null) {
+          obj[headers[j]] = row[j];
+        }
+      }
+      if (Object.keys(obj).length > 0) {
         results.push(obj);
       }
     }
@@ -249,11 +297,100 @@ function doPost(e) {
     }
   }
 
+  if (action === 'assign_calidad_by_supervisor' || action === 'assign_calidad_individual') {
+    try {
+      var sheet = null;
+      var sheets = ss.getSheets();
+      for (var k = 0; k < sheets.length; k++) {
+        if (sheets[k].getSheetId() == 1724783398) {
+          sheet = sheets[k];
+          break;
+        }
+      }
+      
+      if(!sheet) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Hoja de calidad no encontrada"})).setMimeType(ContentService.MimeType.JSON);
+
+      var data = sheet.getDataRange().getValues();
+      var headers = data[0];
+      
+      var inspectorIdCol = headers.indexOf('Inspector ID');
+      var inspectorNameCol = headers.indexOf('Inspector');
+      var needsHeaderUpdate = false;
+      if (inspectorIdCol === -1) { headers.push('Inspector ID'); inspectorIdCol = headers.length - 1; needsHeaderUpdate = true; }
+      if (inspectorNameCol === -1) { headers.push('Inspector'); inspectorNameCol = headers.length - 1; needsHeaderUpdate = true; }
+      if (needsHeaderUpdate) {
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        data = sheet.getDataRange().getValues();
+      }
+
+      // Helper to normalize strings
+      var normalize = function(str) {
+        if (!str) return "";
+        var s = String(str).toLowerCase().trim();
+        try {
+          s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        } catch(e) {
+          // Fallback if normalize is not supported
+          s = s.replace(/[áàäâ]/g, "a").replace(/[éèëê]/g, "e").replace(/[íìïî]/g, "i").replace(/[óòöô]/g, "o").replace(/[úùüû]/g, "u").replace(/ñ/g, "n");
+        }
+        return s;
+      };
+
+      var supervisorCol = -1;
+      var techCol = -1;
+
+      for (var j = 0; j < headers.length; j++) {
+        var h = normalize(headers[j]);
+        if (h === 'supervisor' || h === 'nombre del supervisor') supervisorCol = j;
+        if (h === 'tecnico' || h === 'nombre del tecnico' || h === 'nombre') techCol = j;
+      }
+
+      if(action === 'assign_calidad_by_supervisor') {
+        var updatedCount = 0;
+        var targetSup = normalize(params.supervisor);
+        
+        if (supervisorCol === -1) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Columna Supervisor no encontrada. Encabezados: " + headers.join(",")})).setMimeType(ContentService.MimeType.JSON);
+
+        for (var i = 1; i < data.length; i++) {
+          var rowSup = normalize(data[i][supervisorCol]);
+          if (rowSup === targetSup) {
+            sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
+            sheet.getRange(i + 1, inspectorNameCol + 1).setValue(params.tech_name);
+            updatedCount++;
+          }
+        }
+        if (updatedCount === 0) {
+          var sample = [];
+          for(var m=1; m<Math.min(data.length, 5); m++) sample.push(data[m][supervisorCol]);
+          return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "0 técnicos encontrados para " + params.supervisor + ". Muestras: " + sample.join(",")})).setMimeType(ContentService.MimeType.JSON);
+        }
+        return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updatedCount})).setMimeType(ContentService.MimeType.JSON);
+      } 
+      else if (action === 'assign_calidad_individual') {
+        var targetTech = normalize(params.technician);
+        
+        if (techCol === -1) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Columna Técnico no encontrada"})).setMimeType(ContentService.MimeType.JSON);
+
+        for (var i = 1; i < data.length; i++) {
+          var rowTech = normalize(data[i][techCol]);
+          if (rowTech === targetTech) {
+            sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
+            sheet.getRange(i + 1, inspectorNameCol + 1).setValue(params.tech_name);
+            return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+        return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Técnico no encontrado: " + params.technician})).setMimeType(ContentService.MimeType.JSON);
+      }
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Error interno: " + err.toString()})).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   if (action === 'add_inspector') {
     var sheet = ss.getSheetByName('Inspectores');
     if (!sheet) {
       sheet = ss.insertSheet('Inspectores');
-      sheet.appendRow(['id', 'nombre', 'usuario', 'password', 'sector', 'estado']);
+      sheet.appendRow(['id', 'nombre', 'usuario', 'password', 'sector', 'estado', 'rol', 'correo_recuperacion']);
     }
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var id = new Date().getTime().toString().slice(-6);
@@ -265,6 +402,8 @@ function doPost(e) {
     if(headers.indexOf('password') > -1) newRow[headers.indexOf('password')] = params.password || "";
     if(headers.indexOf('sector') > -1) newRow[headers.indexOf('sector')] = params.sector || "";
     if(headers.indexOf('estado') > -1) newRow[headers.indexOf('estado')] = params.estado || 'Activo';
+    if(headers.indexOf('rol') > -1) newRow[headers.indexOf('rol')] = params.rol || 'Inspector';
+    if(headers.indexOf('correo_recuperacion') > -1) newRow[headers.indexOf('correo_recuperacion')] = params.correo_recuperacion || "";
     
     sheet.appendRow(newRow);
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "id": id})).setMimeType(ContentService.MimeType.JSON);
@@ -283,6 +422,8 @@ function doPost(e) {
         if(params.password && headers.indexOf('password') > -1) sheet.getRange(i + 1, headers.indexOf('password') + 1).setValue(params.password);
         if(params.sector && headers.indexOf('sector') > -1) sheet.getRange(i + 1, headers.indexOf('sector') + 1).setValue(params.sector);
         if(params.estado && headers.indexOf('estado') > -1) sheet.getRange(i + 1, headers.indexOf('estado') + 1).setValue(params.estado);
+        if(params.rol && headers.indexOf('rol') > -1) sheet.getRange(i + 1, headers.indexOf('rol') + 1).setValue(params.rol);
+        if(params.correo_recuperacion && headers.indexOf('correo_recuperacion') > -1) sheet.getRange(i + 1, headers.indexOf('correo_recuperacion') + 1).setValue(params.correo_recuperacion);
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
       }
@@ -364,7 +505,36 @@ function doPost(e) {
       }
     }
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updated})).setMimeType(ContentService.MimeType.JSON);
-  } 
+  }
+
+  if (action === 'update_admin_profile') {
+    var sheet = ss.getSheetByName('Config');
+    if (!sheet) {
+      sheet = ss.insertSheet('Config');
+      sheet.appendRow(['param', 'value']);
+    }
+    var data = sheet.getDataRange().getValues();
+    var configKeys = {
+      'admin_username': params.username,
+      'admin_password': params.password,
+      'admin_recovery_email': params.recovery_email
+    };
+    
+    for (var key in configKeys) {
+      var found = false;
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][0] == key) {
+          sheet.getRange(i + 1, 2).setValue(configKeys[key]);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        sheet.appendRow([key, configKeys[key]]);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
+  }
 } catch (globalErr) {
     return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": globalErr.message})).setMimeType(ContentService.MimeType.JSON);
   }

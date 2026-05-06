@@ -224,6 +224,14 @@ button {
   overflow-x: auto;
   border-radius: 12px;
   border: 1px solid var(--border-color);
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
 }
 
 table {
@@ -484,6 +492,17 @@ tbody tr:hover {
 }
 
 /* Mobile responsive fixes */
+@media (max-width: 1024px) {
+  .header-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .search-bar {
+    width: 100%;
+  }
+}
+
 @media (max-width: 768px) {
   .app-container {
     flex-direction: column;
@@ -495,13 +514,25 @@ tbody tr:hover {
     border-bottom: 1px solid var(--border-color);
     padding: 1rem;
     box-shadow: none;
+    position: sticky;
+    top: 0;
+    z-index: 100;
   }
   .sidebar-nav {
     flex-direction: row;
     overflow-x: auto;
+    padding: 0;
+    gap: 0.5rem;
+  }
+  .nav-item {
+    white-space: nowrap;
+    padding: 0.5rem 1rem;
   }
   .main-content {
     padding: 1rem;
+  }
+  .sidebar-header {
+    margin-bottom: 1rem;
   }
 }
 

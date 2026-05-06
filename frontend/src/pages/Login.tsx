@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, ShieldCheck, Loader2 } from 'lucide-react';
-import { fetchInspectors } from '../services/api';
+import { fetchInspectors, SCRIPT_URL } from '../services/api';
 
 export default function Login() {
   const [role, setRole] = useState<'admin' | 'inspector'>('admin');
@@ -17,17 +17,44 @@ export default function Login() {
     setLoading(true);
 
     if (role === 'admin') {
-      if (username === 'admin' && password === 'admin123') {
-        localStorage.setItem('userRole', 'admin');
-        navigate('/admin');
-      } else {
-        setError('Usuario o contraseña de administrador incorrectos');
+      try {
+        // 1. Verificar contra el Súper Admin (Config)
+        const config = await (await fetch(`${SCRIPT_URL}?type=config`)).json();
+        
+        if (username === config.admin_username && password === config.admin_password) {
+          localStorage.setItem('userRole', 'admin');
+          navigate('/admin');
+          setLoading(false);
+          return;
+        }
+
+        // 2. Si no es el súper admin, buscar en la lista de Personal con rol 'Admin'
+        const inspectors = await fetchInspectors();
+        const adminUser = inspectors.find(i => 
+          String(i.usuario).toLowerCase() === String(username).toLowerCase() && 
+          String(i.password) === String(password) && 
+          (i.rol === 'Admin' || i.rol === 'Administrador')
+        );
+
+        if (adminUser) {
+          localStorage.setItem('userRole', 'admin');
+          localStorage.setItem('inspectorName', adminUser.nombre);
+          navigate('/admin');
+        } else {
+          setError('Usuario o contraseña de administrador incorrectos');
+        }
+      } catch (err) {
+        setError('Error al validar credenciales');
       }
       setLoading(false);
     } else {
       try {
         const inspectors = await fetchInspectors();
-        const inspector = inspectors.find(i => String(i.usuario) === String(username) && String(i.password) === String(password) && i.estado === 'Activo');
+        const inspector = inspectors.find(i => 
+          String(i.usuario).toLowerCase() === String(username).toLowerCase() && 
+          String(i.password) === String(password) && 
+          i.estado === 'Activo'
+        );
         
         if (inspector) {
           localStorage.setItem('userRole', 'inspector');
@@ -102,6 +129,24 @@ export default function Login() {
           <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', padding: '1rem', fontSize: '1rem' }} disabled={loading}>
             {loading ? <Loader2 className="spinner" size={20} /> : 'Ingresar al Sistema'}
           </button>
+          
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <button 
+              type="button" 
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${SCRIPT_URL}?type=config`);
+                  const config = await res.json();
+                  alert(`Si olvidaste tu contraseña, contacta al administrador en: ${config.admin_recovery_email || 'No configurado'}`);
+                } catch (e) {
+                  alert('Error al obtener información de recuperación');
+                }
+              }}
+              style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
         </form>
       </div>
     </div>
