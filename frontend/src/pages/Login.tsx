@@ -33,7 +33,7 @@ export default function Login() {
         const adminUser = inspectors.find(i => 
           String(i.usuario).toLowerCase() === String(username).toLowerCase() && 
           String(i.password) === String(password) && 
-          (i.rol === 'Admin' || i.rol === 'Administrador')
+          i.rol === 'Admin'
         );
 
         if (adminUser) {

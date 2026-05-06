@@ -646,7 +646,7 @@ export default function AdminDashboard() {
                       const inspector = inspectors.find(i => String(i.id) === String(bulkAssignInspector));
                       if (inspector && supervisorFilter) {
                         try {
-                          const updatedCount = await autoAssignTickets(supervisorFilter, inspector.id, inspector.nombre);
+                          const updatedCount = await assignTicketsBySupervisor(supervisorFilter, inspector.id, inspector.nombre);
                           displayToast(`${updatedCount} tickets asignados a ${inspector.nombre}`, 'success');
                           loadTickets();
                         } catch (error: any) {
@@ -769,7 +769,7 @@ export default function AdminDashboard() {
                 
                 let success;
                 if (editingInspector) {
-                  success = await updateInspector(editingInspector.id, { nombre, rol, sector, usuario, password, correo_recuperacion });
+                  success = await updateInspector(editingInspector.id, { nombre, rol: rol as 'Admin' | 'Inspector', sector, usuario, password, correo_recuperacion });
                 } else {
                   success = await createInspector(nombre, sector, usuario, password, rol, correo_recuperacion);
                 }

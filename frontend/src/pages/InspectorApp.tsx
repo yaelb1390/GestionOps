@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClipboardList, CheckCircle, Camera, AlertTriangle, ChevronRight, X, LogOut, Loader2, Sun, Moon, RotateCcw, User, Users } from 'lucide-react';
+import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Users, Sun, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad } from '../services/api';
 
@@ -13,7 +13,6 @@ export default function InspectorApp() {
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [showToast, setShowToast] = useState(false);
   const [calidadAssignments, setCalidadAssignments] = useState<any[]>([]);
-  const [loadingCalidad, setLoadingCalidad] = useState(false);
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || '';
   const [selectedResult, setSelectedResult] = useState('');
@@ -65,10 +64,8 @@ export default function InspectorApp() {
   }, []);
 
   const loadCalidadAssignments = async () => {
-    setLoadingCalidad(true);
     const data = await fetchCalidad();
     setCalidadAssignments(data);
-    setLoadingCalidad(false);
   };
 
   const loadTickets = async () => {
@@ -317,7 +314,7 @@ export default function InspectorApp() {
                   const badgeClass = numVal < 7 ? 'success' : numVal < 15 ? 'warning' : 'danger';
 
                   return (
-                    <div key={idx} className="mobile-card" style={{ borderLeft: `4px solid ${cardColor}` }}>
+                    <div key={idx} className="mobile-card" style={{ borderLeft: `4px solid ${cardColor}`, marginBottom: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <Users size={18} color="var(--primary-color)" />
@@ -337,7 +334,7 @@ export default function InspectorApp() {
                       </div>
                       <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <AlertTriangle size={14} color="var(--warning-color)" />
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Seguimiento requerido por alto índice de fallas.</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Seguimiento requerido.</span>
                       </div>
                     </div>
                   );
@@ -353,7 +350,7 @@ export default function InspectorApp() {
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
         <button className={`bottom-nav-item ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')}>
-          <AlertTriangle size={24} />
+          <ClipboardList size={24} />
           <span>Pendientes</span>
         </button>
         <button className={`bottom-nav-item ${activeTab === 'repetidas' ? 'active' : ''}`} onClick={() => setActiveTab('repetidas')}>
@@ -361,7 +358,7 @@ export default function InspectorApp() {
           <span>Repetidas</span>
         </button>
         <button className={`bottom-nav-item ${activeTab === 'mis_tickets' ? 'active' : ''}`} onClick={() => setActiveTab('mis_tickets')}>
-          <ClipboardList size={24} />
+          <CheckCircle2 size={24} />
           <span>Mis Tickets</span>
         </button>
       </nav>
@@ -369,7 +366,7 @@ export default function InspectorApp() {
       {/* Toast Notification */}
       {showToast && (
         <div className={`toast-notification ${toastType}`}>
-          {toastType === 'success' ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+          {toastType === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           <span>{toastMessage}</span>
         </div>
       )}
