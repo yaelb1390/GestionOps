@@ -218,8 +218,26 @@ export default function InspectorApp() {
     <div className="mobile-view">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <h1 style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 700 }}>👨‍🔧 Hola, {inspectorName.split(' ')[0]}</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gestiona tus inspecciones diarias</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="avatar-container" style={{ 
+                width: '48px', 
+                height: '48px', 
+                borderRadius: '16px', 
+                background: 'var(--surface-color)',
+                border: '2px solid var(--primary-color)',
+                overflow: 'hidden',
+                boxShadow: '0 4px 12px rgba(218, 41, 28, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <img src="/tech-avatar.png" alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div>
+                <h1 style={{ color: 'var(--text-main)', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.125rem' }}>Hola, {inspectorName.split(' ')[0]}</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Gestiona tus inspecciones diarias</p>
+              </div>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button 
