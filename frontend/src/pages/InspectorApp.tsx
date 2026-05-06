@@ -220,18 +220,16 @@ export default function InspectorApp() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div className="avatar-container" style={{ 
-                width: '48px', 
-                height: '48px', 
-                borderRadius: '16px', 
-                background: 'var(--surface-color)',
-                border: '2px solid var(--primary-color)',
+                width: '52px', 
+                height: '52px', 
+                borderRadius: '50%', 
                 overflow: 'hidden',
-                boxShadow: '0 4px 12px rgba(218, 41, 28, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                background: 'transparent'
               }}>
-                <img src="/tech-avatar.png" alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src="/tech-avatar.png" alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div>
                 <h1 style={{ color: 'var(--text-main)', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.125rem' }}>Hola, {inspectorName.split(' ')[0]}</h1>
