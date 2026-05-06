@@ -218,7 +218,7 @@ export default function InspectorApp() {
     <div className="mobile-view">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <h1 style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 700 }}>Hola, {inspectorName.split(' ')[0]}</h1>
+            <h1 style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 700 }}>👨‍🔧 Hola, {inspectorName.split(' ')[0]}</h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gestiona tus inspecciones diarias</p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
