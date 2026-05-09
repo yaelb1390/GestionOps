@@ -495,7 +495,11 @@ export default function InspectorApp() {
           <Loader2 className="spinner" size={32} />
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
+          gap: '1rem' 
+        }}>
           {(activeTab === 'pendientes' || activeTab === 'completadas' || activeTab === 'mis_tickets') && (
             <>
               {tickets.filter(t => {
@@ -632,11 +636,13 @@ export default function InspectorApp() {
                     </div>
                   );
                 })}
-              {calidadAssignments.filter(c => c['Inspector'] === inspectorName || c['Inspector ID'] == inspectorName).length === 0 && (
-                <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No tienes técnicos asignados para seguimiento.</p>
-              )}
-            </>
-          )}
+                {calidadAssignments.filter(c => c['Inspector'] === inspectorName || c['Inspector ID'] == inspectorName).length === 0 && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No tienes técnicos asignados para seguimiento.</p>
+                  </div>
+                )}
+              </>
+            )}
 
 
           {activeTab === 'ordenes' && (
