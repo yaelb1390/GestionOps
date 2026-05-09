@@ -355,7 +355,7 @@ export default function AdminDashboard() {
                         <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
                         <td>{t.tech || t.tech_id || '-'}</td>
                         <td>{t.inspector || t.inspector_id || 'Sin asignar'}</td>
-                        <td>{t.supervisor}</td>
+                        <td>{getSupervisor(t)}</td>
                         <td>
                           <span className={`badge ${t.status === 'Pendiente' ? 'warning' : t.status === 'Inspeccionado' ? 'success' : 'danger'}`}>
                             {t.status}
@@ -480,7 +480,7 @@ export default function AdminDashboard() {
                     style={{ width: 'auto', minWidth: '200px' }}
                   >
                     <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(calidadData.map(t => t.supervisor).filter(Boolean))).map(sup => (
+                    {Array.from(new Set(tickets.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -562,8 +562,8 @@ export default function AdminDashboard() {
                     const matchesSearch = t.ticket?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech_id?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech?.toString().toLowerCase().includes(searchTerm.toLowerCase());
-                    const tSupervisor = t.supervisor || '-';
-                    const matchesSupervisor = calidadSupervisorFilter === '' || tSupervisor === calidadSupervisorFilter;
+                    const tSupervisor = getSupervisor(t);
+                    const matchesSupervisor = supervisorFilter === '' || tSupervisor === supervisorFilter;
                     return matchesSearch && matchesSupervisor;
                   }).map((t, idx) => (
                     <tr key={t.id || t.ticket || idx}>
@@ -588,7 +588,7 @@ export default function AdminDashboard() {
                           ))}
                         </select>
                       </td>
-                      <td>{t.supervisor || '-'}</td>
+                      <td>{getSupervisor(t)}</td>
                       <td>{t.sector}</td>
                       <td>
                         <span className={`badge ${t.priority === 'Alta' ? 'danger' : t.priority === 'Media' ? 'warning' : 'success'}`}>
@@ -802,7 +802,7 @@ export default function AdminDashboard() {
                     style={{ width: 'auto', minWidth: '200px' }}
                   >
                     <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(calidadData.map(t => t.supervisor).filter(Boolean))).map(sup => (
+                    {Array.from(new Set(calidadData.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -899,7 +899,7 @@ export default function AdminDashboard() {
                   ) : calidadData
                     .filter(c => {
                       const term = calidadSearch.toLowerCase();
-                      const sup = String(c.supervisor || '').trim();
+                      const sup = getSupervisor(c);
                       const techKey = Object.keys(c).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
                       const tech = String(c[techKey] || '').trim();
                       
