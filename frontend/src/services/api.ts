@@ -14,6 +14,19 @@ export interface Ticket {
   evidence?: string;
 }
 
+export interface Orden {
+  Trabajo?: string;
+  'Orden Servicio'?: string;
+  Cliente?: string;
+  Fecha?: string;
+  'Tecnología'?: string;
+  Sector?: string;
+  Terminal?: string;
+  'Asignado A'?: string;
+  Supervisor?: string;
+  [key: string]: any;
+}
+
 export async function fetchTickets(): Promise<Ticket[]> {
   try {
     if (SCRIPT_URL === "URL_DE_TU_GOOGLE_APPS_SCRIPT_AQUI") {
@@ -238,6 +251,17 @@ export const fetchRazones = async (): Promise<any[]> => {
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error("Error fetching razones data:", error);
+    return [];
+  }
+};
+
+export const fetchOrdenes = async (): Promise<Orden[]> => {
+  try {
+    const res = await fetch(`${SCRIPT_URL}?type=ordenes`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Error fetching ordenes:", error);
     return [];
   }
 };

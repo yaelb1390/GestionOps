@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Users, Sun, Moon } from 'lucide-react';
+import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Users, Sun, Moon, Package, LayoutGrid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad } from '../services/api';
+import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden } from '../services/api';
 
 export default function InspectorApp() {
-  const [activeTab, setActiveTab] = useState('pendientes');
+  const [activeTab, setActiveTab] = useState('menu');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +17,9 @@ export default function InspectorApp() {
   const inspectorName = localStorage.getItem('inspectorName') || '';
   const [selectedResult, setSelectedResult] = useState('');
   const [images, setImages] = useState<string[]>([]);
+  const [ordenes, setOrdenes] = useState<Orden[]>([]);
+  const [loadingOrdenes, setLoadingOrdenes] = useState(false);
+  const [selectedOrden, setSelectedOrden] = useState<Orden | null>(null);
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
   const toggleTheme = () => {
@@ -61,6 +64,7 @@ export default function InspectorApp() {
   useEffect(() => {
     loadTickets();
     loadCalidadAssignments();
+    loadOrdenes();
   }, []);
 
   const loadCalidadAssignments = async () => {
@@ -73,6 +77,13 @@ export default function InspectorApp() {
     const data = await fetchTickets();
     setTickets(data);
     setLoading(false);
+  };
+
+  const loadOrdenes = async () => {
+    setLoadingOrdenes(true);
+    const data = await fetchOrdenes();
+    setOrdenes(data);
+    setLoadingOrdenes(false);
   };
 
   if (selectedTicket) {
@@ -214,52 +225,288 @@ export default function InspectorApp() {
     );
   }
 
+  if (selectedOrden) {
+    return (
+      <div className="mobile-view">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Orden {selectedOrden['Orden Servicio']}</h2>
+          <button onClick={() => setSelectedOrden(null)} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="mobile-card" style={{ padding: '1.5rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cliente</label>
+            <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '1.1rem', marginTop: '0.25rem' }}>{selectedOrden.Cliente}</div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Sector</label>
+              <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Sector || '-'}</div>
+            </div>
+            <div>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Fecha</label>
+              <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Fecha || '-'}</div>
+            </div>
+            <div>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Supervisor</label>
+              <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Supervisor || '-'}</div>
+            </div>
+            <div>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Terminal</label>
+              <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Terminal || '-'}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Trabajo</label>
+              <div style={{ color: 'var(--text-main)', marginTop: '0.25rem' }}>{selectedOrden.Trabajo}</div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Asignado A</label>
+                <div style={{ color: 'var(--primary-color)', fontWeight: 600 }}>{selectedOrden['Asignado A']}</div>
+              </div>
+              <span className={`badge ${selectedOrden['Tecnología']?.toLowerCase().includes('gpon') ? 'info' : selectedOrden['Tecnología']?.toLowerCase().includes('vsat') ? 'warning' : selectedOrden['Tecnología']?.toLowerCase().includes('hfc') ? 'success' : 'danger'}`}>{selectedOrden['Tecnología']}</span>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => setSelectedOrden(null)} 
+          className="btn-primary" 
+          style={{ width: '100%', justifyContent: 'center', marginTop: '1.5rem', padding: '1rem' }}
+        >
+          Cerrar Detalle
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mobile-view">
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div className="avatar-container" style={{ 
-                width: '52px', 
-                height: '52px', 
-                borderRadius: '50%', 
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'transparent'
-              }}>
-                <img src="/tech-avatar.png" alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              </div>
-              <div>
-                <h1 style={{ color: 'var(--text-main)', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.125rem' }}>Hola, {inspectorName.split(' ')[0]}</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Gestiona tus inspecciones diarias</p>
-              </div>
+        <header className="header-actions" style={{ marginBottom: '1.5rem', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="avatar-container" style={{ 
+              width: '52px', 
+              height: '52px', 
+              borderRadius: '50%', 
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--glass-bg)',
+              border: '2px solid var(--primary-color)',
+              boxShadow: '0 8px 16px rgba(218, 41, 28, 0.2)',
+              position: 'relative'
+            }}>
+              <img 
+                src="/tech-avatar.png" 
+                alt="Avatar" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.1)' }}
+              />
+            </div>
+            <div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '-2px' }}>Bienvenido</p>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>{inspectorName}</h2>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              onClick={toggleTheme}
-              style={{ padding: '0.5rem', borderRadius: '12px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-            <button 
-              onClick={handleLogout}
-              style={{ padding: '0.5rem', borderRadius: '12px', background: 'rgba(218, 41, 28, 0.1)', border: '1px solid rgba(218, 41, 28, 0.2)', color: 'var(--primary-color)' }}
-            >
-              <LogOut size={20} />
-            </button>
+            {/* Solo dejamos el avatar y nombre, quitamos botones de más del header */}
           </div>
         </header>
+
+        <div className="kpi-grid" style={{ marginBottom: '1.5rem' }}>
+          <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            <div style={{ color: 'var(--primary-color)', fontWeight: 700, fontSize: '1.75rem' }}>{tickets.filter(t => (t.status === 'Pendiente' || t.status === 'Asignado') && (t.inspector === inspectorName || t.inspector_id == inspectorName)).length}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Pendientes</div>
+          </div>
+          <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            <div style={{ color: 'var(--secondary-color)', fontWeight: 700, fontSize: '1.75rem' }}>{tickets.filter(t => (t.status === 'Aprobado' || t.status === 'Inspeccionado') && (t.inspector === inspectorName || t.inspector_id == inspectorName)).length}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Completados</div>
+          </div>
+        </div>
 
       <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         {activeTab === 'repetidas' ? (
           <><RotateCcw size={20} color="var(--primary-color)" /> Tecnico averia repetida</>
+        ) : activeTab === 'ordenes' ? (
+          <><Package size={20} color="var(--primary-color)" /> Mis Órdenes</>
+        ) : activeTab === 'menu' ? (
+          <><LayoutGrid size={20} color="var(--primary-color)" /> Menú Principal</>
         ) : (
           <><ClipboardList size={20} color="var(--primary-color)" /> Tickets Asignados</>
         )}
       </h3>
+
+      {activeTab === 'menu' && (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+          gap: '1.25rem', 
+          marginTop: '0.5rem',
+          animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <button 
+            onClick={() => setActiveTab('pendientes')}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.2)' }}>
+              <ClipboardList size={28} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Tickets</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{tickets.filter(t => (t.status === 'Pendiente' || t.status === 'Asignado') && (t.inspector === inspectorName || t.inspector_id == inspectorName)).length} asignados</div>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('ordenes')}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, var(--primary-color) 0%, #b91c1c 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(218, 41, 28, 0.2)' }}>
+              <Package size={28} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Órdenes</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Gestión campo</div>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('repetidas')}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(245, 158, 11, 0.2)' }}>
+              <RotateCcw size={28} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Repetidas</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Seguimiento</div>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('mis_tickets')}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.2)' }}>
+              <CheckCircle2 size={28} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Historial</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Mis Tickets</div>
+            </div>
+          </button>
+
+          <button 
+            onClick={toggleTheme}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, #64748b 0%, #334155 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(100, 116, 139, 0.2)' }}>
+              {theme === 'light' ? <Moon size={28} /> : <Sun size={28} />}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Tema</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{theme === 'light' ? 'Oscuro' : 'Claro'}</div>
+            </div>
+          </button>
+
+          <button 
+            onClick={handleLogout}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(239, 68, 68, 0.2)' }}>
+              <LogOut size={28} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Salir</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Cerrar sesión</div>
+            </div>
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: 'var(--primary-color)' }}>
@@ -360,22 +607,75 @@ export default function InspectorApp() {
               )}
             </>
           )}
+
+          {activeTab === 'ordenes' && (
+            <>
+              {loadingOrdenes ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 className="spinner" /></div>
+              ) : (
+                <>
+                  {ordenes.length === 0 ? (
+                    <div className="mobile-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+                      <Package size={48} color="var(--text-muted)" style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                      <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Sin Órdenes</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontraron órdenes de trabajo asignadas.</p>
+                    </div>
+                  ) : (
+                    ordenes.map((o, idx) => (
+                      <div 
+                        key={idx} 
+                        className="mobile-card" 
+                        style={{ display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem', cursor: 'pointer' }}
+                        onClick={() => setSelectedOrden(o)}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ORDEN</div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.1rem' }}>{o['Orden Servicio']}</div>
+                          </div>
+                          <ChevronRight color="var(--text-muted)" size={18} />
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{o.Cliente}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Asignado:</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>{o['Asignado A']}</span>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.Fecha}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
 
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
-        <button className={`bottom-nav-item ${activeTab === 'pendientes' ? 'active' : ''}`} onClick={() => setActiveTab('pendientes')}>
-          <ClipboardList size={24} />
-          <span>Pendientes</span>
-        </button>
-        <button className={`bottom-nav-item ${activeTab === 'repetidas' ? 'active' : ''}`} onClick={() => setActiveTab('repetidas')}>
-          <RotateCcw size={24} />
-          <span>Repetidas</span>
-        </button>
-        <button className={`bottom-nav-item ${activeTab === 'mis_tickets' ? 'active' : ''}`} onClick={() => setActiveTab('mis_tickets')}>
-          <CheckCircle2 size={24} />
-          <span>Mis Tickets</span>
+        <button 
+          className={`bottom-nav-item ${activeTab === 'menu' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('menu')}
+          style={{ 
+            background: activeTab === 'menu' ? 'var(--primary-color)' : 'transparent',
+            color: activeTab === 'menu' ? 'white' : 'var(--primary-color)',
+            borderRadius: '18px',
+            padding: '0.6rem 2.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            boxShadow: activeTab === 'menu' ? '0 8px 20px rgba(218, 41, 28, 0.25)' : 'none',
+            border: 'none',
+            flex: 'none'
+          }}
+        >
+          <LayoutGrid size={24} />
+          <span style={{ fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.05em' }}>MENÚ</span>
         </button>
       </nav>
 

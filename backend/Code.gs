@@ -19,6 +19,45 @@ function doGet(e) {
     }
     return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
   } 
+  else if (type === 'ordenes') {
+    var ssOrdenes;
+    try {
+      ssOrdenes = SpreadsheetApp.openById("1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s");
+    } catch(err) {
+      ssOrdenes = ss;
+    }
+    
+    var sheet = ssOrdenes.getSheets().find(s => s.getSheetId() == 885138959) || ssOrdenes.getSheetByName('Ordenes') || ssOrdenes.getSheetByName('Órdenes');
+    
+    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var data = sheet.getDataRange().getDisplayValues();
+    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var headers = data[0];
+    var results = [];
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var obj = {};
+      var hasData = false;
+      for (var j = 0; j < headers.length; j++) {
+        var h = String(headers[j]).trim();
+        var val = row[j];
+        if (val !== "" && val !== null) hasData = true;
+        
+        var hLower = h.toLowerCase();
+        if (hLower === 'orden externa') {
+          obj['Orden Servicio'] = val;
+        } else if (hLower === 'vence') {
+          obj['Fecha'] = val;
+        } else {
+          obj[h] = val;
+        }
+      }
+      if (hasData) results.push(obj);
+    }
+    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
+  }
   else if (type === 'inspectors') {
     var sheet = ss.getSheetByName('Inspectores');
     if (!sheet) {
