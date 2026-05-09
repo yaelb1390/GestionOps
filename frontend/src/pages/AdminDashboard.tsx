@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   
   // Columnas fijas para el tablero de Calidad (Averías Repetidas)
   const CALIDAD_COLUMNS = [
-    { label: 'TARJETA TÉCNICO', key: 'tech_id' },
+    { label: 'TÉCNICO (ID)', key: 'tech_id' },
     { label: 'NOMBRE TÉCNICO', key: 'tech' },
     { label: 'TRABAJO', key: 'ticket' },
     { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
@@ -984,7 +984,7 @@ export default function AdminDashboard() {
                                   })()
                                 ) : (
                                   <span style={{ color: val === '-' ? 'var(--text-muted)' : 'inherit' }}>
-                                    {col.key === 'tech_id' && val !== '-' ? `Tarjeta: ${val}` : val}
+                                    {val}
                                   </span>
                                 )}
                               </td>
@@ -994,7 +994,9 @@ export default function AdminDashboard() {
                             {row['Inspector'] ? (
                               <span className="badge info">{row['Inspector']}</span>
                             ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Sin asignar</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                {row.tech_id ? `Tarjeta: ${row.tech_id}` : '-'}
+                              </span>
                             )}
                           </td>
                           <td>
