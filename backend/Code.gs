@@ -1,53 +1,68 @@
+// Función de normalización compartida para todos los tipos de datos
+function normalizeHeader(h) {
+  if (!h) return "";
+  var low = String(h).trim().toLowerCase();
+  
+  if (low.includes('supervisor')) return 'supervisor';
+  if (low.includes('técnico') || low.includes('tecnico')) {
+    if (low.includes('id') || low.includes('cedula') || low.includes('tarjeta')) return 'tech_id';
+    return 'tech';
+  }
+  if (low.includes('ticket') || low.includes('trabajo')) return 'ticket';
+  if (low === 'estado' || low === 'status') return 'status';
+  if (low === 'sector' || low === 'zona') return 'sector';
+  if (low === 'prioridad' || low === 'priority') return 'priority';
+  
+  return h.toString().trim();
+}
+
 function doGet(e) {
   var type = e.parameter.type || 'tickets';
   var ss = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit");
   
-  if (type === 'tickets') {
-    var sheet = ss.getSheetByName('Tickets');
-    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    var data = sheet.getDataRange().getValues();
-    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+  var sheetName = '';
+  if (type === 'tickets') sheetName = 'Tickets';
+  else if (type === 'calidad') sheetName = 'calidad';
+  else if (type === 'inspectors') sheetName = 'Inspectores';
+  else if (type === 'razones') {
+    // Lógica especial para razones por ID de hoja si es necesario
+    var sheets = ss.getSheets();
+    var sheet = sheets.find(s => s.getSheetId() == 761213977);
+    if (sheet) sheetName = sheet.getName();
+  }
+
+  if (sheetName || type === 'ordenes') {
+    var targetSs = ss;
+    var targetSheet;
+    
+    if (type === 'ordenes') {
+      try {
+        targetSs = SpreadsheetApp.openById("1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s");
+        targetSheet = targetSs.getSheets().find(s => s.getSheetId() == 885138959) || targetSs.getSheetByName('Ordenes');
+      } catch(e) { targetSheet = ss.getSheetByName('Ordenes'); }
+    } else {
+      targetSheet = ss.getSheetByName(sheetName);
+    }
+
+    if (!targetSheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
+    var data = targetSheet.getDataRange().getValues();
+    if (data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    
     var headers = data[0];
     var results = [];
-    
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       var obj = {};
       for (var j = 0; j < headers.length; j++) {
-        var header = String(headers[j] || "").trim();
-        var low = header.toLowerCase();
-        var value = row[j];
-        
-        // Mapeo manual directo por cada fila para máxima seguridad
-        var key = header; 
-        if (low.includes('supervisor')) key = 'supervisor';
-        else if (low.includes('técnico') || low.includes('tecnico')) {
-          if (low.includes('id') || low.includes('cedula')) key = 'tech_id';
-          else key = 'tech';
-        }
-        else if (low.includes('ticket')) key = 'ticket';
-        else if (low === 'estado' || low === 'status') key = 'status';
-        else if (low === 'sector') key = 'sector';
-        
-        obj[key] = value;
+        var key = normalizeHeader(headers[j]);
+        if (key) obj[key] = row[j];
       }
       results.push(obj);
     }
     return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
-  } 
+  }
 
-
-  else if (type === 'ordenes') {
-    var ssOrdenes;
-    try {
-      ssOrdenes = SpreadsheetApp.openById("1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s");
-    } catch(err) {
-      ssOrdenes = ss;
-    }
-    
-    var sheet = ssOrdenes.getSheets().find(s => s.getSheetId() == 885138959) || ssOrdenes.getSheetByName('Ordenes') || ssOrdenes.getSheetByName('Órdenes');
-    
-    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
     
     var data = sheet.getDataRange().getDisplayValues();
     if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
