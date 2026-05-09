@@ -883,7 +883,7 @@ export default function AdminDashboard() {
               <table>
                 <thead>
                   <tr>
-                    {calidadData.length > 0 && Object.keys(calidadData[0]).slice(0, 8).map(header => (
+                    {calidadData.length > 0 && Object.keys(calidadData[0]).slice(0, 12).map(header => (
                       <th key={header}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                           <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{header}</span>
@@ -935,7 +935,7 @@ export default function AdminDashboard() {
                       
                       return (
                         <tr key={idx}>
-                          {Object.entries(row).slice(0, 8).map(([key, val]: [string, any], i) => (
+                          {Object.entries(row).slice(0, 12).map(([key, val]: [string, any], i) => (
                             <td key={i}>
                               {key.toLowerCase().includes('repetida') || (val !== null && val !== undefined && String(val).includes('%')) ? (
                                 (() => {
