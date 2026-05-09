@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
 import { 
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2,
-  Sun, Moon, Settings, RotateCcw, AlertCircle, TrendingUp, Activity,
-  LayoutDashboard, FileText, Users, BookOpen, Package
+  Sun, Moon, Settings, RotateCcw, AlertCircle, Activity,
+  LayoutDashboard, FileText, Users, Package
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from 'recharts';
+
 import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden } from '../services/api';
 
 export default function AdminDashboard() {
@@ -29,8 +26,8 @@ export default function AdminDashboard() {
   const [calidadSupervisorFilter, setCalidadSupervisorFilter] = useState('');
   const [showAddInspector, setShowAddInspector] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(null);
-  const [razones, setRazones] = useState<any[]>([]);
-  const [loadingRazones, setLoadingRazones] = useState(false);
+  const [_razones, setRazones] = useState<any[]>([]);
+  const [_loadingRazones, setLoadingRazones] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [bulkAssignCalidadInspector, setBulkAssignCalidadInspector] = useState('');
 
