@@ -583,13 +583,27 @@ export default function InspectorApp() {
                     <div key={idx} className="mobile-card" style={{ marginBottom: '1rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
                       {/* — Nombre Técnico — */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
-                        <div style={{ background: 'linear-gradient(135deg, var(--primary-color), #b91c1c)', color: 'white', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.65rem', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
+                        <div style={{ 
+                          background: 'linear-gradient(135deg, var(--primary-color), #b91c1c)', 
+                          color: 'white', 
+                          width: '44px', 
+                          height: '44px', 
+                          borderRadius: '50%', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontWeight: 800, 
+                          fontSize: '0.75rem', 
+                          flexShrink: 0,
+                          boxShadow: '0 4px 10px rgba(218, 41, 28, 0.3)',
+                          border: '2px solid white'
+                        }}>
                           {techId}
                         </div>
                         <div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nombre Técnico</div>
-                          <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>{tecnico}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Nombre Técnico</div>
+                          <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1rem', marginTop: '0.1rem' }}>{tecnico}</div>
                         </div>
                       </div>
 
