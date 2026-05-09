@@ -805,7 +805,7 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                  <RotateCcw size={20} color="var(--primary-color)" /> Detalle de Averías Repetidas
+                  <RotateCcw size={20} color="var(--primary-color)" /> Detalle de Averías Repetidas (v1.5)
                 </h3>
 
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -949,7 +949,20 @@ export default function AdminDashboard() {
                       return (
                         <tr key={idx}>
                           {CALIDAD_COLUMNS.map((col, i) => {
-                            const val = row[col.key] || row[col.label] || '-';
+                            // Mapeo ultra-resiliente para asegurar que se muestre el dato aunque el backend no esté actualizado
+                            let val = row[col.key];
+                            if (val === undefined || val === null) val = row[col.label];
+                            
+                            // Fallbacks específicos para columnas clave
+                            if (val === undefined || val === null) {
+                              if (col.key === 'ticket') val = row.IDD || row.id || row['ID TICKET'];
+                              if (col.key === 'tech_id') val = row.TÉCNICO || row.TECNICO || row.id_tecnico;
+                              if (col.key === 'tech') val = row['NOMBRE TÉCNICO'] || row['NOMBRE TECNICO'] || row.Nombre;
+                              if (col.key === 'supervisor_id') val = row['TARJETA SUPERVISOR'];
+                              if (col.key === 'supervisor') val = row['NOMBRE SUPERVISOR'] || row.Supervisor;
+                            }
+                            
+                            val = (val !== undefined && val !== null) ? val : '-';
                             return (
                               <td key={i}>
                                 {String(val).includes('%') ? (
