@@ -451,10 +451,17 @@ function doPost(e) {
 
         for (var j = 0; j < headers.length; j++) {
           var h = normalize(headers[j]);
-          if (h === "supervisor" || h === "nombre del supervisor")
+          if (
+            h === "supervisor" ||
+            h === "nombre del supervisor" ||
+            h === "nombre supervisor" ||
+            (h.includes("supervisor") && !h.includes("tarjeta"))
+          ) {
             supervisorCol = j;
-          if (h === "tecnico" || h === "nombre del tecnico" || h === "nombre")
+          }
+          if (h === "tecnico" || h === "nombre del tecnico" || h === "nombre") {
             techCol = j;
+          }
         }
 
         if (action === "assign_calidad_by_supervisor") {
