@@ -20,103 +20,13 @@ function doGet(e) {
   var type = e.parameter.type || 'tickets';
   var ss = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit");
   
-  var sheetName = '';
-  if (type === 'tickets') sheetName = 'Tickets';
-  else if (type === 'calidad') sheetName = 'calidad';
-  else if (type === 'inspectors') sheetName = 'Inspectores';
-  else if (type === 'razones') {
-    // Lógica especial para razones por ID de hoja si es necesario
-    var sheets = ss.getSheets();
-    var sheet = sheets.find(s => s.getSheetId() == 761213977);
-    if (sheet) sheetName = sheet.getName();
-  }
-
-  if (sheetName || type === 'ordenes') {
-    var targetSs = ss;
-    var targetSheet;
-    
-    if (type === 'ordenes') {
-      try {
-        targetSs = SpreadsheetApp.openById("1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s");
-        targetSheet = targetSs.getSheets().find(s => s.getSheetId() == 885138959) || targetSs.getSheetByName('Ordenes');
-      } catch(e) { targetSheet = ss.getSheetByName('Ordenes'); }
-    } else {
-      targetSheet = ss.getSheetByName(sheetName);
-    }
-
-    if (!targetSheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var data = targetSheet.getDataRange().getValues();
-    if (data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var headers = data[0];
-    var results = [];
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var obj = {};
-      for (var j = 0; j < headers.length; j++) {
-        var key = normalizeHeader(headers[j]);
-        if (key) obj[key] = row[j];
-      }
-      results.push(obj);
-    }
-    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
-  }
-
-    
-    var data = sheet.getDataRange().getDisplayValues();
-    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var headers = data[0];
-    var results = [];
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var obj = {};
-      var hasData = false;
-      for (var j = 0; j < headers.length; j++) {
-        var h = String(headers[j]).trim();
-        var val = row[j];
-        if (val !== "" && val !== null) hasData = true;
-        
-        var hLower = h.toLowerCase();
-        if (hLower === 'orden externa') {
-          obj['Orden Servicio'] = val;
-        } else if (hLower === 'vence') {
-          obj['Fecha'] = val;
-        } else {
-          obj[h] = val;
-        }
-      }
-      if (hasData) results.push(obj);
-    }
-    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
-  }
-  else if (type === 'inspectors') {
+  if (type === 'inspectors') {
     var sheet = ss.getSheetByName('Inspectores');
     if (!sheet) {
       sheet = ss.insertSheet('Inspectores');
-      sheet.appendRow(['id', 'nombre', 'usuario', 'password', 'sector', 'estado']);
-    }
-    
-    var data = sheet.getDataRange().getValues();
-    if(data.length > 0) {
-      var headers = data[0];
-      var needsHeaderUpdate = false;
-      if(headers.indexOf('usuario') === -1) { headers.push('usuario'); needsHeaderUpdate = true; }
-      if(headers.indexOf('password') === -1) { headers.push('password'); needsHeaderUpdate = true; }
-      if(headers.indexOf('rol') === -1) { headers.push('rol'); needsHeaderUpdate = true; }
-      if(headers.indexOf('correo_recuperacion') === -1) { headers.push('correo_recuperacion'); needsHeaderUpdate = true; }
-      if(needsHeaderUpdate) {
-         sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-         data = sheet.getDataRange().getValues(); 
-      }
-    } else {
       sheet.appendRow(['id', 'nombre', 'usuario', 'password', 'sector', 'estado', 'rol', 'correo_recuperacion']);
-      data = sheet.getDataRange().getValues();
     }
-
-    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
+    var data = sheet.getDataRange().getValues();
     var headers = data[0];
     var results = [];
     for (var i = 1; i < data.length; i++) {
@@ -129,48 +39,10 @@ function doGet(e) {
     }
     return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
   }
-  else if (type === 'razones') {
-    var sheets = ss.getSheets();
-    var sheet = null;
-    for (var k = 0; k < sheets.length; k++) {
-      if (sheets[k].getSheetId() == 761213977) {
-        sheet = sheets[k];
-        break;
-      }
-    }
-    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var data = sheet.getDataRange().getValues();
-    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var headers = data[0];
-    var results = [];
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var obj = {};
-      for (var j = 0; j < headers.length; j++) {
-        var h = headers[j];
-        // Solo incluimos las columnas solicitadas
-        if(h === 'Casos' || h === 'Nombre del Ejecutor' || h === 'Tarjeta del Ejecutor' || h === 'Nombre del Supervisor' || h === 'Localidad' || h === 'Descripcion') {
-          obj[h] = row[j];
-        }
-      }
-      // Solo agregamos si hay al menos una propiedad, y evitamos filas totalmente vacías
-      if(Object.keys(obj).length > 0 && row.join("").trim() !== "") {
-        results.push(obj);
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
-  }
+  
   else if (type === 'config') {
     var sheet = ss.getSheetByName('Config');
-    if (!sheet) {
-      sheet = ss.insertSheet('Config');
-      sheet.appendRow(['param', 'value']);
-      sheet.appendRow(['admin_username', 'admin']);
-      sheet.appendRow(['admin_password', 'admin123']);
-      sheet.appendRow(['admin_recovery_email', '']);
-    }
+    if (!sheet) return ContentService.createTextOutput("{}").setMimeType(ContentService.MimeType.JSON);
     var data = sheet.getDataRange().getValues();
     var config = {};
     for (var i = 1; i < data.length; i++) {
@@ -178,36 +50,44 @@ function doGet(e) {
     }
     return ContentService.createTextOutput(JSON.stringify(config)).setMimeType(ContentService.MimeType.JSON);
   }
-  else if (type === 'calidad') {
+
+  // Lógica para Tickets, Calidad, Ordenes y Razones
+  var sheetName = '';
+  if (type === 'tickets') sheetName = 'Tickets';
+  else if (type === 'calidad') sheetName = 'calidad';
+  else if (type === 'razones') {
     var sheets = ss.getSheets();
-    var sheet = null;
-    for (var k = 0; k < sheets.length; k++) {
-      if (sheets[k].getSheetId() == 1724783398) {
-        sheet = sheets[k];
-        break;
-      }
-    }
-    if (!sheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var data = sheet.getDataRange().getValues();
-    if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
-    
-    var headers = data[0];
-    var results = [];
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var obj = {};
-      for (var j = 0; j < headers.length; j++) {
-        if (row[j] !== "" && row[j] !== null) {
-          obj[headers[j]] = row[j];
-        }
-      }
-      if (Object.keys(obj).length > 0) {
-        results.push(obj);
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
+    var sheet = sheets.find(s => s.getSheetId() == 761213977);
+    if (sheet) sheetName = sheet.getName();
   }
+
+  var targetSheet;
+  if (type === 'ordenes') {
+    try {
+      var ssOrdenes = SpreadsheetApp.openById("1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s");
+      targetSheet = ssOrdenes.getSheets().find(s => s.getSheetId() == 885138959) || ssOrdenes.getSheetByName('Ordenes');
+    } catch(e) { targetSheet = ss.getSheetByName('Ordenes'); }
+  } else if (sheetName) {
+    targetSheet = ss.getSheetByName(sheetName);
+  }
+
+  if (!targetSheet) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+  
+  var data = targetSheet.getDataRange().getValues();
+  if (data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+  
+  var headers = data[0];
+  var results = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      var key = normalizeHeader(headers[j]);
+      if (key) obj[key] = row[j];
+    }
+    results.push(obj);
+  }
+  return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
