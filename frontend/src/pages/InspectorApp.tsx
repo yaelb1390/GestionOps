@@ -497,8 +497,8 @@ export default function InspectorApp() {
       ) : (
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-          gap: '1rem' 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+          gap: '0.75rem' 
         }}>
           {(activeTab === 'pendientes' || activeTab === 'completadas' || activeTab === 'mis_tickets') && (
             <>

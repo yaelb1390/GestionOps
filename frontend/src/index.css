@@ -447,9 +447,9 @@ tbody tr:hover {
   padding-bottom: 8rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .mobile-view {
-    padding: 1rem;
+    padding: 0.75rem;
     padding-bottom: 7rem;
   }
 }
@@ -470,9 +470,9 @@ tbody tr:hover {
 
 .bottom-nav {
   position: fixed;
-  bottom: 1.5rem;
-  left: 1.5rem;
-  right: 1.5rem;
+  bottom: 1.25rem;
+  left: 1rem;
+  right: 1rem;
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -480,11 +480,11 @@ tbody tr:hover {
   display: flex;
   justify-content: center;
   padding: 0.5rem;
-  max-width: 400px;
+  max-width: 450px;
   margin: 0 auto;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  border-radius: 24px;
+  border-radius: 20px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
