@@ -1020,7 +1020,7 @@ export default function InspectorApp() {
                 </div>
               )}
 
-              {showManualInput && (
+              {showManualInput ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem', animation: 'fadeInUp 0.3s ease' }}>
                   <div className="input-group">
                     <label>Código Aplicado</label>
@@ -1051,7 +1051,7 @@ export default function InspectorApp() {
                     </button>
                   </div>
                 </div>
-              ) : isFormActive && (
+              ) : isFormActive ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
                     Formulario abierto en otra pestaña. Por favor completa el registro.
@@ -1064,7 +1064,7 @@ export default function InspectorApp() {
                     Confirmar Registro Completado
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
