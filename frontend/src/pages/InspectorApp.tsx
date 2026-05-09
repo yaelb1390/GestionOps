@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Users, Sun, Moon, Package, LayoutGrid } from 'lucide-react';
+import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Sun, Moon, Package, LayoutGrid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden } from '../services/api';
 
@@ -562,34 +562,67 @@ export default function InspectorApp() {
                   return c[inspectorKey] === inspectorName || c[inspectorIdKey] == inspectorName;
                 })
                 .map((c, idx) => {
-                  const percVal = c['% Repetidas'] || c['Porcentaje'] || '0%';
-                  const numVal = parseFloat(String(percVal).replace('%', ''));
-                  const cardColor = numVal < 7 ? '#10b981' : numVal < 15 ? '#f59e0b' : '#ef4444';
-                  const badgeClass = numVal < 7 ? 'success' : numVal < 15 ? 'warning' : 'danger';
+                  // Helpers para leer campos con nombres flexibles
+                  const getField = (keys: string[]) => {
+                    for (const k of keys) {
+                      const found = Object.keys(c).find(ck => ck.toLowerCase().trim() === k.toLowerCase());
+                      if (found && c[found]) return String(c[found]);
+                    }
+                    return '-';
+                  };
+
+                  const tecnico   = getField(['tecnico', 'nombre del técnico', 'nombre', 'técnico']);
+                  const trabajo   = getField(['trabajo', 'ticket', 'tickets']);
+                  const supervisor = getField(['supervisor', 'nombre del supervisor']);
+                  const sector    = getField(['sector']);
+                  const barrio    = getField(['barrio']);
+                  const calle     = getField(['calle']);
 
                   return (
-                    <div key={idx} className="mobile-card" style={{ borderLeft: `4px solid ${cardColor}`, marginBottom: '1rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Users size={18} color="var(--primary-color)" />
-                          <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{c['Nombre'] || c['Nombre del Técnico'] || c['Técnico']}</span>
-                        </div>
-                        <span className={`badge ${badgeClass}`}>Repetidas</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <div>
-                          <label style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>% Repetidas</label>
-                          <span style={{ fontWeight: 'bold', color: cardColor, fontSize: '1.1rem' }}>{percVal}</span>
+                    <div key={idx} className="mobile-card" style={{ marginBottom: '1rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+
+                      {/* — Nombre Técnico — */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
+                        <div style={{ background: 'linear-gradient(135deg, var(--primary-color), #b91c1c)', color: 'white', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
+                          {tecnico.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <label style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'block' }}>Supervisor</label>
-                          <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{c['Supervisor'] || c['Nombre del Supervisor'] || '-'}</span>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nombre Técnico</div>
+                          <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>{tecnico}</div>
                         </div>
                       </div>
-                      <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <AlertTriangle size={14} color="var(--warning-color)" />
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Seguimiento requerido.</span>
+
+                      {/* — Tickets / Trabajo — (mismo estilo que órdenes) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0 }}>TICKET</div>
+                        <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.05rem' }}>{trabajo}</div>
                       </div>
+
+                      {/* — Supervisor — */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Supervisor</div>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem', marginTop: '0.15rem' }}>{supervisor}</div>
+                        </div>
+                        <span className="badge warning" style={{ fontSize: '0.7rem' }}>Avería Repetida</span>
+                      </div>
+
+                      {/* — Ubicación agrupada — */}
+                      <div style={{ background: 'rgba(218,41,28,0.04)', border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sector</div>
+                          <div style={{ color: 'var(--text-main)', fontSize: '0.82rem', fontWeight: 600, marginTop: '0.15rem' }}>{sector}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Barrio</div>
+                          <div style={{ color: 'var(--text-main)', fontSize: '0.82rem', fontWeight: 600, marginTop: '0.15rem' }}>{barrio}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Calle</div>
+                          <div style={{ color: 'var(--text-main)', fontSize: '0.82rem', fontWeight: 600, marginTop: '0.15rem' }}>{calle}</div>
+                        </div>
+                      </div>
+
                     </div>
                   );
                 })}
@@ -598,6 +631,7 @@ export default function InspectorApp() {
               )}
             </>
           )}
+
 
           {activeTab === 'ordenes' && (
             <>
