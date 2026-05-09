@@ -53,8 +53,16 @@ export default function InspectorApp() {
   const handleSaveManualCode = async () => {
     if (!manualCode.trim()) return;
     setIsSubmittingCode(true);
-    const ticketId = selectedCalidadTicket.ticket || selectedCalidadTicket['TRABAJO'];
-    const { success, message } = await saveCalidadCodigo(ticketId, manualCode);
+    
+    const ticketId = selectedCalidadTicket?.ticket || selectedCalidadTicket?.['TRABAJO'];
+    
+    if (!ticketId) {
+      displayToast('Error: No se pudo identificar el ID del ticket', 'error');
+      setIsSubmittingCode(false);
+      return;
+    }
+
+    const { success, message } = await saveCalidadCodigo(String(ticketId), manualCode);
     setIsSubmittingCode(false);
     if (success) {
       setManualCode('');

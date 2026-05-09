@@ -314,8 +314,10 @@ export async function assignCalidadIndividual(technician: string, tech_id: strin
 
 export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<{success: boolean, message?: string}> {
   try {
+    console.log("Intentando guardar código:", { ticket, codigo });
     const response = await fetch(SCRIPT_URL, {
       method: "POST",
+      mode: 'cors',
       body: JSON.stringify({
         action: "save_calidad_codigo",
         ticket: ticket,
@@ -326,10 +328,14 @@ export async function saveCalidadCodigo(ticket: string, codigo: string): Promise
       }
     });
 
+    if (!response.ok) {
+      return { success: false, message: `Error del servidor: ${response.status}` };
+    }
+
     const result = await response.json();
     return { success: result.status === "success", message: result.message };
   } catch (error: any) {
-    console.error("Error saving calidad codigo:", error);
-    return { success: false, message: error.message };
+    console.error("Error detallado en saveCalidadCodigo:", error);
+    return { success: false, message: "Error de conexión: " + (error.message === "Failed to fetch" ? "No se pudo conectar con el servidor (CORS/Network)" : error.message) };
   }
 }
