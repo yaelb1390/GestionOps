@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
@@ -7,8 +7,25 @@ import AdminDashboard from './pages/AdminDashboard.tsx'
 import InspectorApp from './pages/InspectorApp.tsx'
 import Login from './pages/Login.tsx'
 
+// Hook que bloquea el botón "Atrás" del navegador/celular en rutas protegidas
+function usePreventBackNavigation() {
+  useEffect(() => {
+    // Empuja un estado extra para que el "atrás" no salga de la app
+    window.history.pushState({ protected: true }, '');
+
+    const handlePopState = () => {
+      // Cada vez que el browser intenta ir atrás, volvemos a empujar el estado
+      window.history.pushState({ protected: true }, '');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+}
+
 const ProtectedRoute = ({ children, role }: { children: React.ReactNode, role: 'admin' | 'inspector' }) => {
   const userRole = localStorage.getItem('userRole');
+  usePreventBackNavigation();
   if (!userRole) return <Navigate to="/login" replace />;
   if (userRole !== role) return <Navigate to="/login" replace />;
   return <>{children}</>;
