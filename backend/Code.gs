@@ -269,8 +269,20 @@ function doPost(e) {
       data = sheet.getDataRange().getValues();
     }
     
-    var supervisorCol = headers.indexOf('supervisor');
+    // Busca la columna supervisor con nombre flexible
+    var supervisorCol = -1;
+    for (var j = 0; j < headers.length; j++) {
+      var h = String(headers[j]).trim().toLowerCase();
+      if (h === 'nombre supervisor' || h === 'supervisor' || h === 'nombre del supervisor') {
+        supervisorCol = j;
+        break;
+      }
+    }
     var statusCol = headers.indexOf('status');
+    
+    if (supervisorCol === -1) {
+      return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Columna NOMBRE SUPERVISOR no encontrada. Columnas: " + headers.join(",")})).setMimeType(ContentService.MimeType.JSON);
+    }
     
     var updatedCount = 0;
     for (var i = 1; i < data.length; i++) {
@@ -283,6 +295,7 @@ function doPost(e) {
     }
     return ContentService.createTextOutput(JSON.stringify({"status": "success", "updated": updatedCount})).setMimeType(ContentService.MimeType.JSON);
   }
+
 
   if (action === 'assign_razones_by_supervisor' || action === 'assign_razon_individual') {
     var ssTarget = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit");
