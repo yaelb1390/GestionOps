@@ -311,3 +311,25 @@ export async function assignCalidadIndividual(technician: string, tech_id: strin
     throw error;
   }
 }
+
+export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<boolean> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "save_calidad_codigo",
+        ticket: ticket,
+        codigo: codigo
+      }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      }
+    });
+
+    const result = await response.json();
+    return result.status === "success";
+  } catch (error) {
+    console.error("Error saving calidad codigo:", error);
+    return false;
+  }
+}

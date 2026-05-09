@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden } from '../services/api';
+import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveCalidadCodigo } from '../services/api';
 
 export default function InspectorApp() {
   const [activeTab, setActiveTab] = useState('menu');
@@ -25,6 +25,9 @@ export default function InspectorApp() {
   const [selectedCalidadTicket, setSelectedCalidadTicket] = useState<any | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [isFormActive, setIsFormActive] = useState(false);
+  const [manualCode, setManualCode] = useState('');
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
+  const [showManualInput, setShowManualInput] = useState(false);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -44,6 +47,22 @@ export default function InspectorApp() {
     setSelectedCalidadTicket(null);
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 4000);
+    loadCalidadAssignments(); // Refresh data
+  };
+
+  const handleSaveManualCode = async () => {
+    if (!manualCode.trim()) return;
+    setIsSubmittingCode(true);
+    const ticketId = selectedCalidadTicket.ticket || selectedCalidadTicket['TRABAJO'];
+    const success = await saveCalidadCodigo(ticketId, manualCode);
+    setIsSubmittingCode(false);
+    if (success) {
+      setManualCode('');
+      setShowManualInput(false);
+      handleFormReturn();
+    } else {
+      displayToast('Error al guardar el código', 'error');
+    }
   };
 
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
@@ -584,21 +603,27 @@ export default function InspectorApp() {
                    const barrio    = getField(['barrio']);
                    const calle     = getField(['calle']);
 
-                  return (
-                    <div 
-                      key={idx} 
-                      className="mobile-card" 
-                      onClick={() => setSelectedCalidadTicket(c)}
-                      style={{ 
-                        marginBottom: '1rem', 
-                        padding: '1.25rem', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '0.85rem',
-                        cursor: 'pointer',
-                        borderLeft: '4px solid var(--primary-color)'
-                      }}
-                    >
+                    const isCompleted = c['Estado Inspección'] === 'Completado';
+
+                    return (
+                      <div 
+                        key={idx} 
+                        className="mobile-card" 
+                        onClick={() => {
+                          setSelectedCalidadTicket(c);
+                          setShowManualInput(false);
+                        }}
+                        style={{ 
+                          marginBottom: '1rem', 
+                          padding: '1.25rem', 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: '0.85rem',
+                          cursor: 'pointer',
+                          borderLeft: isCompleted ? '5px solid #10b981' : '5px solid var(--primary-color)',
+                          boxShadow: isCompleted ? '0 4px 15px rgba(16, 185, 129, 0.1)' : '0 4px 12px rgba(0,0,0,0.03)'
+                        }}
+                      >
 
                       {/* — Nombre Técnico — */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
@@ -971,19 +996,62 @@ export default function InspectorApp() {
                 </div>
               </div>
 
-              {!isFormActive ? (
-                <button 
-                  onClick={() => {
-                    setIsFormActive(true);
-                    window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank');
-                  }}
-                  className="btn-primary" 
-                  style={{ width: '100%', padding: '1rem', borderRadius: '16px', marginTop: '1rem' }}
-                >
-                  <ExternalLink size={20} />
-                  Registrar Hallazgos
-                </button>
-              ) : (
+              {!isFormActive && !showManualInput && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                  <button 
+                    onClick={() => {
+                      setIsFormActive(true);
+                      window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank');
+                    }}
+                    className="btn-primary" 
+                    style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}
+                  >
+                    <ExternalLink size={20} />
+                    Registrar Hallazgos (Forms)
+                  </button>
+                  <button 
+                    onClick={() => setShowManualInput(true)}
+                    className="btn-secondary" 
+                    style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
+                  >
+                    <ClipboardList size={20} />
+                    Código Aplicado (Manual)
+                  </button>
+                </div>
+              )}
+
+              {showManualInput && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem', animation: 'fadeInUp 0.3s ease' }}>
+                  <div className="input-group">
+                    <label>Código Aplicado</label>
+                    <input 
+                      type="text" 
+                      className="input-control" 
+                      placeholder="Ingrese el código aquí..."
+                      value={manualCode}
+                      onChange={(e) => setManualCode(e.target.value)}
+                      style={{ borderRadius: '12px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      onClick={() => setShowManualInput(false)}
+                      className="btn-secondary" 
+                      style={{ flex: 1, borderRadius: '12px' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      onClick={handleSaveManualCode}
+                      disabled={isSubmittingCode || !manualCode.trim()}
+                      className="btn-primary" 
+                      style={{ flex: 2, borderRadius: '12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                    >
+                      {isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}
+                    </button>
+                  </div>
+                </div>
+              ) : isFormActive && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
                     Formulario abierto en otra pestaña. Por favor completa el registro.
