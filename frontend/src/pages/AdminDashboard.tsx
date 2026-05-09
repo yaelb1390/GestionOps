@@ -69,6 +69,16 @@ export default function AdminDashboard() {
     loadRazones();
   }, []);
 
+  useEffect(() => {
+    if (tickets.length > 0) {
+      console.log("DEBUG - Primer Ticket Recibido:", tickets[0]);
+      console.log("DEBUG - Keys Disponibles:", Object.keys(tickets[0]));
+      const sampleSup = getSupervisor(tickets[0]);
+      console.log("DEBUG - Resultado getSupervisor:", sampleSup);
+    }
+  }, [tickets]);
+
+
   const loadAdminConfig = async () => {
     const config = await fetchConfig();
     setAdminConfig(config);
@@ -146,14 +156,29 @@ export default function AdminDashboard() {
 
   const getSupervisor = (t: any) => {
     if (!t) return '-';
-    // Buscamos cualquier combinación de "nombre supervisor", "supervisor", etc.
+    // Prioridad absoluta: buscar 'supervisor' (ya normalizado por backend)
+    if (t.supervisor) return String(t.supervisor);
+    
+    // Fallback: buscar variaciones comunes manualmente
     const keys = Object.keys(t);
     const supKey = keys.find(k => {
       const normalized = k.toLowerCase().trim();
-      return normalized === 'nombre supervisor' || normalized === 'supervisor' || normalized === 'nombre del supervisor' || normalized === 'nombre_supervisor';
+      return normalized === 'nombre supervisor' || 
+             normalized === 'supervisor' || 
+             normalized === 'nombre del supervisor' || 
+             normalized === 'nombre_supervisor' ||
+             normalized === 'nombre de supervisor';
     });
-    return supKey ? String(t[supKey] || '-') : (t.supervisor || '-');
+    
+    if (supKey) return String(t[supKey] || '-');
+    
+    // Último recurso: buscar cualquier key que contenga 'supervisor'
+    const fuzzyKey = keys.find(k => k.toLowerCase().includes('supervisor'));
+    if (fuzzyKey) return String(t[fuzzyKey] || '-');
+
+    return '-';
   };
+
 
 
   return (

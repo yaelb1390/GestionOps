@@ -10,34 +10,32 @@ function doGet(e) {
     var headers = data[0];
     var results = [];
     
-    // Mapa de normalización: columnas del sheet → nombres que usa el frontend
-    var normalizeHeader = function(h) {
-      if (!h) return "";
-      var low = String(h).trim().toLowerCase();
-      if (low === 'nombre supervisor' || low === 'nombre del supervisor' || low === 'supervisor') return 'supervisor';
-      if (low === 'nombre técnico' || low === 'nombre tecnico' || low === 'nombre del técnico' || low === 'nombre del tecnico' || low === 'técnico' || low === 'tecnico') return 'tech';
-      if (low === 'id técnico' || low === 'id tecnico' || low === 'cedula' || low === 'cédula' || low === 'id tecnico') return 'tech_id';
-      if (low === 'numero ticket' || low === 'número ticket' || low === 'nro ticket' || low === 'no ticket' || low === 'ticket' || low === 'tickets') return 'ticket';
-      if (low === 'estado' || low === 'status') return 'status';
-      if (low === 'sector' || low === 'zona') return 'sector';
-      if (low === 'prioridad' || low === 'priority') return 'priority';
-      return h.toString().trim(); // mantiene el nombre original limpio
-    };
-    
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       var obj = {};
       for (var j = 0; j < headers.length; j++) {
-        var key = normalizeHeader(headers[j]);
-        if (key) {
-          obj[key] = row[j];
+        var header = String(headers[j] || "").trim();
+        var low = header.toLowerCase();
+        var value = row[j];
+        
+        // Mapeo manual directo por cada fila para máxima seguridad
+        var key = header; 
+        if (low.includes('supervisor')) key = 'supervisor';
+        else if (low.includes('técnico') || low.includes('tecnico')) {
+          if (low.includes('id') || low.includes('cedula')) key = 'tech_id';
+          else key = 'tech';
         }
+        else if (low.includes('ticket')) key = 'ticket';
+        else if (low === 'estado' || low === 'status') key = 'status';
+        else if (low === 'sector') key = 'sector';
+        
+        obj[key] = value;
       }
       results.push(obj);
     }
-
     return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
   } 
+
 
   else if (type === 'ordenes') {
     var ssOrdenes;
