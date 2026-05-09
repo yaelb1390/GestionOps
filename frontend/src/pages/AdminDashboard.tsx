@@ -29,7 +29,7 @@ export default function AdminDashboard() {
   const CALIDAD_COLUMNS = [
     { label: 'TÉCNICO (ID)', key: 'tech_id' },
     { label: 'NOMBRE TÉCNICO', key: 'tech' },
-    { label: 'TRABAJO (Número de Ticket/IDD)', key: 'ticket' },
+    { label: 'TRABAJO', key: 'ticket' },
     { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
     { label: 'NOMBRE SUPERVISOR', key: 'supervisor' },
     { label: 'SECTOR', key: 'sector' },
