@@ -319,16 +319,6 @@ export default function InspectorApp() {
           </div>
         </header>
 
-        <div className="kpi-grid" style={{ marginBottom: '1.5rem' }}>
-          <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ color: 'var(--primary-color)', fontWeight: 700, fontSize: '1.75rem' }}>{tickets.filter(t => (t.status === 'Pendiente' || t.status === 'Asignado') && (t.inspector === inspectorName || t.inspector_id == inspectorName)).length}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Pendientes</div>
-          </div>
-          <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ color: 'var(--secondary-color)', fontWeight: 700, fontSize: '1.75rem' }}>{tickets.filter(t => (t.status === 'Aprobado' || t.status === 'Inspeccionado') && (t.inspector === inspectorName || t.inspector_id == inspectorName)).length}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Completados</div>
-          </div>
-        </div>
 
       <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         {activeTab === 'repetidas' ? (
