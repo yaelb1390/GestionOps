@@ -480,7 +480,7 @@ export default function AdminDashboard() {
                     style={{ width: 'auto', minWidth: '200px' }}
                   >
                     <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(tickets.map(t => t.supervisor).filter(Boolean))).map(sup => (
+                    {Array.from(new Set(calidadData.map(t => t.supervisor).filter(Boolean))).map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -563,7 +563,7 @@ export default function AdminDashboard() {
                                           t.tech_id?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech?.toString().toLowerCase().includes(searchTerm.toLowerCase());
                     const tSupervisor = t.supervisor || '-';
-                    const matchesSupervisor = supervisorFilter === '' || tSupervisor === supervisorFilter;
+                    const matchesSupervisor = calidadSupervisorFilter === '' || tSupervisor === calidadSupervisorFilter;
                     return matchesSearch && matchesSupervisor;
                   }).map((t, idx) => (
                     <tr key={t.id || t.ticket || idx}>
@@ -802,10 +802,7 @@ export default function AdminDashboard() {
                     style={{ width: 'auto', minWidth: '200px' }}
                   >
                     <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(calidadData.map(c => {
-                      const supKey = Object.keys(c).find(k => k.toLowerCase().trim() === 'supervisor' || k.toLowerCase().trim() === 'nombre del supervisor');
-                      return supKey ? String(c[supKey]).trim() : '';
-                    }).filter(Boolean))).map(sup => (
+                    {Array.from(new Set(calidadData.map(t => t.supervisor).filter(Boolean))).map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -901,12 +898,9 @@ export default function AdminDashboard() {
                     <tr><td colSpan={10} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos disponibles.</td></tr>
                   ) : calidadData
                     .filter(c => {
-                      // Dynamically find supervisor and technician keys
-                      const supKey = Object.keys(c).find(k => k.toLowerCase().trim() === 'supervisor' || k.toLowerCase().trim() === 'nombre del supervisor') || 'Supervisor';
-                      const techKey = Object.keys(c).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
-                      
                       const term = calidadSearch.toLowerCase();
-                      const sup = String(c[supKey] || '').trim();
+                      const sup = String(c.supervisor || '').trim();
+                      const techKey = Object.keys(c).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
                       const tech = String(c[techKey] || '').trim();
                       
                       // Filtro global
@@ -921,6 +915,7 @@ export default function AdminDashboard() {
                       
                       return matchesGlobal && matchesColumns;
                     })
+
                     .map((row, idx) => {
                       const techKey = Object.keys(row).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
                       const technician = row[techKey];
