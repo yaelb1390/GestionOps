@@ -316,7 +316,22 @@ export default function InspectorApp() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {/* Solo dejamos el avatar y nombre, quitamos botones de más del header */}
+            <button 
+              onClick={handleLogout}
+              style={{ 
+                background: 'var(--glass-bg)', 
+                border: '1px solid var(--glass-border)', 
+                color: '#ef4444', 
+                padding: '0.5rem', 
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.1)'
+              }}
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </header>
 
@@ -471,31 +486,7 @@ export default function InspectorApp() {
             </div>
           </button>
 
-          <button 
-            onClick={handleLogout}
-            className="mobile-card" 
-            style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              gap: '1rem', 
-              padding: '1.75rem 1rem', 
-              textAlign: 'center', 
-              justifyContent: 'center',
-              border: '1px solid var(--glass-border)',
-              background: 'var(--glass-bg)',
-              borderRadius: '24px',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(239, 68, 68, 0.2)' }}>
-              <LogOut size={28} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Salir</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Cerrar sesión</div>
-            </div>
-          </button>
+
         </div>
       )}
 
