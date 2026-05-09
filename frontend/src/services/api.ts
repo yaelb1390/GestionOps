@@ -312,7 +312,7 @@ export async function assignCalidadIndividual(technician: string, tech_id: strin
   }
 }
 
-export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<boolean> {
+export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<{success: boolean, message?: string}> {
   try {
     const response = await fetch(SCRIPT_URL, {
       method: "POST",
@@ -327,9 +327,9 @@ export async function saveCalidadCodigo(ticket: string, codigo: string): Promise
     });
 
     const result = await response.json();
-    return result.status === "success";
-  } catch (error) {
+    return { success: result.status === "success", message: result.message };
+  } catch (error: any) {
     console.error("Error saving calidad codigo:", error);
-    return false;
+    return { success: false, message: error.message };
   }
 }

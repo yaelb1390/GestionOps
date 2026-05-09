@@ -54,14 +54,14 @@ export default function InspectorApp() {
     if (!manualCode.trim()) return;
     setIsSubmittingCode(true);
     const ticketId = selectedCalidadTicket.ticket || selectedCalidadTicket['TRABAJO'];
-    const success = await saveCalidadCodigo(ticketId, manualCode);
+    const { success, message } = await saveCalidadCodigo(ticketId, manualCode);
     setIsSubmittingCode(false);
     if (success) {
       setManualCode('');
       setShowManualInput(false);
       handleFormReturn();
     } else {
-      displayToast('Error al guardar el código', 'error');
+      displayToast(message || 'Error al guardar el código', 'error');
     }
   };
 
