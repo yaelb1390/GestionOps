@@ -71,7 +71,11 @@ function doGet(e) {
   // Lógica para Tickets, Calidad, Ordenes y Razones
   var sheetName = "";
   if (type === "tickets") sheetName = "Tickets";
-  else if (type === "calidad") sheetName = "calidad";
+  else if (type === "calidad") {
+    var sheets = ss.getSheets();
+    var sheet = sheets.find((s) => s.getSheetId() == 1724783398);
+    if (sheet) sheetName = sheet.getName();
+  }
   else if (type === "razones") {
     var sheets = ss.getSheets();
     var sheet = sheets.find((s) => s.getSheetId() == 761213977);
