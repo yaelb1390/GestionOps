@@ -24,6 +24,19 @@ export default function AdminDashboard() {
   const [loadingCalidad, setLoadingCalidad] = useState(false);
   const [calidadSearch, setCalidadSearch] = useState('');
   const [calidadSupervisorFilter, setCalidadSupervisorFilter] = useState('');
+  
+  // Columnas fijas para el tablero de Calidad (Averías Repetidas)
+  const CALIDAD_COLUMNS = [
+    { label: 'TÉCNICO', key: 'tech_id' },
+    { label: 'NOMBRE TÉCNICO', key: 'tech' },
+    { label: 'TRABAJO', key: 'ticket' },
+    { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
+    { label: 'NOMBRE SUPERVISOR', key: 'supervisor' },
+    { label: 'SECTOR', key: 'sector' },
+    { label: 'BARRIO', key: 'BARRIO' },
+    { label: 'CALLE', key: 'CALLE' },
+    { label: 'TECNOLOGÍA', key: 'TECNOLOGÍA' }
+  ];
   const [showAddInspector, setShowAddInspector] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(null);
   const [_razones, setRazones] = useState<any[]>([]);
@@ -883,17 +896,17 @@ export default function AdminDashboard() {
               <table>
                 <thead>
                   <tr>
-                    {calidadData.length > 0 && Object.keys(calidadData[0]).slice(0, 12).map(header => (
-                      <th key={header}>
+                    {CALIDAD_COLUMNS.map(col => (
+                      <th key={col.key}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{header}</span>
+                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{col.label}</span>
                           <div className="search-bar" style={{ margin: 0, padding: '0.25rem 0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', height: '28px' }}>
                             <Search size={12} />
                             <input 
                               type="text" 
                               placeholder="Filtrar..." 
-                              value={columnFilters[header] || ''} 
-                              onChange={(e) => setColumnFilters(prev => ({ ...prev, [header]: e.target.value }))}
+                              value={columnFilters[col.key] || ''} 
+                              onChange={(e) => setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
                               style={{ fontSize: '0.75rem' }}
                             />
                           </div>
@@ -935,28 +948,33 @@ export default function AdminDashboard() {
                       
                       return (
                         <tr key={idx}>
-                          {Object.entries(row).slice(0, 12).map(([key, val]: [string, any], i) => (
-                            <td key={i}>
-                              {key.toLowerCase().includes('repetida') || (val !== null && val !== undefined && String(val).includes('%')) ? (
-                                (() => {
-                                  const numVal = parseFloat(String(val || '0').replace('%', ''));
-                                  const color = numVal < 7 ? '#10b981' : numVal < 15 ? '#f59e0b' : '#ef4444';
-                                  return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                      <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', minWidth: '60px' }}>
-                                        <div style={{ 
-                                          height: '100%', 
-                                          background: color, 
-                                          width: String(val || '0%').includes('%') ? String(val) : `${numVal}%` 
-                                        }}></div>
+                          {CALIDAD_COLUMNS.map((col, i) => {
+                            const val = row[col.key] || row[col.label] || '-';
+                            return (
+                              <td key={i}>
+                                {String(val).includes('%') ? (
+                                  (() => {
+                                    const numVal = parseFloat(String(val || '0').replace('%', ''));
+                                    const color = numVal < 7 ? '#10b981' : numVal < 15 ? '#f59e0b' : '#ef4444';
+                                    return (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', minWidth: '60px' }}>
+                                          <div style={{ 
+                                            height: '100%', 
+                                            background: color, 
+                                            width: String(val || '0%').includes('%') ? String(val) : `${numVal}%` 
+                                          }} />
+                                        </div>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color }}>{val}</span>
                                       </div>
-                                      <span style={{ fontWeight: 'bold', color: color }}>{val || '0%'}</span>
-                                    </div>
-                                  );
-                                })()
-                              ) : (val !== null && val !== undefined ? String(val) : '-')}
-                            </td>
-                          ))}
+                                    );
+                                  })()
+                                ) : (
+                                  <span style={{ color: val === '-' ? 'var(--text-muted)' : 'inherit' }}>{val}</span>
+                                )}
+                              </td>
+                            );
+                          })}
                           <td>
                             {row['Inspector'] ? (
                               <span className="badge info">{row['Inspector']}</span>
