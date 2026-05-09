@@ -9,16 +9,36 @@ function doGet(e) {
     if(data.length <= 1) return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
     var headers = data[0];
     var results = [];
+    
+    // Mapa de normalización: columnas del sheet → nombres que usa el frontend
+    var normalizeHeader = function(h) {
+      if (!h) return "";
+      var low = String(h).trim().toLowerCase();
+      if (low === 'nombre supervisor' || low === 'nombre del supervisor' || low === 'supervisor') return 'supervisor';
+      if (low === 'nombre técnico' || low === 'nombre tecnico' || low === 'nombre del técnico' || low === 'nombre del tecnico' || low === 'técnico' || low === 'tecnico') return 'tech';
+      if (low === 'id técnico' || low === 'id tecnico' || low === 'cedula' || low === 'cédula' || low === 'id tecnico') return 'tech_id';
+      if (low === 'numero ticket' || low === 'número ticket' || low === 'nro ticket' || low === 'no ticket' || low === 'ticket' || low === 'tickets') return 'ticket';
+      if (low === 'estado' || low === 'status') return 'status';
+      if (low === 'sector' || low === 'zona') return 'sector';
+      if (low === 'prioridad' || low === 'priority') return 'priority';
+      return h.toString().trim(); // mantiene el nombre original limpio
+    };
+    
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       var obj = {};
       for (var j = 0; j < headers.length; j++) {
-        obj[headers[j]] = row[j];
+        var key = normalizeHeader(headers[j]);
+        if (key) {
+          obj[key] = row[j];
+        }
       }
       results.push(obj);
     }
+
     return ContentService.createTextOutput(JSON.stringify(results)).setMimeType(ContentService.MimeType.JSON);
   } 
+
   else if (type === 'ordenes') {
     var ssOrdenes;
     try {

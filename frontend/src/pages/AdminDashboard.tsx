@@ -144,6 +144,18 @@ export default function AdminDashboard() {
     navigate('/login');
   };
 
+  const getSupervisor = (t: any) => {
+    if (!t) return '-';
+    // Buscamos cualquier combinación de "nombre supervisor", "supervisor", etc.
+    const keys = Object.keys(t);
+    const supKey = keys.find(k => {
+      const normalized = k.toLowerCase().trim();
+      return normalized === 'nombre supervisor' || normalized === 'supervisor' || normalized === 'nombre del supervisor' || normalized === 'nombre_supervisor';
+    });
+    return supKey ? String(t[supKey] || '-') : (t.supervisor || '-');
+  };
+
+
   return (
     <div className="app-container">
       {/* Sidebar */}
@@ -443,7 +455,7 @@ export default function AdminDashboard() {
                     style={{ width: 'auto', minWidth: '200px' }}
                   >
                     <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(tickets.map(t => (t as any)['NOMBRE SUPERVISOR'] || t.supervisor).filter(Boolean))).map(sup => (
+                    {Array.from(new Set(tickets.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -525,7 +537,7 @@ export default function AdminDashboard() {
                     const matchesSearch = t.ticket?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech_id?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech?.toString().toLowerCase().includes(searchTerm.toLowerCase());
-                    const tSupervisor = (t as any)['NOMBRE SUPERVISOR'] || t.supervisor || '';
+                    const tSupervisor = getSupervisor(t);
                     const matchesSupervisor = supervisorFilter === '' || tSupervisor === supervisorFilter;
                     return matchesSearch && matchesSupervisor;
                   }).map((t, idx) => (
@@ -551,7 +563,7 @@ export default function AdminDashboard() {
                           ))}
                         </select>
                       </td>
-                      <td>{(t as any)['NOMBRE SUPERVISOR'] || t.supervisor || '-'}</td>
+                      <td>{getSupervisor(t)}</td>
                       <td>{t.sector}</td>
                       <td>
                         <span className={`badge ${t.priority === 'Alta' ? 'danger' : t.priority === 'Media' ? 'warning' : 'success'}`}>
