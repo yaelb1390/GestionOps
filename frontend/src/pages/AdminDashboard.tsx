@@ -78,6 +78,15 @@ export default function AdminDashboard() {
     }
   }, [tickets]);
 
+  useEffect(() => {
+    if (calidadData.length > 0) {
+      console.log("DEBUG - Primer Calidad Recibido:", calidadData[0]);
+      console.log("DEBUG - Keys Disponibles en Calidad:", Object.keys(calidadData[0]));
+      const sampleSup = getSupervisor(calidadData[0]);
+      console.log("DEBUG - Resultado getSupervisor en Calidad:", sampleSup);
+    }
+  }, [calidadData]);
+
 
   const loadAdminConfig = async () => {
     const config = await fetchConfig();
@@ -472,18 +481,6 @@ export default function AdminDashboard() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  
-                  <select 
-                    className="input-control" 
-                    value={supervisorFilter} 
-                    onChange={(e) => setSupervisorFilter(e.target.value)}
-                    style={{ width: 'auto', minWidth: '200px' }}
-                  >
-                    <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(tickets.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
-                      <option key={sup} value={sup}>{sup}</option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -505,12 +502,26 @@ export default function AdminDashboard() {
                 
                 <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minWidth: '300px', flexWrap: 'wrap' }}>
                   <select 
+                    className="input-control" 
+                    value={supervisorFilter} 
+                    onChange={(e) => setSupervisorFilter(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
+                  >
+                    <option value="">1. Seleccionar Supervisor...</option>
+                    {Array.from(new Set(tickets.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
+                      <option key={sup} value={sup}>{sup}</option>
+                    ))}
+                  </select>
+
+                  <span style={{color: '#3b82f6', display: 'flex', alignItems: 'center', fontWeight: 'bold'}}>→</span>
+
+                  <select 
                     className="assign-select"
                     style={{ flex: 1, minWidth: '200px', height: '42px', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }}
                     value={bulkAssignInspector}
                     onChange={e => setBulkAssignInspector(e.target.value)}
                   >
-                    <option value="" disabled>Seleccionar inspector...</option>
+                    <option value="" disabled>2. Seleccionar Inspector...</option>
                     {inspectors.map(insp => <option key={insp.id} value={insp.id}>{insp.nombre}</option>)}
                   </select>
                   
@@ -794,18 +805,6 @@ export default function AdminDashboard() {
                       onChange={(e) => setCalidadSearch(e.target.value)}
                     />
                   </div>
-                  
-                  <select 
-                    className="input-control" 
-                    value={calidadSupervisorFilter} 
-                    onChange={(e) => setCalidadSupervisorFilter(e.target.value)}
-                    style={{ width: 'auto', minWidth: '200px' }}
-                  >
-                    <option value="">Filtrar Supervisor...</option>
-                    {Array.from(new Set(calidadData.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
-                      <option key={sup} value={sup}>{sup}</option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -827,12 +826,26 @@ export default function AdminDashboard() {
                 
                 <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minWidth: '300px', flexWrap: 'wrap' }}>
                   <select 
+                    className="input-control" 
+                    value={calidadSupervisorFilter} 
+                    onChange={(e) => setCalidadSupervisorFilter(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid var(--primary-color)' }}
+                  >
+                    <option value="">1. Seleccionar Supervisor...</option>
+                    {Array.from(new Set(calidadData.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
+                      <option key={sup} value={sup}>{sup}</option>
+                    ))}
+                  </select>
+
+                  <span style={{color: 'var(--primary-color)', display: 'flex', alignItems: 'center', fontWeight: 'bold'}}>→</span>
+
+                  <select 
                     className="assign-select" 
                     value={bulkAssignCalidadInspector}
                     onChange={(e) => setBulkAssignCalidadInspector(e.target.value)}
                     style={{ flex: 1, minWidth: '200px', height: '42px' }}
                   >
-                    <option value="">Seleccionar inspector para asignar...</option>
+                    <option value="">2. Seleccionar Inspector...</option>
                     {inspectors.map(insp => (
                       <option key={insp.id} value={insp.id}>{insp.nombre}</option>
                     ))}
