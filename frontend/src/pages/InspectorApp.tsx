@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Sun, Moon, Package, LayoutGrid } from 'lucide-react';
+import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden } from '../services/api';
 
@@ -22,6 +22,9 @@ export default function InspectorApp() {
   const [selectedOrden, setSelectedOrden] = useState<Orden | null>(null);
   const [ordenesSearch, setOrdenesSearch] = useState('');
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
+  const [selectedCalidadTicket, setSelectedCalidadTicket] = useState<any | null>(null);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [isFormActive, setIsFormActive] = useState(false);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -34,6 +37,13 @@ export default function InspectorApp() {
     localStorage.removeItem('userRole');
     localStorage.removeItem('inspectorName');
     navigate('/login');
+  };
+
+  const handleFormReturn = () => {
+    setIsFormActive(false);
+    setSelectedCalidadTicket(null);
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 4000);
   };
 
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
@@ -575,7 +585,20 @@ export default function InspectorApp() {
                    const calle     = getField(['calle']);
 
                   return (
-                    <div key={idx} className="mobile-card" style={{ marginBottom: '1rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <div 
+                      key={idx} 
+                      className="mobile-card" 
+                      onClick={() => setSelectedCalidadTicket(c)}
+                      style={{ 
+                        marginBottom: '1rem', 
+                        padding: '1.25rem', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '0.85rem',
+                        cursor: 'pointer',
+                        borderLeft: '4px solid var(--primary-color)'
+                      }}
+                    >
 
                       {/* — Nombre Técnico — */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
@@ -746,6 +769,118 @@ export default function InspectorApp() {
       )}
 
       {/* Bottom Navigation */}
+      {/* — Modal de Detalle de Ticket — */}
+      {selectedTicket && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            background: 'var(--surface-color)',
+            width: '100%',
+            maxWidth: '500px',
+            borderTopLeftRadius: '32px',
+            borderTopRightRadius: '32px',
+            padding: '2rem 1.5rem',
+            animation: 'slideUp 0.3s ease-out',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ width: '40px', height: '4px', background: 'var(--border-color)', borderRadius: '2px', margin: '0 auto 1.5rem auto' }} />
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Detalle de Inspección</h2>
+              <button onClick={() => { setSelectedTicket(null); setIsFormActive(false); }} style={{ color: 'var(--text-muted)' }}><X size={24} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="glass-panel" style={{ padding: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Trabajo / Ticket</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{selectedTicket.ticket || selectedTicket['TRABAJO'] || '-'}</div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Técnico</div>
+                  <div style={{ fontWeight: 600 }}>{selectedTicket.tech || selectedTicket['NOMBRE TÉCNICO'] || '-'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>ID Tarjeta</div>
+                  <div style={{ fontWeight: 600 }}>{selectedTicket.tech_id || selectedTicket['TÉCNICO (ID)'] || '-'}</div>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.02)', padding: '1rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sector / Barrio</div>
+                  <div style={{ fontSize: '0.9rem' }}>{selectedTicket.sector || '-'} / {selectedTicket['BARRIO'] || '-'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dirección</div>
+                  <div style={{ fontSize: '0.9rem' }}>{selectedTicket['CALLE'] || '-'}</div>
+                </div>
+              </div>
+
+              {!isFormActive ? (
+                <button 
+                  onClick={() => {
+                    setIsFormActive(true);
+                    window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank');
+                  }}
+                  className="btn-primary" 
+                  style={{ width: '100%', padding: '1rem', borderRadius: '16px', marginTop: '1rem' }}
+                >
+                  <ExternalLink size={20} />
+                  Registrar Hallazgos
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
+                    Formulario abierto en otra pestaña. Por favor completa el registro.
+                  </div>
+                  <button 
+                    onClick={handleFormReturn}
+                    className="btn-primary" 
+                    style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', width: '100%', padding: '1rem', borderRadius: '16px', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' }}
+                  >
+                    Confirmar Registro Completado
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* — Toast de Éxito — */}
+      {showSuccessToast && (
+        <div className="toast-notification success" style={{ bottom: '2rem' }}>
+          <div style={{ background: '#10b981', color: 'white', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Check size={16} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700 }}>¡Registro Completado!</div>
+            <div style={{ fontSize: '0.75rem' }}>La incidencia ha sido registrada correctamente.</div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}</style>
+
       <nav className="bottom-nav">
         <button 
           className={`bottom-nav-item ${activeTab === 'menu' ? 'active' : ''}`} 
@@ -775,6 +910,117 @@ export default function InspectorApp() {
           <span>{toastMessage}</span>
         </div>
       )}
+      {/* — Modal de Detalle de Calidad — */}
+      {selectedCalidadTicket && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            background: 'var(--surface-color)',
+            width: '100%',
+            maxWidth: '500px',
+            borderTopLeftRadius: '32px',
+            borderTopRightRadius: '32px',
+            padding: '2rem 1.5rem',
+            animation: 'slideUp 0.3s ease-out',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ width: '40px', height: '4px', background: 'var(--border-color)', borderRadius: '2px', margin: '0 auto 1.5rem auto' }} />
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Detalle de Inspección</h2>
+              <button onClick={() => { setSelectedCalidadTicket(null); setIsFormActive(false); }} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="glass-panel" style={{ padding: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Trabajo / Ticket</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{selectedCalidadTicket.ticket || selectedCalidadTicket['TRABAJO'] || '-'}</div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Técnico</div>
+                  <div style={{ fontWeight: 600 }}>{selectedCalidadTicket.tech || selectedCalidadTicket['NOMBRE TÉCNICO'] || '-'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>ID Tarjeta</div>
+                  <div style={{ fontWeight: 600 }}>{selectedCalidadTicket.tech_id || selectedCalidadTicket['TÉCNICO (ID)'] || '-'}</div>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.02)', padding: '1rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sector / Barrio</div>
+                  <div style={{ fontSize: '0.9rem' }}>{selectedCalidadTicket.sector || '-'} / {selectedCalidadTicket['BARRIO'] || '-'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dirección</div>
+                  <div style={{ fontSize: '0.9rem' }}>{selectedCalidadTicket['CALLE'] || '-'}</div>
+                </div>
+              </div>
+
+              {!isFormActive ? (
+                <button 
+                  onClick={() => {
+                    setIsFormActive(true);
+                    window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank');
+                  }}
+                  className="btn-primary" 
+                  style={{ width: '100%', padding: '1rem', borderRadius: '16px', marginTop: '1rem' }}
+                >
+                  <ExternalLink size={20} />
+                  Registrar Hallazgos
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>
+                    Formulario abierto en otra pestaña. Por favor completa el registro.
+                  </div>
+                  <button 
+                    onClick={handleFormReturn}
+                    className="btn-primary" 
+                    style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', width: '100%', padding: '1rem', borderRadius: '16px', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' }}
+                  >
+                    Confirmar Registro Completado
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* — Toast de Éxito — */}
+      {showSuccessToast && (
+        <div className="toast-notification success" style={{ bottom: '6rem' }}>
+          <div style={{ background: '#10b981', color: 'white', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Check size={16} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700 }}>¡Registro Completado!</div>
+            <div style={{ fontSize: '0.75rem' }}>La incidencia ha sido registrada correctamente.</div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
