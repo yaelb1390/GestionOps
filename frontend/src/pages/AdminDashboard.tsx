@@ -27,9 +27,9 @@ export default function AdminDashboard() {
   
   // Columnas fijas para el tablero de Calidad (Averías Repetidas)
   const CALIDAD_COLUMNS = [
-    { label: 'TÉCNICO', key: 'tech_id' },
+    { label: 'TÉCNICO (ID)', key: 'tech_id' },
     { label: 'NOMBRE TÉCNICO', key: 'tech' },
-    { label: 'TRABAJO', key: 'ticket' },
+    { label: 'TRABAJO (Número de Ticket/IDD)', key: 'ticket' },
     { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
     { label: 'NOMBRE SUPERVISOR', key: 'supervisor' },
     { label: 'SECTOR', key: 'sector' },
