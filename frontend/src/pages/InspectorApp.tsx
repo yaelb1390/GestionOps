@@ -20,6 +20,7 @@ export default function InspectorApp() {
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [loadingOrdenes, setLoadingOrdenes] = useState(false);
   const [selectedOrden, setSelectedOrden] = useState<Orden | null>(null);
+  const [ordenesSearch, setOrdenesSearch] = useState('');
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
   const toggleTheme = () => {
@@ -600,21 +601,74 @@ export default function InspectorApp() {
 
           {activeTab === 'ordenes' && (
             <>
+              {/* Buscador de órdenes */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                background: 'var(--glass-bg)',
+                border: '1.5px solid var(--glass-border)',
+                borderRadius: '14px',
+                padding: '0.65rem 1rem',
+                marginBottom: '1rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Buscar por N° orden, cliente..."
+                  value={ordenesSearch}
+                  onChange={(e) => setOrdenesSearch(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--text-main)',
+                    fontSize: '0.95rem',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                {ordenesSearch && (
+                  <button
+                    onClick={() => setOrdenesSearch('')}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
               {loadingOrdenes ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 className="spinner" /></div>
               ) : (
                 <>
-                  {ordenes.length === 0 ? (
-                    <div className="mobile-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
-                      <Package size={48} color="var(--text-muted)" style={{ marginBottom: '1rem', opacity: 0.5 }} />
-                      <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Sin Órdenes</h3>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontraron órdenes de trabajo asignadas.</p>
-                    </div>
-                  ) : (
-                    ordenes.map((o, idx) => (
-                      <div 
-                        key={idx} 
-                        className="mobile-card" 
+                  {(() => {
+                    const term = ordenesSearch.toLowerCase().trim();
+                    const filtered = ordenes.filter(o =>
+                      !term ||
+                      String(o['Orden Servicio'] || '').toLowerCase().includes(term) ||
+                      String(o.Cliente || '').toLowerCase().includes(term) ||
+                      String(o['Asignado A'] || '').toLowerCase().includes(term)
+                    );
+                    if (ordenes.length === 0) return (
+                      <div className="mobile-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+                        <Package size={48} color="var(--text-muted)" style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                        <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Sin Órdenes</h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontraron órdenes de trabajo asignadas.</p>
+                      </div>
+                    );
+                    if (filtered.length === 0) return (
+                      <div className="mobile-card" style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontró ninguna orden con ese criterio.</p>
+                      </div>
+                    );
+                    return filtered.map((o, idx) => (
+                      <div
+                        key={idx}
+                        className="mobile-card"
                         style={{ display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem', cursor: 'pointer' }}
                         onClick={() => setSelectedOrden(o)}
                       >
@@ -625,7 +679,6 @@ export default function InspectorApp() {
                           </div>
                           <ChevronRight color="var(--text-muted)" size={18} />
                         </div>
-                        
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                           <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{o.Cliente}</div>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -637,8 +690,8 @@ export default function InspectorApp() {
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
+                    ));
+                  })()}
                 </>
               )}
             </>
