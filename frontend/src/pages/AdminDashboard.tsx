@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden } from '../services/api';
+import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelCalidadCodigo } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -32,9 +32,9 @@ export default function AdminDashboard() {
     { label: 'TRABAJO', key: 'ticket' },
     { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
     { label: 'NOMBRE SUPERVISOR', key: 'supervisor' },
+    { label: 'CÓDIGO APLICADO', key: 'codigo_aplicado' },
+    { label: 'ESTADO', key: 'estado_inspeccion' },
     { label: 'SECTOR', key: 'sector' },
-    { label: 'BARRIO', key: 'BARRIO' },
-    { label: 'CALLE', key: 'CALLE' },
     { label: 'TECNOLOGÍA', key: 'TECNOLOGÍA' }
   ];
   const [showAddInspector, setShowAddInspector] = useState(false);
@@ -1000,31 +1000,63 @@ export default function AdminDashboard() {
                             )}
                           </td>
                           <td>
-                            <select 
-                              className="assign-select" 
-                              style={{ padding: '0.25rem 1.5rem 0.25rem 0.5rem', fontSize: '0.7rem' }}
-                              value=""
-                              onChange={async (e) => {
-                                const inspectorId = e.target.value;
-                                const inspector = inspectors.find(i => String(i.id) === String(inspectorId));
-                                if (inspector && technician) {
-                                  try {
-                                    const success = await assignCalidadIndividual(String(technician), inspector.id, inspector.nombre);
-                                    if (success) {
-                                      displayToast(`Técnico asignado a ${inspector.nombre}`, 'success');
-                                      loadCalidad();
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <select 
+                                className="assign-select" 
+                                style={{ padding: '0.25rem 1.5rem 0.25rem 0.5rem', fontSize: '0.7rem' }}
+                                value=""
+                                onChange={async (e) => {
+                                  const inspectorId = e.target.value;
+                                  const inspector = inspectors.find(i => String(i.id) === String(inspectorId));
+                                  if (inspector && technician) {
+                                    try {
+                                      const success = await assignCalidadIndividual(String(technician), inspector.id, inspector.nombre);
+                                      if (success) {
+                                        displayToast(`Técnico asignado a ${inspector.nombre}`, 'success');
+                                        loadCalidad();
+                                      }
+                                    } catch (error: any) {
+                                      displayToast(error.message || 'Error al asignar técnico', 'error');
                                     }
-                                  } catch (error: any) {
-                                    displayToast(error.message || 'Error al asignar técnico', 'error');
                                   }
-                                }
-                              }}
-                            >
-                              <option value="">Asignar...</option>
-                              {inspectors.map(insp => (
-                                <option key={insp.id} value={insp.id}>{insp.nombre}</option>
-                              ))}
-                            </select>
+                                }}
+                              >
+                                <option value="">Asignar...</option>
+                                {inspectors.map(insp => (
+                                  <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                                ))}
+                              </select>
+
+                              {(row['codigo_aplicado'] || row['Código Aplicado']) && (
+                                <button 
+                                  className="btn-danger" 
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', width: '100%' }}
+                                  onClick={() => {
+                                    const ticketId = row.ticket || row.IDD || row.id || row['ID TICKET'] || row['TRABAJO'];
+                                    setConfirmModal({
+                                      isOpen: true,
+                                      message: `¿Estás seguro de cancelar el código para el ticket ${ticketId}? Esto lo devolverá al inspector.`,
+                                      onConfirm: async () => {
+                                        try {
+                                          const { success, message } = await cancelCalidadCodigo(String(ticketId));
+                                          if (success) {
+                                            displayToast('Código cancelado correctamente', 'success');
+                                            loadCalidad();
+                                          } else {
+                                            displayToast(message || 'Error al cancelar el código', 'error');
+                                          }
+                                        } catch (error) {
+                                          displayToast('Error de conexión', 'error');
+                                        }
+                                        setConfirmModal(null);
+                                      }
+                                    });
+                                  }}
+                                >
+                                  Cancelar Código
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

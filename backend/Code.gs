@@ -1,15 +1,40 @@
+// Helper to normalize strings and remove accents
+function normalizeString(str) {
+  if (!str) return "";
+  var s = String(str).toLowerCase().trim();
+  try {
+    s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  } catch (e) {
+    s = s
+      .replace(/[áàäâ]/g, "a")
+      .replace(/[éèëê]/g, "e")
+      .replace(/[íìïî]/g, "i")
+      .replace(/[óòöô]/g, "o")
+      .replace(/[úùüû]/g, "u")
+      .replace(/ñ/g, "n");
+  }
+  return s;
+}
+
 // Función de normalización compartida para todos los tipos de datos
 function normalizeHeader(h) {
   if (!h) return "";
-  var low = String(h).trim().toLowerCase();
+  // Usar la función de normalización robusta para los encabezados también
+  var low = normalizeString(h);
 
-  if (low.includes("supervisor")) return "supervisor";
-  if (low.includes("técnico") || low.includes("tecnico")) {
-    if (low.includes("id") || low.includes("cedula") || low.includes("tarjeta"))
+  // PARA TRABAJO / TICKET: Solo si es la columna principal o específica de ID
+  if (low === "trabajo" || low === "ticket" || low === "id ticket" || low === "ticket id" || low === "numero de ticket" || low === "nro ticket") return "ticket";
+
+  if (low.includes("supervisor")) {
+    if (low.includes("tarjeta") || low.includes("id")) return "supervisor_id";
+    return "supervisor";
+  }
+  
+  if (low.includes("tecnico")) {
+    if (low.includes("id") || low.includes("cedula") || low.includes("tarjeta") || low === "tecnico")
       return "tech_id";
     return "tech";
   }
-  if (low.includes("ticket") || low.includes("trabajo")) return "ticket";
   if (low === "estado" || low === "status") return "status";
   if (low === "sector" || low === "zona") return "sector";
   if (low === "prioridad" || low === "priority") return "priority";
@@ -103,6 +128,7 @@ function doGet(e) {
       ContentService.MimeType.JSON,
     );
 
+  var role = e.parameter.role || "admin";
   var data = targetSheet.getDataRange().getValues();
   if (data.length <= 1)
     return ContentService.createTextOutput("[]").setMimeType(
@@ -111,8 +137,32 @@ function doGet(e) {
 
   var headers = data[0];
   var results = [];
+  
+  // Encontrar columnas para filtrado 24h
+  var estadoCol = -1;
+  var fechaCol = -1;
+  if (type === "calidad") {
+    for (var j = 0; j < headers.length; j++) {
+      var h = normalizeString(headers[j]);
+      if (h === "estado inspeccion") estadoCol = j;
+      if (h === "fecha inspeccion") fechaCol = j;
+    }
+  }
+
+  var now = new Date();
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
+    
+    // Filtrado 24h para Inspectores en Calidad
+    if (type === "calidad" && role === "inspector" && estadoCol > -1 && row[estadoCol] === "Completado" && fechaCol > -1) {
+      var fechaInspeccion = new Date(row[fechaCol]);
+      if (!isNaN(fechaInspeccion.getTime())) {
+        var diffHours = (now - fechaInspeccion) / (1000 * 60 * 60);
+        if (diffHours > 24) continue; // Ocultar después de 24h
+      }
+    }
+
     var obj = {};
     for (var j = 0; j < headers.length; j++) {
       var key = normalizeHeader(headers[j]);
@@ -263,11 +313,12 @@ function doPost(e) {
       // Busca la columna supervisor con nombre flexible
       var supervisorCol = -1;
       for (var j = 0; j < headers.length; j++) {
-        var h = String(headers[j]).trim().toLowerCase();
+        var h = normalizeString(headers[j]);
         if (
           h === "nombre supervisor" ||
           h === "supervisor" ||
-          h === "nombre del supervisor"
+          h === "nombre del supervisor" ||
+          (h.includes("supervisor") && !h.includes("tarjeta"))
         ) {
           supervisorCol = j;
           break;
@@ -287,9 +338,11 @@ function doPost(e) {
       }
 
       var updatedCount = 0;
+      var targetSup = normalizeString(params.supervisor);
       for (var i = 1; i < data.length; i++) {
+        var rowSup = normalizeString(data[i][supervisorCol]);
         if (
-          data[i][supervisorCol] == params.supervisor &&
+          rowSup === targetSup &&
           data[i][statusCol] == "Pendiente"
         ) {
           sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
@@ -349,13 +402,24 @@ function doPost(e) {
         data = sheet.getDataRange().getValues();
       }
 
-      var supervisorCol = headers.indexOf("Nombre del Supervisor");
-      var casosCol = headers.indexOf("Casos");
+      var supervisorCol = -1;
+      var casosCol = -1;
+      for (var j = 0; j < headers.length; j++) {
+        var h = normalizeString(headers[j]);
+        if (h === "nombre del supervisor" || h === "supervisor" || h === "nombre supervisor" || (h.includes("supervisor") && !h.includes("tarjeta"))) {
+          supervisorCol = j;
+        }
+        if (h === "casos" || h === "caso") {
+          casosCol = j;
+        }
+      }
 
       if (action === "assign_razones_by_supervisor") {
         var updatedCount = 0;
+        var targetSup = normalizeString(params.supervisor);
         for (var i = 1; i < data.length; i++) {
-          if (data[i][supervisorCol] == params.supervisor) {
+          var rowSup = normalizeString(data[i][supervisorCol]);
+          if (rowSup === targetSup) {
             sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
             sheet
               .getRange(i + 1, inspectorNameCol + 1)
@@ -386,7 +450,8 @@ function doPost(e) {
 
     if (
       action === "assign_calidad_by_supervisor" ||
-      action === "assign_calidad_individual"
+      action === "assign_calidad_individual" ||
+      action === "save_calidad_codigo"
     ) {
       try {
         var sheet = null;
@@ -409,6 +474,78 @@ function doPost(e) {
         var data = sheet.getDataRange().getValues();
         var headers = data[0];
 
+        if (action === "save_calidad_codigo") {
+          var ticketCol = -1;
+          var codigoCol = -1;
+          var estadoCol = -1;
+          var fechaCol = -1;
+          
+          for (var j = 0; j < headers.length; j++) {
+            var h = normalizeString(headers[j]);
+            if (h === "trabajo" || h === "ticket") ticketCol = j;
+            if (h === "codigo aplicado") codigoCol = j;
+            if (h === "estado inspeccion") estadoCol = j;
+            if (h === "fecha inspeccion") fechaCol = j;
+          }
+          
+          if (ticketCol === -1) {
+            return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Columna Trabajo no encontrada" })).setMimeType(ContentService.MimeType.JSON);
+          }
+          
+          var needsUpdate = false;
+          if (codigoCol === -1) { headers.push("Código Aplicado"); codigoCol = headers.length - 1; needsUpdate = true; }
+          if (estadoCol === -1) { headers.push("Estado Inspección"); estadoCol = headers.length - 1; needsUpdate = true; }
+          if (fechaCol === -1) { headers.push("Fecha Inspección"); fechaCol = headers.length - 1; needsUpdate = true; }
+          
+          if (needsUpdate) {
+            sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+            data = sheet.getDataRange().getValues();
+          }
+          
+          var targetTicket = String(params.ticket).trim();
+          for (var i = 1; i < data.length; i++) {
+            var currentTicket = String(data[i][ticketCol]).trim();
+            if (currentTicket === targetTicket) {
+              // Validar que no tenga ya un código
+              if (data[i][codigoCol] && String(data[i][codigoCol]).trim() !== "") {
+                return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Este ticket ya tiene un código aplicado" })).setMimeType(ContentService.MimeType.JSON);
+              }
+              sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
+              sheet.getRange(i + 1, estadoCol + 1).setValue("Completado");
+              sheet.getRange(i + 1, fechaCol + 1).setValue(new Date());
+              return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ticket no encontrado: " + targetTicket })).setMimeType(ContentService.MimeType.JSON);
+        }
+
+        if (action === "cancel_calidad_codigo") {
+          var ticketCol = -1;
+          var codigoCol = -1;
+          var estadoCol = -1;
+          var fechaCol = -1;
+          
+          for (var j = 0; j < headers.length; j++) {
+            var h = normalizeString(headers[j]);
+            if (h === "trabajo" || h === "ticket") ticketCol = j;
+            if (h === "codigo aplicado") codigoCol = j;
+            if (h === "estado inspeccion") estadoCol = j;
+            if (h === "fecha inspeccion") fechaCol = j;
+          }
+          
+          var targetTicket = String(params.ticket).trim();
+          for (var i = 1; i < data.length; i++) {
+            var currentTicket = String(data[i][ticketCol]).trim();
+            if (currentTicket === targetTicket) {
+              if (codigoCol > -1) sheet.getRange(i + 1, codigoCol + 1).clearContent();
+              if (estadoCol > -1) sheet.getRange(i + 1, estadoCol + 1).setValue("Pendiente");
+              if (fechaCol > -1) sheet.getRange(i + 1, fechaCol + 1).clearContent();
+              return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ticket no encontrado" })).setMimeType(ContentService.MimeType.JSON);
+        }
+
         var inspectorIdCol = headers.indexOf("Inspector ID");
         var inspectorNameCol = headers.indexOf("Inspector");
         var needsHeaderUpdate = false;
@@ -427,30 +564,11 @@ function doPost(e) {
           data = sheet.getDataRange().getValues();
         }
 
-        // Helper to normalize strings
-        var normalize = function (str) {
-          if (!str) return "";
-          var s = String(str).toLowerCase().trim();
-          try {
-            s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          } catch (e) {
-            // Fallback if normalize is not supported
-            s = s
-              .replace(/[áàäâ]/g, "a")
-              .replace(/[éèëê]/g, "e")
-              .replace(/[íìïî]/g, "i")
-              .replace(/[óòöô]/g, "o")
-              .replace(/[úùüû]/g, "u")
-              .replace(/ñ/g, "n");
-          }
-          return s;
-        };
-
         var supervisorCol = -1;
         var techCol = -1;
 
         for (var j = 0; j < headers.length; j++) {
-          var h = normalize(headers[j]);
+          var h = normalizeString(headers[j]);
           if (
             h === "supervisor" ||
             h === "nombre del supervisor" ||
@@ -466,7 +584,7 @@ function doPost(e) {
 
         if (action === "assign_calidad_by_supervisor") {
           var updatedCount = 0;
-          var targetSup = normalize(params.supervisor);
+          var targetSup = normalizeString(params.supervisor);
 
           if (supervisorCol === -1)
             return ContentService.createTextOutput(
@@ -479,7 +597,7 @@ function doPost(e) {
             ).setMimeType(ContentService.MimeType.JSON);
 
           for (var i = 1; i < data.length; i++) {
-            var rowSup = normalize(data[i][supervisorCol]);
+            var rowSup = normalizeString(data[i][supervisorCol]);
             if (rowSup === targetSup) {
               sheet
                 .getRange(i + 1, inspectorIdCol + 1)
@@ -509,7 +627,7 @@ function doPost(e) {
             JSON.stringify({ status: "success", updated: updatedCount }),
           ).setMimeType(ContentService.MimeType.JSON);
         } else if (action === "assign_calidad_individual") {
-          var targetTech = normalize(params.technician);
+          var targetTech = normalizeString(params.technician);
 
           if (techCol === -1)
             return ContentService.createTextOutput(
@@ -520,7 +638,7 @@ function doPost(e) {
             ).setMimeType(ContentService.MimeType.JSON);
 
           for (var i = 1; i < data.length; i++) {
-            var rowTech = normalize(data[i][techCol]);
+            var rowTech = normalizeString(data[i][techCol]);
             if (rowTech === targetTech) {
               sheet
                 .getRange(i + 1, inspectorIdCol + 1)

@@ -233,9 +233,9 @@ export const updateAdminProfile = async (username: string, password: string, rec
   }
 };
 
-export const fetchCalidad = async (): Promise<any[]> => {
+export const fetchCalidad = async (role: string = 'admin'): Promise<any[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=calidad`);
+    const res = await fetch(`${SCRIPT_URL}?type=calidad&role=${role}`);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -337,5 +337,31 @@ export async function saveCalidadCodigo(ticket: string, codigo: string): Promise
   } catch (error: any) {
     console.error("Error detallado en saveCalidadCodigo:", error);
     return { success: false, message: "Error de conexión: " + (error.message === "Failed to fetch" ? "No se pudo conectar con el servidor (CORS/Network)" : error.message) };
+  }
+}
+
+export async function cancelCalidadCodigo(ticket: string): Promise<{success: boolean, message?: string}> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: 'cors',
+      body: JSON.stringify({
+        action: "cancel_calidad_codigo",
+        ticket: ticket
+      }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      }
+    });
+
+    if (!response.ok) {
+      return { success: false, message: `Error del servidor: ${response.status}` };
+    }
+
+    const result = await response.json();
+    return { success: result.status === "success", message: result.message };
+  } catch (error: any) {
+    console.error("Error in cancelCalidadCodigo:", error);
+    return { success: false, message: "Error de conexión" };
   }
 }

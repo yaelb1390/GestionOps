@@ -106,7 +106,7 @@ export default function InspectorApp() {
   }, []);
 
   const loadCalidadAssignments = async () => {
-    const data = await fetchCalidad();
+    const data = await fetchCalidad('inspector');
     setCalidadAssignments(data);
   };
 
