@@ -571,20 +571,21 @@ export default function InspectorApp() {
                     return '-';
                   };
 
-                  const tecnico   = getField(['tecnico', 'nombre del técnico', 'nombre', 'técnico']);
-                  const trabajo   = getField(['trabajo', 'ticket', 'tickets']);
-                  const supervisor = getField(['supervisor', 'nombre del supervisor']);
-                  const sector    = getField(['sector']);
-                  const barrio    = getField(['barrio']);
-                  const calle     = getField(['calle']);
+                   const tecnico   = getField(['tecnico', 'nombre del técnico', 'nombre', 'técnico']);
+                   const techId    = getField(['tech_id', 'id técnico', 'id tecnico', 'tecnico id', 'tarjeta']);
+                   const trabajo   = getField(['trabajo', 'ticket', 'tickets']);
+                   const supervisor = getField(['supervisor', 'nombre del supervisor']);
+                   const sector    = getField(['sector']);
+                   const barrio    = getField(['barrio']);
+                   const calle     = getField(['calle']);
 
                   return (
                     <div key={idx} className="mobile-card" style={{ marginBottom: '1rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
 
                       {/* — Nombre Técnico — */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
-                        <div style={{ background: 'linear-gradient(135deg, var(--primary-color), #b91c1c)', color: 'white', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
-                          {tecnico.charAt(0).toUpperCase()}
+                        <div style={{ background: 'linear-gradient(135deg, var(--primary-color), #b91c1c)', color: 'white', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.65rem', flexShrink: 0 }}>
+                          {techId}
                         </div>
                         <div>
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nombre Técnico</div>
