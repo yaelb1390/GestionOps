@@ -15,15 +15,15 @@ export interface Ticket {
 }
 
 export interface Orden {
-  Trabajo?: string;
-  'Orden Servicio'?: string;
-  Cliente?: string;
-  Fecha?: string;
-  'Tecnología'?: string;
-  Sector?: string;
-  Terminal?: string;
-  'Asignado A'?: string;
-  Supervisor?: string;
+  ticket?: string;
+  orden_servicio?: string;
+  cliente?: string;
+  fecha?: string;
+  tecnologia?: string;
+  sector?: string;
+  terminal?: string;
+  tech?: string;
+  supervisor?: string;
   [key: string]: any;
 }
 
@@ -38,7 +38,7 @@ export async function fetchTickets(): Promise<Ticket[]> {
       ];
     }
 
-    const response = await fetch(SCRIPT_URL);
+    const response = await fetch(`${SCRIPT_URL}?_t=${Date.now()}`);
     const data = await response.json();
     return data as Ticket[];
   } catch (error) {
@@ -235,7 +235,7 @@ export const updateAdminProfile = async (username: string, password: string, rec
 
 export const fetchCalidad = async (role: string = 'admin'): Promise<any[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=calidad&role=${role}`);
+    const res = await fetch(`${SCRIPT_URL}?type=calidad&role=${role}&_t=${Date.now()}`);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -257,7 +257,7 @@ export const fetchRazones = async (): Promise<any[]> => {
 
 export const fetchOrdenes = async (): Promise<Orden[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=ordenes`);
+    const res = await fetch(`${SCRIPT_URL}?type=ordenes&_t=${Date.now()}`);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -312,6 +312,52 @@ export async function assignCalidadIndividual(technician: string, tech_id: strin
   }
 }
 
+// ── Asignación de Órdenes ────────────────────────────────────────────────────
+
+export async function assignOrdenesBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_ordenes_by_supervisor",
+        supervisor: supervisor,
+        tech_id: tech_id,
+        tech_name: tech_name
+      })
+    });
+    const result = await response.json();
+    if (result.status !== "success") {
+      throw new Error(result.message || "Error en la asignación masiva de órdenes");
+    }
+    return result.updated;
+  } catch (error: any) {
+    console.error("Error bulk assigning ordenes:", error);
+    throw error;
+  }
+}
+
+export async function assignOrdenesIndividual(orden_id: string | number, tech_id: string, tech_name: string): Promise<boolean> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_ordenes_individual",
+        orden_id: String(orden_id),
+        tech_id: tech_id,
+        tech_name: tech_name
+      })
+    });
+    const result = await response.json();
+    if (result.status !== "success") {
+      throw new Error(result.message || "Error al asignar orden individual");
+    }
+    return true;
+  } catch (error: any) {
+    console.error("Error assigning individual orden:", error);
+    throw error;
+  }
+}
+
 export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<{success: boolean, message?: string}> {
   try {
     console.log("Intentando guardar código:", { ticket, codigo });
@@ -340,28 +386,47 @@ export async function saveCalidadCodigo(ticket: string, codigo: string): Promise
   }
 }
 
-export async function cancelCalidadCodigo(ticket: string): Promise<{success: boolean, message?: string}> {
+export async function saveManualCodigo(ticket: string, codigo: string, type: string): Promise<{success: boolean, message?: string}> {
   try {
     const response = await fetch(SCRIPT_URL, {
       method: "POST",
       mode: 'cors',
       body: JSON.stringify({
-        action: "cancel_calidad_codigo",
-        ticket: ticket
+        action: "save_manual_code",
+        ticket: ticket,
+        codigo: codigo,
+        type: type
       }),
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
       }
     });
-
-    if (!response.ok) {
-      return { success: false, message: `Error del servidor: ${response.status}` };
-    }
-
     const result = await response.json();
     return { success: result.status === "success", message: result.message };
   } catch (error: any) {
-    console.error("Error in cancelCalidadCodigo:", error);
+    console.error("Error in saveManualCodigo:", error);
+    return { success: false, message: "Error de conexión" };
+  }
+}
+
+export async function cancelManualCodigo(ticket: string, type: string): Promise<{success: boolean, message?: string}> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: 'cors',
+      body: JSON.stringify({
+        action: "cancel_manual_code",
+        ticket: ticket,
+        type: type
+      }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      }
+    });
+    const result = await response.json();
+    return { success: result.status === "success", message: result.message };
+  } catch (error: any) {
+    console.error("Error in cancelManualCodigo:", error);
     return { success: false, message: "Error de conexión" };
   }
 }

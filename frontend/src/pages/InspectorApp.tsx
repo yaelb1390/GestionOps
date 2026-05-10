@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveCalidadCodigo } from '../services/api';
+import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo } from '../services/api';
 
 export default function InspectorApp() {
   const [activeTab, setActiveTab] = useState('menu');
@@ -50,24 +50,19 @@ export default function InspectorApp() {
     loadCalidadAssignments(); // Refresh data
   };
 
-  const handleSaveManualCode = async () => {
+  const handleSaveManualCode = async (type: string, id: string) => {
     if (!manualCode.trim()) return;
     setIsSubmittingCode(true);
     
-    const ticketId = selectedCalidadTicket?.ticket || selectedCalidadTicket?.['TRABAJO'];
-    
-    if (!ticketId) {
-      displayToast('Error: No se pudo identificar el ID del ticket', 'error');
-      setIsSubmittingCode(false);
-      return;
-    }
-
-    const { success, message } = await saveCalidadCodigo(String(ticketId), manualCode);
+    const { success, message } = await saveManualCodigo(id, manualCode, type);
     setIsSubmittingCode(false);
     if (success) {
       setManualCode('');
       setShowManualInput(false);
       handleFormReturn();
+      if (type === 'tickets') loadTickets();
+      if (type === 'ordenes') loadOrdenes();
+      if (type === 'calidad') loadCalidadAssignments();
     } else {
       displayToast(message || 'Error al guardar el código', 'error');
     }
@@ -125,11 +120,13 @@ export default function InspectorApp() {
   };
 
   if (selectedTicket) {
+    const status = selectedTicket.status || (selectedTicket as any).Estado;
+    const isCompleted = status === 'Inspeccionado' || !!(selectedTicket as any)['Código Aplicado'];
     return (
       <div className="mobile-view">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Inspección {selectedTicket.ticket}</h2>
-          <button onClick={() => setSelectedTicket(null)} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
+          <button onClick={() => { setSelectedTicket(null); setShowManualInput(false); setManualCode(''); }} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
             <X size={24} />
           </button>
         </div>
@@ -142,133 +139,85 @@ export default function InspectorApp() {
           <div style={{ display: 'flex', gap: '2rem' }}>
             <div>
               <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Sector</label>
-              <div style={{ color: 'var(--text-main)' }}>{selectedTicket.sector}</div>
+              <div style={{ color: 'var(--text-main)' }}>{selectedTicket.sector || (selectedTicket as any).Sector}</div>
             </div>
             <div>
               <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Prioridad</label>
               <div style={{ color: 'var(--danger-color)' }}>{selectedTicket.priority}</div>
             </div>
           </div>
+          {(selectedTicket as any)['Código Aplicado'] && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Código Aplicado</label>
+              <div style={{ color: '#10b981', fontWeight: 700 }}>{(selectedTicket as any)['Código Aplicado']}</div>
+            </div>
+          )}
         </div>
 
-        <form style={{ marginTop: '1.5rem' }} onSubmit={async (e) => { 
-          e.preventDefault(); 
-          setSubmitting(true);
-          const formData = new FormData(e.currentTarget);
-          const rootCause = formData.get('causa') as string;
-          const remarks = formData.get('observaciones') as string;
-          const result = formData.get('resultado') as string;
-          
-          if(!result) { displayToast("Seleccione un resultado", "error"); setSubmitting(false); return; }
-
-          const success = await updateTicketStatus(selectedTicket.id, result, remarks, rootCause, images);
-          setSubmitting(false);
-
-          if (success) {
-            displayToast('Inspección guardada', 'success'); 
-            setSelectedTicket(null); 
-            setSelectedResult('');
-            setImages([]); // Limpiar imágenes
-            loadTickets(); 
-          } else {
-            displayToast('Error al guardar. Intenta nuevamente.', 'error');
-          }
-        }}>
-          <div className="input-group">
-            <label>Causa Raíz de Avería</label>
-            <select name="causa" className="input-control" required>
-              <option value="">Seleccione una causa...</option>
-              <option value="Error técnico">Error técnico</option>
-              <option value="Fibra cortada">Fibra cortada</option>
-              <option value="Material defectuoso">Material defectuoso</option>
-              <option value="Cliente interno">Cliente interno</option>
-              <option value="Daño externo">Daño externo</option>
-              <option value="Otra">Otra</option>
-            </select>
+        {!showManualInput ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <button 
+              onClick={() => {
+                window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank');
+              }}
+              className="btn-primary" 
+              style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}
+            >
+              <ExternalLink size={20} />
+              Registrar Hallazgos (Forms)
+            </button>
+            <button 
+              onClick={() => setShowManualInput(true)}
+              className="btn-secondary" 
+              style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
+            >
+              <ClipboardList size={20} />
+              Código Aplicado (Manual)
+            </button>
           </div>
-
-          <div className="input-group">
-            <label>Observaciones</label>
-            <textarea name="observaciones" className="input-control" rows={3} placeholder="Detalles de la visita..."></textarea>
-          </div>
-
-          <div className="input-group">
-            <label>Evidencia Fotográfica ({images.length})</label>
-            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
-              {images.map((img, idx) => (
-                <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
-                  <img src={img} alt={`Evidencia ${idx}`} style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover', border: '2px solid var(--border-color)' }} />
-                  <button 
-                    type="button" 
-                    onClick={() => removeImage(idx)}
-                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger-color)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-              <label style={{ 
-                width: '80px', height: '80px', borderRadius: '12px', border: '2px dashed var(--border-color)', 
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
-                cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0
-              }}>
-                <Camera size={24} />
-                <span style={{ fontSize: '10px', marginTop: '4px' }}>Agregar</span>
-                <input type="file" accept="image/*" capture="environment" multiple hidden onChange={handleImageChange} />
-              </label>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem', animation: 'fadeInUp 0.3s ease' }}>
+            <div className="input-group">
+              <label>Código Aplicado</label>
+              <input 
+                type="text" 
+                className="input-control" 
+                placeholder="Ingrese el código aquí..."
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                style={{ borderRadius: '12px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                onClick={() => setShowManualInput(false)}
+                className="btn-secondary" 
+                style={{ flex: 1, borderRadius: '12px' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => handleSaveManualCode('tickets', String(selectedTicket.ticket))}
+                disabled={isSubmittingCode || !manualCode.trim()}
+                className="btn-primary" 
+                style={{ flex: 2, borderRadius: '12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+              >
+                {isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}
+              </button>
             </div>
           </div>
-
-          <div className="input-group">
-            <label>Resultado Inspección</label>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <label style={{ 
-                flex: 1, padding: '0.75rem', 
-                border: '1px solid var(--secondary-color)', 
-                borderRadius: '8px', textAlign: 'center', 
-                color: selectedResult === 'Aprobado' ? 'white' : 'var(--secondary-color)', 
-                background: selectedResult === 'Aprobado' ? 'var(--secondary-color)' : 'transparent',
-                cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600
-              }}>
-                <input type="radio" name="resultado" value="Aprobado" hidden onChange={(e) => setSelectedResult(e.target.value)} /> Aprobado
-              </label>
-              <label style={{ 
-                flex: 1, padding: '0.75rem', 
-                border: '1px solid var(--warning-color)', 
-                borderRadius: '8px', textAlign: 'center', 
-                color: selectedResult === 'Requiere corrección' ? 'white' : 'var(--warning-color)', 
-                background: selectedResult === 'Requiere corrección' ? 'var(--warning-color)' : 'transparent',
-                cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600
-              }}>
-                <input type="radio" name="resultado" value="Requiere corrección" hidden onChange={(e) => setSelectedResult(e.target.value)} /> Requiere Corrección
-              </label>
-              <label style={{ 
-                flex: 1, padding: '0.75rem', 
-                border: '1px solid var(--danger-color)', 
-                borderRadius: '8px', textAlign: 'center', 
-                color: selectedResult === 'Rechazado' ? 'white' : 'var(--danger-color)', 
-                background: selectedResult === 'Rechazado' ? 'var(--danger-color)' : 'transparent',
-                cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600
-              }}>
-                <input type="radio" name="resultado" value="Rechazado" hidden onChange={(e) => setSelectedResult(e.target.value)} /> Rechazado
-              </label>
-            </div>
-          </div>
-
-          <button type="submit" disabled={submitting} className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', padding: '1rem', opacity: submitting ? 0.7 : 1 }}>
-            {submitting ? 'Guardando...' : 'Guardar Inspección'}
-          </button>
-        </form>
+        )}
       </div>
     );
   }
 
   if (selectedOrden) {
+    const orderId = selectedOrden['Orden Servicio'] || selectedOrden['TRABAJO'];
     return (
       <div className="mobile-view">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Orden {selectedOrden['Orden Servicio']}</h2>
-          <button onClick={() => setSelectedOrden(null)} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
+          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Orden {orderId}</h2>
+          <button onClick={() => { setSelectedOrden(null); setShowManualInput(false); setManualCode(''); }} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
             <X size={24} />
           </button>
         </div>
@@ -288,38 +237,69 @@ export default function InspectorApp() {
               <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Fecha</label>
               <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Fecha || '-'}</div>
             </div>
-            <div>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Supervisor</label>
-              <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Supervisor || '-'}</div>
-            </div>
-            <div>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Terminal</label>
-              <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Terminal || '-'}</div>
-            </div>
           </div>
 
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Trabajo</label>
-              <div style={{ color: 'var(--text-main)', marginTop: '0.25rem' }}>{selectedOrden.Trabajo}</div>
+          {(selectedOrden as any)['Código Aplicado'] && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Código Aplicado</label>
+              <div style={{ color: '#10b981', fontWeight: 700, fontSize: '1.1rem' }}>{(selectedOrden as any)['Código Aplicado']}</div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Asignado A</label>
-                <div style={{ color: 'var(--primary-color)', fontWeight: 600 }}>{selectedOrden['Asignado A']}</div>
-              </div>
-              <span className={`badge ${selectedOrden['Tecnología']?.toLowerCase().includes('gpon') ? 'info' : selectedOrden['Tecnología']?.toLowerCase().includes('vsat') ? 'warning' : selectedOrden['Tecnología']?.toLowerCase().includes('hfc') ? 'success' : 'danger'}`}>{selectedOrden['Tecnología']}</span>
-            </div>
-          </div>
+          )}
         </div>
 
-        <button 
-          onClick={() => setSelectedOrden(null)} 
-          className="btn-primary" 
-          style={{ width: '100%', justifyContent: 'center', marginTop: '1.5rem', padding: '1rem' }}
-        >
-          Cerrar Detalle
-        </button>
+        {!showManualInput ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <button 
+              onClick={() => {
+                window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank');
+              }}
+              className="btn-primary" 
+              style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}
+            >
+              <ExternalLink size={20} />
+              Registrar Hallazgos (Forms)
+            </button>
+            <button 
+              onClick={() => setShowManualInput(true)}
+              className="btn-secondary" 
+              style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
+            >
+              <ClipboardList size={20} />
+              Código Aplicado (Manual)
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem', animation: 'fadeInUp 0.3s ease' }}>
+            <div className="input-group">
+              <label>Código Aplicado</label>
+              <input 
+                type="text" 
+                className="input-control" 
+                placeholder="Ingrese el código aquí..."
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                style={{ borderRadius: '12px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                onClick={() => setShowManualInput(false)}
+                className="btn-secondary" 
+                style={{ flex: 1, borderRadius: '12px' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => handleSaveManualCode('ordenes', String(orderId))}
+                disabled={isSubmittingCode || !manualCode.trim()}
+                className="btn-primary" 
+                style={{ flex: 2, borderRadius: '12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+              >
+                {isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -541,8 +521,9 @@ export default function InspectorApp() {
             <>
               {tickets.filter(t => {
                 const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
-                if (activeTab === 'pendientes') return (t.status === 'Pendiente' || t.status === 'Asignado') && isMine;
-                if (activeTab === 'completadas') return (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado') && isMine;
+                const status = t.status || (t as any).Estado;
+                if (activeTab === 'pendientes') return (status === 'Pendiente' || status === 'Asignado') && isMine;
+                if (activeTab === 'completadas') return (status === 'Inspeccionado' || status === 'Aprobado' || status === 'Rechazado') && isMine;
                 if (activeTab === 'mis_tickets') return isMine;
                 return false;
               }).map(t => (
@@ -563,10 +544,10 @@ export default function InspectorApp() {
                         <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(218, 41, 28, 0.1)', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
                           {String(t.tech_id || t.tech || 'T').charAt(0).toUpperCase()}
                         </div>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>{t.tech_id || t.tech}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>{t.tech_id || t.tech || (t as any)['Asignado A']}</span>
                       </div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--secondary-color)', display: 'inline-block' }}></span> {t.sector}
+                         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--secondary-color)', display: 'inline-block' }}></span> {t.sector || (t as any).Sector}
                       </div>
                     </div>
                     <div>
@@ -577,8 +558,9 @@ export default function InspectorApp() {
               ))}
               {tickets.filter(t => {
                 const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
-                if (activeTab === 'pendientes') return (t.status === 'Pendiente' || t.status === 'Asignado') && isMine;
-                if (activeTab === 'completadas') return (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado') && isMine;
+                const status = t.status || (t as any).Estado;
+                if (activeTab === 'pendientes') return (status === 'Pendiente' || status === 'Asignado') && isMine;
+                if (activeTab === 'completadas') return (status === 'Inspeccionado' || status === 'Aprobado' || status === 'Rechazado') && isMine;
                 if (activeTab === 'mis_tickets') return isMine;
                 return false;
               }).length === 0 && <p style={{textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem'}}>No hay tickets en esta sección</p>}
@@ -611,7 +593,7 @@ export default function InspectorApp() {
                    const barrio    = getField(['barrio']);
                    const calle     = getField(['calle']);
 
-                    const isCompleted = c['Estado Inspección'] === 'Completado';
+                    const isCompleted = (c.status || c['Estado Inspección']) === 'Completado' || !!c.codigo_aplicado;
 
                     return (
                       <div 
@@ -751,9 +733,9 @@ export default function InspectorApp() {
                     const term = ordenesSearch.toLowerCase().trim();
                     const filtered = ordenes.filter(o =>
                       !term ||
-                      String(o['Orden Servicio'] || '').toLowerCase().includes(term) ||
-                      String(o.Cliente || '').toLowerCase().includes(term) ||
-                      String(o['Asignado A'] || '').toLowerCase().includes(term)
+                      String(o.ticket || o.orden_servicio || '').toLowerCase().includes(term) ||
+                      String(o.cliente || '').toLowerCase().includes(term) ||
+                      String(o.tech || (o as any).tech_id || '').toLowerCase().includes(term)
                     );
                     if (ordenes.length === 0) return (
                       <div className="mobile-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
@@ -777,18 +759,18 @@ export default function InspectorApp() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ORDEN</div>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.1rem' }}>{o['Orden Servicio']}</div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.1rem' }}>{o.ticket || o.orden_servicio}</div>
                           </div>
                           <ChevronRight color="var(--text-muted)" size={18} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{o.Cliente}</div>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{o.cliente}</div>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Asignado:</span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>{o['Asignado A']}</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>{o.tech || (o as any).tech_id}</span>
                             </div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.Fecha}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.fecha}</span>
                           </div>
                         </div>
                       </div>
@@ -959,7 +941,7 @@ export default function InspectorApp() {
                       Cancelar
                     </button>
                     <button 
-                      onClick={handleSaveManualCode}
+                      onClick={() => handleSaveManualCode('calidad', String(selectedCalidadTicket.ticket || selectedCalidadTicket['TRABAJO']))}
                       disabled={isSubmittingCode || !manualCode.trim()}
                       className="btn-primary" 
                       style={{ flex: 2, borderRadius: '12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}

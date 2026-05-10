@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelCalidadCodigo } from '../services/api';
+import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, assignTicket, assignTicketsBySupervisor, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -33,9 +33,9 @@ export default function AdminDashboard() {
     { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
     { label: 'NOMBRE SUPERVISOR', key: 'supervisor' },
     { label: 'CÓDIGO APLICADO', key: 'codigo_aplicado' },
-    { label: 'ESTADO', key: 'estado_inspeccion' },
+    { label: 'ESTADO', key: 'status' },
     { label: 'SECTOR', key: 'sector' },
-    { label: 'TECNOLOGÍA', key: 'TECNOLOGÍA' }
+    { label: 'TECNOLOGÍA', key: 'tecnologia' }
   ];
   const [showAddInspector, setShowAddInspector] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(null);
@@ -51,6 +51,9 @@ export default function AdminDashboard() {
   const [loadingOrdenes, setLoadingOrdenes] = useState(false);
   const [ordenesSearch, setOrdenesSearch] = useState('');
   const [ordenesColumnFilters, setOrdenesColumnFilters] = useState<Record<string, string>>({});
+  const [inspeccionesSearch, setInspeccionesSearch] = useState('');
+  const [ordenesSupervisorFilter, setOrdenesSupervisorFilter] = useState('');
+  const [bulkAssignOrdenesInspector, setBulkAssignOrdenesInspector] = useState('');
 
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success'|'error'>('success');
@@ -107,22 +110,57 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === 'personal') {
-      loadInspectors();
-    }
-    if (activeTab === 'calidad' || activeTab === 'dashboard') {
+    if (activeTab === 'dashboard') {
+      loadTickets();
       loadCalidad();
+      loadOrdenes();
       loadRazones();
+    }
+    if (activeTab === 'tickets') {
+      loadTickets();
     }
     if (activeTab === 'ordenes') {
       loadOrdenes();
     }
+    if (activeTab === 'calidad') {
+      loadCalidad();
+    }
+    if (activeTab === 'personal') {
+      loadInspectors();
+    }
   }, [activeTab]);
+
+  const ensureKeys = (item: any, type: 'ticket' | 'orden' | 'calidad') => {
+    if (!item) return item;
+    const normalized = { ...item };
+    
+    // Mapping universal de campos clave (por si el backend no lo hizo)
+    const getVal = (keys: string[]) => {
+      const foundKey = Object.keys(item).find(k => keys.includes(k.toLowerCase().trim()));
+      return foundKey ? item[foundKey] : undefined;
+    };
+
+    if (!normalized.ticket) normalized.ticket = getVal(['trabajo', 'ticket', 'idd', 'nro orden', 'orden externa', 'work name']);
+    if (!normalized.tech) normalized.tech = getVal(['asignado a', 'nombre tecnico', 'nombre_tecnico', 'tech_name']);
+    if (!normalized.tech_id) normalized.tech_id = getVal(['tech_id', 'tecnico', 'cedula', 'id tecnico', 'tarjeta', 'cedula tecnico']);
+    if (!normalized.supervisor) normalized.supervisor = getVal(['supervisor', 'nombre supervisor']);
+    if (!normalized.sector) normalized.sector = getVal(['sector', 'zona', 'barrio', 'ciudad']);
+    if (!normalized.status) normalized.status = getVal(['estado', 'status', 'estado inspeccion', 'estado_inspeccion']);
+    if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red']);
+    
+    if (type === 'orden') {
+       if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden externa', 'orden servicio', 'os']);
+       if (!normalized.cliente) normalized.cliente = getVal(['cliente', 'subscriber']);
+       if (!normalized.fecha) normalized.fecha = getVal(['vence', 'fecha', 'oe vencimiento']);
+    }
+
+    return normalized;
+  };
 
   const loadCalidad = async () => {
     setLoadingCalidad(true);
     const data = await fetchCalidad();
-    setCalidadData(data);
+    setCalidadData(data.map(item => ensureKeys(item, 'calidad')));
     setLoadingCalidad(false);
   };
 
@@ -143,7 +181,7 @@ export default function AdminDashboard() {
   const loadOrdenes = async () => {
     setLoadingOrdenes(true);
     const data = await fetchOrdenes();
-    setOrdenes(data);
+    setOrdenes(data.map(item => ensureKeys(item, 'orden')));
     setLoadingOrdenes(false);
   };
 
@@ -166,7 +204,7 @@ export default function AdminDashboard() {
   const loadTickets = async () => {
     setLoading(true);
     const data = await fetchTickets();
-    setTickets(data);
+    setTickets(data.map(item => ensureKeys(item, 'ticket')));
     setLoading(false);
   };
   
@@ -178,26 +216,14 @@ export default function AdminDashboard() {
 
   const getSupervisor = (t: any) => {
     if (!t) return '-';
-    // Prioridad absoluta: buscar 'supervisor' (ya normalizado por backend)
-    if (t.supervisor) return String(t.supervisor);
+    // Buscar en claves comunes normalizadas
+    const sup = t.supervisor || t.nombre_supervisor || t['Nombre Supervisor'] || t['Supervisor'];
+    if (sup) return String(sup);
     
-    // Fallback: buscar variaciones comunes manualmente
-    const keys = Object.keys(t);
-    const supKey = keys.find(k => {
-      const normalized = k.toLowerCase().trim();
-      return normalized === 'nombre supervisor' || 
-             normalized === 'supervisor' || 
-             normalized === 'nombre del supervisor' || 
-             normalized === 'nombre_supervisor' ||
-             normalized === 'nombre de supervisor';
-    });
+    // Buscar cualquier clave que contenga 'supervisor'
+    const dynamicKey = Object.keys(t).find(k => k.toLowerCase().includes('supervisor') && !k.toLowerCase().includes('id'));
+    if (dynamicKey) return String(t[dynamicKey]);
     
-    if (supKey) return String(t[supKey] || '-');
-    
-    // Último recurso: buscar cualquier key que contenga 'supervisor'
-    const fuzzyKey = keys.find(k => k.toLowerCase().includes('supervisor'));
-    if (fuzzyKey) return String(t[fuzzyKey] || '-');
-
     return '-';
   };
 
@@ -222,6 +248,9 @@ export default function AdminDashboard() {
           </button>
           <button className={`nav-item ${activeTab === 'calidad' ? 'active' : ''}`} onClick={() => setActiveTab('calidad')}>
             <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{calidadData.length}</span>
+          </button>
+          <button className={`nav-item ${activeTab === 'inspecciones' ? 'active' : ''}`} onClick={() => setActiveTab('inspecciones')}>
+            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').length + ordenes.length + calidadData.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
             <Users size={20} /> Personal <span className="nav-badge">{inspectors.length}</span>
@@ -248,6 +277,7 @@ export default function AdminDashboard() {
               {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
                activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Gestión de Tickets ({tickets.length})</> : 
                activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
+               activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
                activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
                activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
                <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
@@ -314,43 +344,86 @@ export default function AdminDashboard() {
                   <AlertCircle size={20} color="var(--primary-color)" /> Técnicos con Más Repetidas (%)
                 </h3>
                 <div className="top-techs">
-                  {calidadData && calidadData.length > 0 ? (
-                    calidadData
-                      .map(item => {
-                        const name = item['Nombre'] || item['Nombre del Técnico'] || item['Técnico'] || 'N/A';
-                        const valRaw = item['% Repetidas'] || item['Porcentaje'] || item['Calidad'] || '0';
+                  {loadingCalidad ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 className="spinner" /></div>
+                  ) : calidadData && calidadData.length > 0 ? (
+                    (() => {
+                      const techStats: Record<string, { name: string, repeated: number, total: number }> = {};
+                      
+                      // Aggregar repetidas de calidadData
+                      calidadData.forEach(item => {
+                        const nameKey = Object.keys(item).find(k => 
+                          ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico', 'tech'].includes(k.toLowerCase().trim())
+                        ) || 'Nombre';
+                        const name = String(item[nameKey] || 'N/A').trim();
+                        if (name === 'N/A' || name === '-') return;
                         
-                        let repPerc = 0;
-                        if (valRaw !== null && valRaw !== undefined) {
-                          const strVal = String(valRaw).replace('%', '').trim();
-                          repPerc = parseFloat(strVal);
-                          if (isNaN(repPerc)) repPerc = 0;
-                          if (!String(valRaw).includes('%') && repPerc > 0 && repPerc < 1) {
-                            repPerc = repPerc * 100;
-                          }
+                        if (!techStats[name]) techStats[name] = { name, repeated: 0, total: 0 };
+                        techStats[name].repeated++;
+                      });
+
+                      // Estimar totales desde tickets para el porcentaje
+                      tickets.forEach(t => {
+                        const name = String(t.tech || t.tech_id || '').trim();
+                        if (name && techStats[name]) {
+                          techStats[name].total++;
                         }
-                        
-                        return { name, repPerc };
-                      })
-                      .filter(t => t.name !== 'N/A')
-                      .sort((a, b) => b.repPerc - a.repPerc)
-                      .slice(0, 5)
-                      .map((tech, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.65rem 0', borderBottom: idx < 4 ? '1px solid var(--glass-border)' : 'none' }}>
-                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: idx === 0 ? 'var(--primary-color)' : idx === 1 ? '#ff4d4d' : idx === 2 ? '#ff8080' : 'var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold', color: '#fff' }}>
-                            {idx + 1}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-main)' }}>{tech.name}</div>
-                            <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', background: tech.repPerc > 15 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', width: `${Math.max(0, Math.min(100, tech.repPerc))}%` }}></div>
+                      });
+
+                      return Object.values(techStats)
+                        .map(t => {
+                          // Si no hay total en tickets, usamos el count de repetidas como base (mínimo 1)
+                          const total = t.total || t.repeated;
+                          const repPerc = (t.repeated / total) * 100;
+                          return { name: t.name, repPerc, count: t.repeated };
+                        })
+                        .sort((a, b) => b.repPerc - a.repPerc)
+                        .slice(0, 5)
+                        .map((tech, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 0', borderBottom: idx < 4 ? '1px solid var(--glass-border)' : 'none' }}>
+                            <div style={{ 
+                              width: '28px', 
+                              height: '28px', 
+                              borderRadius: '8px', 
+                              background: idx === 0 ? 'var(--primary-color)' : 'rgba(255,255,255,0.05)', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              fontSize: '0.8rem', 
+                              fontWeight: 800, 
+                              color: idx === 0 ? '#fff' : 'var(--text-main)',
+                              border: '1px solid var(--glass-border)'
+                            }}>
+                              {idx + 1}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>{tech.name}</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{tech.count} repetidas</span>
+                              </div>
+                              <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                <div style={{ 
+                                  height: '100%', 
+                                  background: tech.repPerc > 20 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', 
+                                  width: `${Math.min(100, tech.repPerc)}%`,
+                                  transition: 'width 1s ease-out'
+                                }}></div>
+                              </div>
+                            </div>
+                            <div style={{ 
+                              minWidth: '50px', 
+                              textAlign: 'right', 
+                              fontWeight: 800, 
+                              color: tech.repPerc > 20 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', 
+                              fontSize: '1rem' 
+                            }}>
+                              {tech.repPerc.toFixed(1)}%
                             </div>
                           </div>
-                          <div style={{ fontWeight: 'bold', color: tech.repPerc > 15 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', fontSize: '0.9rem' }}>{tech.repPerc.toFixed(1)}%</div>
-                        </div>
-                      ))
+                        ));
+                    })()
                   ) : (
-                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Cargando ranking...</p>
+                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No hay datos de calidad suficientes.</p>
                   )}
                 </div>
               </div>
@@ -399,7 +472,6 @@ export default function AdminDashboard() {
                 <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
                   <Package size={20} color="var(--primary-color)" /> Gestión de Órdenes
                 </h3>
-
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <div className="search-bar" style={{ width: 'auto', minWidth: '300px' }}>
                     <Search size={18} />
@@ -412,6 +484,76 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Panel Asignación Masiva - misma arquitectura que Calidad */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '1rem', 
+                flexWrap: 'wrap', 
+                background: 'rgba(var(--primary-color-rgb, 218, 41, 28), 0.05)', 
+                padding: '1rem', 
+                borderRadius: '12px',
+                border: '1px dashed var(--primary-color)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={18} color="var(--primary-color)" />
+                  <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>Asignación Masiva:</span>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minWidth: '300px', flexWrap: 'wrap' }}>
+                  <select 
+                    className="input-control" 
+                    value={ordenesSupervisorFilter} 
+                    onChange={(e) => setOrdenesSupervisorFilter(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid var(--primary-color)' }}
+                  >
+                    <option value="">1. Seleccionar Supervisor...</option>
+                    {Array.from(new Set(ordenes.map(o => String(o.supervisor || '')).filter(s => s && s !== '-'))).map(sup => (
+                      <option key={sup} value={sup}>{sup}</option>
+                    ))}
+                  </select>
+
+                  <span style={{color: 'var(--primary-color)', display: 'flex', alignItems: 'center', fontWeight: 'bold'}}>→</span>
+
+                  <select 
+                    className="assign-select" 
+                    value={bulkAssignOrdenesInspector}
+                    onChange={(e) => setBulkAssignOrdenesInspector(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', height: '42px' }}
+                  >
+                    <option value="">2. Seleccionar Inspector...</option>
+                    {inspectors.map(insp => (
+                      <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                    ))}
+                  </select>
+                  
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0 1.5rem', height: '42px' }}
+                    disabled={!bulkAssignOrdenesInspector || !ordenesSupervisorFilter}
+                    onClick={async () => {
+                      const inspector = inspectors.find(i => String(i.id) === String(bulkAssignOrdenesInspector));
+                      if (inspector && ordenesSupervisorFilter) {
+                        try {
+                          const updated = await assignOrdenesBySupervisor(ordenesSupervisorFilter, inspector.id, inspector.nombre);
+                          displayToast(`Se asignaron ${updated} órdenes a ${inspector.nombre}`, 'success');
+                          loadOrdenes();
+                        } catch (error: any) {
+                          displayToast(error.message || 'Error en la asignación masiva', 'error');
+                        }
+                      }
+                    }}
+                  >
+                    Asignar Masivo
+                  </button>
+                </div>
+                {!ordenesSupervisorFilter && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary-color)', fontStyle: 'italic' }}>
+                    * Selecciona un supervisor primero para habilitar la asignación masiva.
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="table-container">
@@ -420,7 +562,7 @@ export default function AdminDashboard() {
                   <tr>
                     {[
                       'Trabajo', 'Orden Servicio', 'Cliente', 'Fecha', 
-                      'Tecnología', 'Sector', 'Terminal', 'Asignado A', 'Supervisor'
+                      'Tecnología', 'Sector', 'Terminal', 'Asignado A', 'Supervisor', 'Código Aplicado', 'Estado'
                     ].map(header => (
                       <th key={header}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -438,43 +580,119 @@ export default function AdminDashboard() {
                         </div>
                       </th>
                     ))}
+                    <th>Inspector Asignado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingOrdenes ? (
-                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={13} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : ordenes.length === 0 ? (
-                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
+                    <tr><td colSpan={13} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
                   ) : ordenes.filter(o => {
                     const term = ordenesSearch.toLowerCase();
                     const matchesGlobal = !term || [
-                      o['Orden Servicio'], o['Cliente'], o['Supervisor'], o['Asignado A'], o['Trabajo']
+                      o.orden_servicio, o.cliente, o.supervisor, o.tech, o.ticket
                     ].some(v => String(v || '').toLowerCase().includes(term));
                     
+                    const matchesSupervisor = ordenesSupervisorFilter === '' || 
+                      String(o.supervisor || '').toLowerCase() === ordenesSupervisorFilter.toLowerCase();
+
                     const matchesColumns = Object.entries(ordenesColumnFilters).every(([key, val]) => {
                       if (!val) return true;
-                      return String(o[key] || '').toLowerCase().includes(val.toLowerCase());
+                      return String((o as any)[key] || '').toLowerCase().includes(val.toLowerCase());
                     });
                     
-                    return matchesGlobal && matchesColumns;
-                  }).map((o, idx) => (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{o.Trabajo}</td>
-                      <td>{o['Orden Servicio']}</td>
-                      <td>{o.Cliente}</td>
-                      <td>{o.Fecha}</td>
-                      <td><span className={`badge ${o['Tecnología']?.toLowerCase().includes('gpon') ? 'info' : o['Tecnología']?.toLowerCase().includes('vsat') ? 'warning' : o['Tecnología']?.toLowerCase().includes('hfc') ? 'success' : 'danger'}`}>{o['Tecnología']}</span></td>
-                      <td>{o.Sector}</td>
-                      <td>{o.Terminal}</td>
-                      <td>{o['Asignado A']}</td>
-                      <td>{o.Supervisor}</td>
-                    </tr>
-                  ))}
+                    return matchesGlobal && matchesSupervisor && matchesColumns;
+                  }).map((o, idx) => {
+                    const ordenId = o.orden_servicio || o.ticket;
+                    return (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{o.orden_servicio || o.ticket}</td>
+                        <td>{typeof o.ticket === 'string' ? o.ticket : (o.tipo_trabajo || '-')}</td>
+                        <td>{o.cliente}</td>
+                        <td>{o.fecha}</td>
+                        <td><span className={`badge ${String(o.tecnologia || '').toLowerCase().includes('gpon') ? 'info' : String(o.tecnologia || '').toLowerCase().includes('vsat') ? 'warning' : String(o.tecnologia || '').toLowerCase().includes('hfc') ? 'success' : 'danger'}`}>{o.tecnologia || '-'}</span></td>
+                        <td>{o.sector}</td>
+                        <td>{o.terminal}</td>
+                        <td>{o.tech || (o as any).tech_id}</td>
+                        <td>{o.supervisor}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontWeight: 700, color: '#10b981' }}>{o.codigo_aplicado || '-'}</span>
+                            {o.codigo_aplicado && (
+                              <button 
+                                className="btn-danger" 
+                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem' }}
+                                onClick={() => {
+                                  setConfirmModal({
+                                    isOpen: true,
+                                    message: `¿Cancelar código para la orden ${ordenId}? Volverá al inspector.`,
+                                    onConfirm: async () => {
+                                      const { success } = await cancelManualCodigo(String(ordenId), 'ordenes');
+                                      if (success) { displayToast('Código cancelado'); loadOrdenes(); }
+                                      setConfirmModal(null);
+                                    }
+                                  });
+                                }}
+                              >
+                                X
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`badge ${o.status === 'Completado' || o.status === 'Inspeccionado' ? 'success' : o.status === 'Pendiente' ? 'warning' : 'info'}`}>
+                            {o.status || 'Pendiente'}
+                          </span>
+                        </td>
+                        {/* Inspector Asignado */}
+                        <td>
+                          {(o as any).inspector ? (
+                            <span className="badge info">{(o as any).inspector}</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                              {(o as any).inspector_id ? `ID: ${(o as any).inspector_id}` : '-'}
+                            </span>
+                          )}
+                        </td>
+                        {/* Acciones: asignación individual */}
+                        <td>
+                          <select
+                            className="assign-select"
+                            style={{ padding: '0.25rem 1.5rem 0.25rem 0.5rem', fontSize: '0.7rem' }}
+                            value=""
+                            onChange={async (e) => {
+                              const inspectorId = e.target.value;
+                              const inspector = inspectors.find(i => String(i.id) === String(inspectorId));
+                              if (inspector && ordenId) {
+                                try {
+                                  const success = await assignOrdenesIndividual(String(ordenId), inspector.id, inspector.nombre);
+                                  if (success) {
+                                    displayToast(`Orden ${ordenId} asignada a ${inspector.nombre}`, 'success');
+                                    loadOrdenes();
+                                  }
+                                } catch (error: any) {
+                                  displayToast(error.message || 'Error al asignar orden', 'error');
+                                }
+                              }
+                            }}
+                          >
+                            <option value="">Asignar...</option>
+                            {inspectors.map(insp => (
+                              <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
+
 
         {activeTab === 'tickets' && (
           <div className="glass-panel">
@@ -575,7 +793,7 @@ export default function AdminDashboard() {
                     <th>Asignar</th>
                     <th>Supervisor</th>
                     <th>Sector</th>
-                    <th>Prioridad</th>
+                    <th>Código Aplicado</th>
                     <th>Estado</th>
                   </tr>
                 </thead>
@@ -585,7 +803,7 @@ export default function AdminDashboard() {
                   ) : tickets.filter(t => {
                     const matchesSearch = t.ticket?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
                                           t.tech_id?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                          t.tech?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+                                          (t.tech || (t as any).Asignado_A)?.toString().toLowerCase().includes(searchTerm.toLowerCase());
                     const tSupervisor = getSupervisor(t);
                     const matchesSupervisor = supervisorFilter === '' || tSupervisor === supervisorFilter;
                     return matchesSearch && matchesSupervisor;
@@ -593,7 +811,7 @@ export default function AdminDashboard() {
                     <tr key={t.id || t.ticket || idx}>
                       <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
                       <td>
-                        <div>{t.tech || t.tech_id || '-'}</div>
+                        <div>{t.tech || (t as any).Asignado_A || t.tech_id || '-'}</div>
                         {(t.tech || t.tech_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.tech_id || t.tech}</div>}
                       </td>
                       <td>
@@ -615,13 +833,32 @@ export default function AdminDashboard() {
                       <td>{getSupervisor(t)}</td>
                       <td>{t.sector}</td>
                       <td>
-                        <span className={`badge ${t.priority === 'Alta' ? 'danger' : t.priority === 'Media' ? 'warning' : 'success'}`}>
-                          {t.priority}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: 700, color: '#10b981' }}>{t.codigo_aplicado || '-'}</span>
+                          {t.codigo_aplicado && (
+                            <button 
+                              className="btn-danger" 
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem' }}
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  message: `¿Cancelar código para el ticket ${t.ticket}? Volverá al inspector.`,
+                                  onConfirm: async () => {
+                                    const { success } = await cancelManualCodigo(String(t.ticket), 'tickets');
+                                    if (success) { displayToast('Código cancelado'); loadTickets(); }
+                                    setConfirmModal(null);
+                                  }
+                                });
+                              }}
+                            >
+                              X
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td>
-                        <span className={`badge ${t.status === 'Pendiente' ? 'warning' : t.status === 'Inspeccionado' ? 'success' : 'danger'}`}>
-                          {t.status}
+                        <span className={`badge ${t.status === 'Pendiente' ? 'warning' : (t.status === 'Inspeccionado' || t.status === 'Aprobado') ? 'success' : 'danger'}`}>
+                          {t.status || 'Pendiente'}
                         </span>
                       </td>
                     </tr>
@@ -926,12 +1163,19 @@ export default function AdminDashboard() {
                     .filter(c => {
                       const term = calidadSearch.toLowerCase();
                       const sup = getSupervisor(c);
-                      const techKey = Object.keys(c).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
-                      const tech = String(c[techKey] || '').trim();
+                      // Usar clave normalizada 'tech' directamente
+                      const tech = String(c.tech || c['Asignado A'] || '').trim();
                       
-                      // Filtro global
-                      const matchesGlobal = (tech.toLowerCase().includes(term)) && (calidadSupervisorFilter === '' || sup === calidadSupervisorFilter);
-                      
+                      // Sin término de búsqueda → mostrar todo (solo filtrar supervisor si está activo)
+                      const matchesSearch = !term || 
+                        tech.toLowerCase().includes(term) ||
+                        String(c.ticket || '').toLowerCase().includes(term) ||
+                        String(c.tech_id || '').toLowerCase().includes(term) ||
+                        String(c.sector || '').toLowerCase().includes(term) ||
+                        String(c.status || '').toLowerCase().includes(term);
+
+                      const matchesSupervisor = calidadSupervisorFilter === '' || sup === calidadSupervisorFilter;
+
                       // Filtros por columna
                       const matchesColumns = Object.entries(columnFilters).every(([key, val]) => {
                         if (!val) return true;
@@ -939,7 +1183,7 @@ export default function AdminDashboard() {
                         return cellVal.includes(val.toLowerCase());
                       });
                       
-                      return matchesGlobal && matchesColumns;
+                      return matchesSearch && matchesSupervisor && matchesColumns;
                     })
 
                     .map((row, idx) => {
@@ -953,13 +1197,10 @@ export default function AdminDashboard() {
                             let val = row[col.key];
                             if (val === undefined || val === null) val = row[col.label];
                             
-                            // Fallbacks específicos para columnas clave
-                            if (val === undefined || val === null) {
-                              if (col.key === 'ticket') val = row.IDD || row.id || row['ID TICKET'];
-                              if (col.key === 'tech_id') val = row.TÉCNICO || row.TECNICO || row.id_tecnico;
-                              if (col.key === 'tech') val = row['NOMBRE TÉCNICO'] || row['NOMBRE TECNICO'] || row.Nombre;
-                              if (col.key === 'supervisor_id') val = row['TARJETA SUPERVISOR'];
-                              if (col.key === 'supervisor') val = row['NOMBRE SUPERVISOR'] || row.Supervisor;
+                            // Fallbacks adicionales por si acaso
+                            if (!val) {
+                              if (col.key === 'tech') val = row.tech || row['Asignado A'];
+                              if (col.key === 'supervisor') val = row.supervisor || row['Supervisor'];
                             }
                             
                             val = (val !== undefined && val !== null) ? val : '-';
@@ -1038,7 +1279,7 @@ export default function AdminDashboard() {
                                       message: `¿Estás seguro de cancelar el código para el ticket ${ticketId}? Esto lo devolverá al inspector.`,
                                       onConfirm: async () => {
                                         try {
-                                          const { success, message } = await cancelCalidadCodigo(String(ticketId));
+                                          const { success, message } = await cancelManualCodigo(String(ticketId), 'calidad');
                                           if (success) {
                                             displayToast('Código cancelado correctamente', 'success');
                                             loadCalidad();
@@ -1113,7 +1354,137 @@ export default function AdminDashboard() {
             </form>
           </div>
         )}
+        {activeTab === 'inspecciones' && (
+          <div className="glass-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                <CheckCircle2 size={20} color="var(--primary-color)" /> Panel de Inspecciones Unificado
+              </h3>
+              <div className="search-bar" style={{ width: 'auto', minWidth: '400px' }}>
+                <Search size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar por Ticket, Orden, Técnico o Supervisor..." 
+                  value={inspeccionesSearch}
+                  onChange={(e) => setInspeccionesSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Origen</th>
+                    <th>ID / Ticket</th>
+                    <th>Técnico</th>
+                    <th>Supervisor</th>
+                    <th>Sector</th>
+                    <th>Estado / Fecha</th>
+                    <th>Código Aplicado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const mixed: any[] = [];
+                    
+                    // 1. Tickets Inspeccionados
+                    tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').forEach(t => {
+                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.status, _color: '#3b82f6', _code: t.codigo_aplicado });
+                    });
+
+                    // 2. Ordenes
+                    ordenes.forEach(o => {
+                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: o.fecha, _color: '#ef4444', _code: o.codigo_aplicado });
+                    });
+
+                    // 3. Calidad (Repetidas)
+                    calidadData.forEach(c => {
+                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.status || 'Pendiente', _color: '#f59e0b', _code: c.codigo_aplicado });
+                    });
+
+                    const term = inspeccionesSearch.toLowerCase();
+                    const filtered = mixed.filter(item => 
+                      String(item._id).toLowerCase().includes(term) ||
+                      String(item._tech).toLowerCase().includes(term) ||
+                      String(item._sup).toLowerCase().includes(term) ||
+                      String(item._sector).toLowerCase().includes(term)
+                    );
+
+                    if (filtered.length === 0) return <tr><td colSpan={7} style={{textAlign: 'center', padding: '2rem'}}>No se encontraron resultados</td></tr>;
+
+                    return filtered.map((item, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <span style={{ 
+                            background: item._color + '20', 
+                            color: item._color, 
+                            padding: '0.25rem 0.6rem', 
+                            borderRadius: '6px', 
+                            fontSize: '0.7rem', 
+                            fontWeight: 800,
+                            textTransform: 'uppercase'
+                          }}>
+                            {item._origin}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item._id}</td>
+                        <td>{item._tech}</td>
+                        <td>{item._sup}</td>
+                        <td>{item._sector}</td>
+                        <td>
+                          <span className={`badge ${item._date === 'Aprobado' || item._origin === 'Orden' ? 'success' : 'warning'}`}>
+                            {item._date}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontWeight: 700, color: '#10b981' }}>{item._code || '-'}</span>
+                            {item._code && (
+                              <button 
+                                className="btn-danger" 
+                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem' }}
+                                onClick={() => {
+                                  setConfirmModal({
+                                    isOpen: true,
+                                    message: `¿Cancelar código para ${item._id}? Volverá al inspector.`,
+                                    onConfirm: async () => {
+                                      const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : 'calidad';
+                                      const { success } = await cancelManualCodigo(String(item._id), type);
+                                      if (success) { 
+                                        displayToast('Código cancelado'); 
+                                        loadTickets(); loadOrdenes(); loadCalidad();
+                                      }
+                                      setConfirmModal(null);
+                                    }
+                                  });
+                                }}
+                              >
+                                X
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }} onClick={() => {
+                            if (item._origin === 'Ticket') setActiveTab('tickets');
+                            else if (item._origin === 'Orden') setActiveTab('ordenes');
+                            else setActiveTab('calidad');
+                          }}>
+                            Ver Detalle
+                          </button>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
+
 
       {/* Toast Notification */}
       {showToast && (

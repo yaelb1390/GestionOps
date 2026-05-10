@@ -19,27 +19,78 @@ function normalizeString(str) {
 // Función de normalización compartida para todos los tipos de datos
 function normalizeHeader(h) {
   if (!h) return "";
-  // Usar la función de normalización robusta para los encabezados también
   var low = normalizeString(h);
 
-  // PARA TRABAJO / TICKET: Solo si es la columna principal o específica de ID
-  if (low === "trabajo" || low === "ticket" || low === "id ticket" || low === "ticket id" || low === "numero de ticket" || low === "nro ticket") return "ticket";
-
-  if (low.includes("supervisor")) {
-    if (low.includes("tarjeta") || low.includes("id")) return "supervisor_id";
-    return "supervisor";
-  }
+  // Mappings para IDs de trabajo (Ticket / Trabajo / Orden / IDD)
+  // NOTA: "work name" NO está aquí porque contiene descripciones como "Reparacion Internet",
+  //        no el ID numérico. Se mapea a "tipo_trabajo" más abajo.
+  if (low === "trabajo" || low === "idd" || low === "nro trabajo" || low === "id trabajo" || low === "id_trabajo" || low === "job id" || low === "nro orden" || low === "numero de orden" || low === "nro de orden" || low === "nro_orden" || low === "ticket" || low === "id ticket" || low === "nro ticket" || low === "id_ticket") return "ticket";
   
-  if (low.includes("tecnico")) {
-    if (low.includes("id") || low.includes("cedula") || low.includes("tarjeta") || low === "tecnico")
-      return "tech_id";
-    return "tech";
-  }
-  if (low === "estado" || low === "status") return "status";
-  if (low === "sector" || low === "zona") return "sector";
-  if (low === "prioridad" || low === "priority") return "priority";
+  // Descripción / tipo del trabajo (NO es el ID numérico)
+  if (low === "work name" || low === "tipo trabajo" || low === "tipo de trabajo" || low === "descripcion trabajo" || low === "descripcion") return "tipo_trabajo";
+  
+  // Mappings para Orden de Servicio específica
+  if (low === "orden servicio" || low === "orden de servicio" || low === "orden_servicio" || low === "os" || low === "id orden" || low === "orden externa") return "orden_servicio";
+  
+  // Datos del Cliente y Reporte
+  if (low === "cliente" || low === "nombre cliente" || low === "nombre_cliente" || low === "subscriber") return "cliente";
+  if (low === "fecha" || low === "fecha reporte" || low === "fecha_creacion" || low === "vence" || low === "oe vencimiento") return "fecha";
+  // Tecnología de red (NO incluir "tech" aquí, es ambiguo y choca con nombre técnico)
+  if (low === "tecnologia" || low === "tipo red" || low === "tipo_red" || low === "red" || low === "servicio") return "tecnologia";
+  if (low === "sector" || low === "zona" || low === "barrio" || low === "region" || low === "municipio" || low === "ciudad") return "sector";
+  if (low === "terminal" || low === "id terminal" || low === "fat" || low === "caja") return "terminal";
+  
+  // Personal (Supervisor / Técnico)
+  if (low.includes("supervisor") && !low.includes("id") && !low.includes("tarjeta")) return "supervisor";
+  if (low.includes("supervisor") && (low.includes("id") || low.includes("tarjeta"))) return "supervisor_id";
+  
+  // "tecnico" solo (sin "nombre") = ID/cédula del técnico → tech_id
+  // "nombre tecnico" o "asignado a" = nombre del técnico → tech
+  if (low === "nombre tecnico" || low === "nombre_tecnico" || low === "asignado a" || low === "asignado_a" || low === "tech_name" || low === "tech") return "tech";
+  if (low === "tecnico" || low === "cedula" || low === "cedula tecnico" || low.includes("id tecnico") || low.includes("tarjeta tecnico") || low.includes("tech_id") || low === "tarjeta") return "tech_id";
+  
+  // Estado y Prioridad (Clave para Tickets y Calidad)
+  if (low === "estado" || low === "status" || low === "estado_orden" || low === "estado inspeccion" || low === "estado_inspeccion") return "status";
+  if (low === "prioridad" || low === "priority" || low === "tipo de prioridad" || low === "clasificacion prioridad") return "priority";
+  
+  // Otros
+  if (low === "codigo aplicado" || low === "codigo_aplicado" || low === "manual_code" || low === "codigo_razon") return "codigo_aplicado";
+  if (low === "inspector" || low === "inspector_nombre" || low === "nombre inspector") return "inspector";
+  if (low === "inspector id" || low === "inspector_id" || low === "tarjeta inspector") return "inspector_id";
 
-  return h.toString().trim();
+  // Si no coincide con nada, devolver snake_case minúscula
+  return low.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
+function getTargetSheetByType(ss, type) {
+  var sheets = ss.getSheets();
+  
+  function findSheet(names, gid) {
+    // 1. Try by GID if provided
+    if (gid) {
+      var s = sheets.find(s => s.getSheetId() == gid);
+      if (s) return s;
+    }
+    // 2. Try by exact name
+    for (var n of names) {
+      var s = ss.getSheetByName(n);
+      if (s) return s;
+    }
+    // 3. Try by normalized name (case-insensitive, trimmed)
+    var normalizedNames = names.map(n => normalizeString(n));
+    return sheets.find(s => {
+      var sName = normalizeString(s.getName());
+      return normalizedNames.includes(sName);
+    });
+  }
+
+  if (type === "tickets") return findSheet(["Tickets", "Averias", "Base", "Tickets_Base"]);
+  if (type === "calidad") return findSheet(["Calidad", "Averias Repetidas", "Repetidas", "Base Calidad"], 1724783398);
+  if (type === "inspectores") return findSheet(["Inspectores", "Usuarios", "Personal", "Inspectores_Base"]);
+  if (type === "razones") return findSheet(["Razones", "Codigo Razon Cliente", "Razones_Base"], 761213977);
+  if (type === "ordenes") return findSheet(["Ordenes", "Ordenes de Servicio", "Trabajos", "OS", "Ordenes_Base"], 885138959);
+  
+  return null;
 }
 
 function doGet(e) {
@@ -93,35 +144,7 @@ function doGet(e) {
     );
   }
 
-  // Lógica para Tickets, Calidad, Ordenes y Razones
-  var sheetName = "";
-  if (type === "tickets") sheetName = "Tickets";
-  else if (type === "calidad") {
-    var sheets = ss.getSheets();
-    var sheet = sheets.find((s) => s.getSheetId() == 1724783398);
-    if (sheet) sheetName = sheet.getName();
-  }
-  else if (type === "razones") {
-    var sheets = ss.getSheets();
-    var sheet = sheets.find((s) => s.getSheetId() == 761213977);
-    if (sheet) sheetName = sheet.getName();
-  }
-
-  var targetSheet;
-  if (type === "ordenes") {
-    try {
-      var ssOrdenes = SpreadsheetApp.openById(
-        "1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s",
-      );
-      targetSheet =
-        ssOrdenes.getSheets().find((s) => s.getSheetId() == 885138959) ||
-        ssOrdenes.getSheetByName("Ordenes");
-    } catch (e) {
-      targetSheet = ss.getSheetByName("Ordenes");
-    }
-  } else if (sheetName) {
-    targetSheet = ss.getSheetByName(sheetName);
-  }
+  var targetSheet = getTargetSheetByType(ss, type);
 
   if (!targetSheet)
     return ContentService.createTextOutput("[]").setMimeType(
@@ -141,12 +164,10 @@ function doGet(e) {
   // Encontrar columnas para filtrado 24h
   var estadoCol = -1;
   var fechaCol = -1;
-  if (type === "calidad") {
-    for (var j = 0; j < headers.length; j++) {
-      var h = normalizeString(headers[j]);
-      if (h === "estado inspeccion") estadoCol = j;
-      if (h === "fecha inspeccion") fechaCol = j;
-    }
+  for (var j = 0; j < headers.length; j++) {
+    var h = normalizeString(headers[j]);
+    if (h === "estado inspeccion" || h === "estado" || h === "status") estadoCol = j;
+    if (h === "fecha inspeccion") fechaCol = j;
   }
 
   var now = new Date();
@@ -154,19 +175,36 @@ function doGet(e) {
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     
-    // Filtrado 24h para Inspectores en Calidad
-    if (type === "calidad" && role === "inspector" && estadoCol > -1 && row[estadoCol] === "Completado" && fechaCol > -1) {
-      var fechaInspeccion = new Date(row[fechaCol]);
-      if (!isNaN(fechaInspeccion.getTime())) {
-        var diffHours = (now - fechaInspeccion) / (1000 * 60 * 60);
-        if (diffHours > 24) continue; // Ocultar después de 24h
+    // Filtrado 24h para Inspectores
+    if (role === "inspector" && estadoCol > -1 && fechaCol > -1) {
+      var status = String(row[estadoCol]).toLowerCase();
+      if (status === "completado" || status === "inspeccionado") {
+        var fechaInspeccion = new Date(row[fechaCol]);
+        if (!isNaN(fechaInspeccion.getTime())) {
+          var diffHours = (now - fechaInspeccion) / (1000 * 60 * 60);
+          if (diffHours > 24) continue; // Ocultar después de 24h
+        }
       }
     }
 
     var obj = {};
+    var trabajoValue = null; // Guardar valor exacto de columna TRABAJO
     for (var j = 0; j < headers.length; j++) {
-      var key = normalizeHeader(headers[j]);
-      if (key) obj[key] = row[j];
+      var rawHeader = String(headers[j] || '').trim();
+      var key = normalizeHeader(rawHeader);
+      if (!key) continue;
+
+      // La columna "TRABAJO" tiene prioridad absoluta para la clave "ticket"
+      // (evita que columnas posteriores como IDD la sobreescriban)
+      if (normalizeString(rawHeader) === 'trabajo') {
+        trabajoValue = row[j];
+        obj['ticket'] = row[j];
+      } else if (key === 'ticket') {
+        // Solo asignar si TRABAJO aún no ha sido encontrado
+        if (trabajoValue === null) obj['ticket'] = row[j];
+      } else {
+        obj[key] = row[j];
+      }
     }
     results.push(obj);
   }
@@ -448,6 +486,87 @@ function doPost(e) {
       }
     }
 
+    if (action === "save_manual_code") {
+      var type = params.type || "calidad";
+      var sheet = getTargetSheetByType(ss, type);
+      if (!sheet) return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Hoja no encontrada" })).setMimeType(ContentService.MimeType.JSON);
+
+      var data = sheet.getDataRange().getValues();
+      var headers = data[0];
+      var ticketCol = -1;
+      var codigoCol = -1;
+      var estadoCol = -1;
+      var fechaCol = -1;
+      
+      for (var j = 0; j < headers.length; j++) {
+        var h = normalizeString(headers[j]);
+        if (h === "trabajo" || h === "ticket" || h === "orden servicio") ticketCol = j;
+        if (h === "codigo aplicado") codigoCol = j;
+        if (h === "estado inspeccion" || h === "estado") estadoCol = j;
+        if (h === "fecha inspeccion") fechaCol = j;
+      }
+      
+      if (ticketCol === -1) return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Columna de identificación no encontrada" })).setMimeType(ContentService.MimeType.JSON);
+      
+      var needsUpdate = false;
+      if (codigoCol === -1) { headers.push("Código Aplicado"); codigoCol = headers.length - 1; needsUpdate = true; }
+      if (estadoCol === -1) { headers.push("Estado Inspección"); estadoCol = headers.length - 1; needsUpdate = true; }
+      if (fechaCol === -1) { headers.push("Fecha Inspección"); fechaCol = headers.length - 1; needsUpdate = true; }
+      
+      if (needsUpdate) {
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        data = sheet.getDataRange().getValues();
+      }
+      
+      var targetTicket = String(params.ticket).trim();
+      for (var i = 1; i < data.length; i++) {
+        var currentTicket = String(data[i][ticketCol]).trim();
+        if (currentTicket === targetTicket) {
+          if (data[i][codigoCol] && String(data[i][codigoCol]).trim() !== "") {
+            return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Este registro ya tiene un código aplicado" })).setMimeType(ContentService.MimeType.JSON);
+          }
+          sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
+          sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Inspeccionado" : "Completado");
+          sheet.getRange(i + 1, fechaCol + 1).setValue(new Date());
+          return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Registro no encontrado" })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === "cancel_manual_code") {
+      var type = params.type || "calidad";
+      var sheet = getTargetSheetByType(ss, type);
+      if (!sheet) return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Hoja no encontrada" })).setMimeType(ContentService.MimeType.JSON);
+
+      var data = sheet.getDataRange().getValues();
+      var headers = data[0];
+      var ticketCol = -1;
+      var codigoCol = -1;
+      var estadoCol = -1;
+      var fechaCol = -1;
+      
+      for (var j = 0; j < headers.length; j++) {
+        var h = normalizeString(headers[j]);
+        if (h === "trabajo" || h === "ticket" || h === "orden servicio") ticketCol = j;
+        if (h === "codigo aplicado") codigoCol = j;
+        if (h === "estado inspeccion" || h === "estado") estadoCol = j;
+        if (h === "fecha inspeccion") fechaCol = j;
+      }
+      
+      var targetTicket = String(params.ticket).trim();
+      for (var i = 1; i < data.length; i++) {
+        var currentTicket = String(data[i][ticketCol]).trim();
+        if (currentTicket === targetTicket) {
+          if (codigoCol > -1) sheet.getRange(i + 1, codigoCol + 1).clearContent();
+          if (estadoCol > -1) sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Asignado" : "Pendiente");
+          if (fechaCol > -1) sheet.getRange(i + 1, fechaCol + 1).clearContent();
+          return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Registro no encontrado" })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (
       action === "assign_calidad_by_supervisor" ||
       action === "assign_calidad_individual" ||
@@ -667,6 +786,119 @@ function doPost(e) {
         ).setMimeType(ContentService.MimeType.JSON);
       }
     }
+
+    // ── Asignación de Órdenes (misma arquitectura que Calidad) ──────────────────
+    if (
+      action === "assign_ordenes_by_supervisor" ||
+      action === "assign_ordenes_individual"
+    ) {
+      try {
+        var ordenSheet = null;
+        var allSheets = ss.getSheets();
+        for (var k = 0; k < allSheets.length; k++) {
+          if (allSheets[k].getSheetId() == 885138959) {
+            ordenSheet = allSheets[k];
+            break;
+          }
+        }
+        // Fallback por nombre si no encuentra por GID
+        if (!ordenSheet) ordenSheet = getTargetSheetByType(ss, "ordenes");
+
+        if (!ordenSheet)
+          return ContentService.createTextOutput(
+            JSON.stringify({ status: "error", message: "Hoja de Órdenes no encontrada" })
+          ).setMimeType(ContentService.MimeType.JSON);
+
+        var ordData = ordenSheet.getDataRange().getValues();
+        var ordHeaders = ordData[0];
+
+        // Asegurar columnas Inspector ID e Inspector
+        var ordInspIdCol = ordHeaders.indexOf("Inspector ID");
+        var ordInspNameCol = ordHeaders.indexOf("Inspector");
+        var needsOrdHeaderUpdate = false;
+        if (ordInspIdCol === -1) {
+          ordHeaders.push("Inspector ID");
+          ordInspIdCol = ordHeaders.length - 1;
+          needsOrdHeaderUpdate = true;
+        }
+        if (ordInspNameCol === -1) {
+          ordHeaders.push("Inspector");
+          ordInspNameCol = ordHeaders.length - 1;
+          needsOrdHeaderUpdate = true;
+        }
+        if (needsOrdHeaderUpdate) {
+          ordenSheet.getRange(1, 1, 1, ordHeaders.length).setValues([ordHeaders]);
+          ordData = ordenSheet.getDataRange().getValues();
+        }
+
+        // Localizar columnas de Supervisor y Técnico/Orden
+        var ordSupervisorCol = -1;
+        var ordTicketCol = -1;
+        for (var j = 0; j < ordHeaders.length; j++) {
+          var h = normalizeString(ordHeaders[j]);
+          if (h.includes("supervisor") && !h.includes("tarjeta") && !h.includes("id"))
+            ordSupervisorCol = j;
+          if (h === "trabajo" || h === "ticket" || h === "orden servicio" || h === "orden_servicio")
+            ordTicketCol = j;
+        }
+
+        if (action === "assign_ordenes_by_supervisor") {
+          var updatedCount = 0;
+          var targetSup = normalizeString(params.supervisor);
+
+          if (ordSupervisorCol === -1)
+            return ContentService.createTextOutput(
+              JSON.stringify({ status: "error", message: "Columna Supervisor no encontrada en Órdenes. Headers: " + ordHeaders.join(",") })
+            ).setMimeType(ContentService.MimeType.JSON);
+
+          for (var i = 1; i < ordData.length; i++) {
+            var rowSup = normalizeString(ordData[i][ordSupervisorCol]);
+            if (rowSup === targetSup) {
+              ordenSheet.getRange(i + 1, ordInspIdCol + 1).setValue(params.tech_id);
+              ordenSheet.getRange(i + 1, ordInspNameCol + 1).setValue(params.tech_name);
+              updatedCount++;
+            }
+          }
+          if (updatedCount === 0) {
+            var sample = [];
+            for (var m = 1; m < Math.min(ordData.length, 5); m++)
+              sample.push(ordData[m][ordSupervisorCol]);
+            return ContentService.createTextOutput(
+              JSON.stringify({ status: "error", message: "0 órdenes para supervisor '" + params.supervisor + "'. Muestras: " + sample.join(",") })
+            ).setMimeType(ContentService.MimeType.JSON);
+          }
+          return ContentService.createTextOutput(
+            JSON.stringify({ status: "success", updated: updatedCount })
+          ).setMimeType(ContentService.MimeType.JSON);
+
+        } else if (action === "assign_ordenes_individual") {
+          var targetOrden = String(params.orden_id).trim();
+
+          if (ordTicketCol === -1)
+            return ContentService.createTextOutput(
+              JSON.stringify({ status: "error", message: "Columna de ID de orden no encontrada" })
+            ).setMimeType(ContentService.MimeType.JSON);
+
+          for (var i = 1; i < ordData.length; i++) {
+            if (String(ordData[i][ordTicketCol]).trim() === targetOrden) {
+              ordenSheet.getRange(i + 1, ordInspIdCol + 1).setValue(params.tech_id);
+              ordenSheet.getRange(i + 1, ordInspNameCol + 1).setValue(params.tech_name);
+              return ContentService.createTextOutput(
+                JSON.stringify({ status: "success" })
+              ).setMimeType(ContentService.MimeType.JSON);
+            }
+          }
+          return ContentService.createTextOutput(
+            JSON.stringify({ status: "error", message: "Orden no encontrada: " + targetOrden })
+          ).setMimeType(ContentService.MimeType.JSON);
+        }
+      } catch (err) {
+        return ContentService.createTextOutput(
+          JSON.stringify({ status: "error", message: "Error interno ordenes: " + err.toString() })
+        ).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
 
     if (action === "add_inspector") {
       var sheet = ss.getSheetByName("Inspectores");
