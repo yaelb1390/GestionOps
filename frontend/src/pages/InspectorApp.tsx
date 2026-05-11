@@ -1,22 +1,19 @@
 import { useState, useEffect } from 'react';
-import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, Camera, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink } from 'lucide-react';
+import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, updateTicketStatus, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo } from '../services/api';
+import { fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo } from '../services/api';
 
 export default function InspectorApp() {
   const [activeTab, setActiveTab] = useState('menu');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [showToast, setShowToast] = useState(false);
   const [calidadAssignments, setCalidadAssignments] = useState<any[]>([]);
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || '';
-  const [selectedResult, setSelectedResult] = useState('');
-  const [images, setImages] = useState<string[]>([]);
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [loadingOrdenes, setLoadingOrdenes] = useState(false);
   const [selectedOrden, setSelectedOrden] = useState<Orden | null>(null);
@@ -77,23 +74,6 @@ export default function InspectorApp() {
     }, 3000);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setImages(prev => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
-  };
-
   useEffect(() => {
     loadTickets();
     loadCalidadAssignments();
@@ -120,8 +100,6 @@ export default function InspectorApp() {
   };
 
   if (selectedTicket) {
-    const status = selectedTicket.status || (selectedTicket as any).Estado;
-    const isCompleted = status === 'Inspeccionado' || !!(selectedTicket as any)['Código Aplicado'];
     return (
       <div className="mobile-view">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>

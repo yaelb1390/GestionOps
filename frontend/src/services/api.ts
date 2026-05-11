@@ -12,6 +12,7 @@ export interface Ticket {
   priority: string;
   status: string;
   evidence?: string;
+  codigo_aplicado?: string;
 }
 
 export interface Orden {
