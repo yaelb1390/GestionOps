@@ -103,7 +103,7 @@ export default function InspectorApp() {
     return (
       <div className="mobile-view">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Inspección {selectedTicket.ticket}</h2>
+          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Trabajo {selectedTicket.ticket}</h2>
           <button onClick={() => { setSelectedTicket(null); setShowManualInput(false); setManualCode(''); }} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
             <X size={24} />
           </button>
@@ -111,7 +111,7 @@ export default function InspectorApp() {
 
         <div className="mobile-card">
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Técnico</label>
+            <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>ASIGNADO A</label>
             <div style={{ color: 'var(--text-main)', fontWeight: 500 }}>{selectedTicket.tech_id || selectedTicket.tech}</div>
           </div>
           <div style={{ display: 'flex', gap: '2rem' }}>
@@ -120,7 +120,7 @@ export default function InspectorApp() {
               <div style={{ color: 'var(--text-main)' }}>{selectedTicket.sector || (selectedTicket as any).Sector}</div>
             </div>
             <div>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Prioridad</label>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>PRIORIDAD</label>
               <div style={{ color: 'var(--danger-color)' }}>{selectedTicket.priority}</div>
             </div>
           </div>
@@ -190,11 +190,11 @@ export default function InspectorApp() {
   }
 
   if (selectedOrden) {
-    const orderId = selectedOrden['Orden Servicio'] || selectedOrden['TRABAJO'];
+    const orderId = selectedOrden.ticket || selectedOrden.orden_servicio || (selectedOrden as any)['TRABAJO'];
     return (
       <div className="mobile-view">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Orden {orderId}</h2>
+          <h2 style={{ color: 'var(--text-main)', fontSize: '1.25rem' }}>Orden Externa {orderId}</h2>
           <button onClick={() => { setSelectedOrden(null); setShowManualInput(false); setManualCode(''); }} style={{ background: 'transparent', color: 'var(--text-muted)' }}>
             <X size={24} />
           </button>
@@ -212,7 +212,7 @@ export default function InspectorApp() {
               <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Sector || '-'}</div>
             </div>
             <div>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Fecha</label>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>VENCE</label>
               <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '0.25rem' }}>{selectedOrden.Fecha || '-'}</div>
             </div>
           </div>
@@ -510,7 +510,7 @@ export default function InspectorApp() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
-                        TICKET
+                        TRABAJO
                       </div>
                       <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{t.ticket}</div>
                     </div>
@@ -565,7 +565,7 @@ export default function InspectorApp() {
                 <div key={idx} className="mobile-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', borderRadius: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800 }}>
-                      {item.type}
+                      {item.type === 'TICKET' ? 'TRABAJO' : 'ORDEN EXTERNA'}
                     </div>
                     <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{item.id}</div>
                   </div>
@@ -647,14 +647,14 @@ export default function InspectorApp() {
                           {techId}
                         </div>
                         <div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Nombre Técnico</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>ASIGNADO A</div>
                           <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1rem', marginTop: '0.1rem' }}>{tecnico}</div>
                         </div>
                       </div>
 
                       {/* — Tickets / Trabajo — (mismo estilo que órdenes) */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0 }}>TICKET</div>
+                        <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0 }}>TRABAJO</div>
                         <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.05rem' }}>{trabajo}</div>
                       </div>
 
@@ -745,7 +745,7 @@ export default function InspectorApp() {
                     const term = ordenesSearch.toLowerCase().trim();
                     const filtered = ordenes.filter(o =>
                       !term ||
-                      String(o.ticket || o.orden_servicio || '').toLowerCase().includes(term) ||
+                      String(o.orden_servicio || o.ticket || '').toLowerCase().includes(term) ||
                       String(o.cliente || '').toLowerCase().includes(term) ||
                       String(o.tech || (o as any).tech_id || '').toLowerCase().includes(term)
                     );
@@ -770,8 +770,8 @@ export default function InspectorApp() {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ORDEN</div>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.1rem' }}>{o.ticket || o.orden_servicio}</div>
+                            <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ORDEN EXTERNA</div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 800 }}>{o.ticket || o.orden_servicio}</div>
                           </div>
                           <ChevronRight color="var(--text-muted)" size={18} />
                         </div>
@@ -881,13 +881,13 @@ export default function InspectorApp() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div className="glass-panel" style={{ padding: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Trabajo / Ticket</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TRABAJO</div>
                 <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{selectedCalidadTicket.ticket || selectedCalidadTicket['TRABAJO'] || '-'}</div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Técnico</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>ASIGNADO A</div>
                   <div style={{ fontWeight: 600 }}>{selectedCalidadTicket.tech || selectedCalidadTicket['NOMBRE TÉCNICO'] || '-'}</div>
                 </div>
                 <div>

@@ -29,15 +29,20 @@ function normalizeHeader(h) {
   // Descripción / tipo del trabajo (NO es el ID numérico)
   if (low === "work name" || low === "tipo trabajo" || low === "tipo de trabajo" || low === "descripcion trabajo" || low === "descripcion") return "tipo_trabajo";
   
-  // Mappings para Orden de Servicio específica
-  if (low === "orden servicio" || low === "orden de servicio" || low === "orden_servicio" || low === "os" || low === "id orden" || low === "orden externa") return "orden_servicio";
+  if (low === "orden servicio" || low === "orden de servicio" || low === "orden_servicio" || low === "os" || low === "id orden") return "orden_servicio";
+  if (low === "orden externa" || low === "order externa" || low === "descripcion" || low === "descripcion orden") return "descripcion_orden";
   
   // Datos del Cliente y Reporte
   if (low === "cliente" || low === "nombre cliente" || low === "nombre_cliente" || low === "subscriber") return "cliente";
-  if (low === "fecha" || low === "fecha reporte" || low === "fecha_creacion" || low === "vence" || low === "oe vencimiento") return "fecha";
-  // Tecnología de red (NO incluir "tech" aquí, es ambiguo y choca con nombre técnico)
-  if (low === "tecnologia" || low === "tipo red" || low === "tipo_red" || low === "red" || low === "servicio") return "tecnologia";
-  if (low === "sector" || low === "zona" || low === "barrio" || low === "region" || low === "municipio" || low === "ciudad") return "sector";
+  if (low === "fecha" || low === "fecha reporte" || low === "fecha_creacion" || low === "vence" || low === "oe vencimiento" || low === "oe_vencimiento") return "fecha";
+  
+  // Tecnología de red
+  if (low === "tecnologia" || low === "tipo red" || low === "tipo_red" || low === "red" || low === "servicio" || low === "tipo servicio") return "tecnologia";
+  
+  if (low === "sector") return "sector";
+  if (low === "barrio") return "barrio";
+  if (low === "ciudad") return "ciudad";
+  if (low === "zona" || low === "region" || low === "municipio") return "sector";
   if (low === "terminal" || low === "id terminal" || low === "fat" || low === "caja") return "terminal";
   
   // Personal (Supervisor / Técnico)
@@ -49,7 +54,7 @@ function normalizeHeader(h) {
   if (low === "nombre tecnico" || low === "nombre_tecnico" || low === "asignado a" || low === "asignado_a" || low === "tech_name" || low === "tech") return "tech";
   if (low === "tecnico" || low === "cedula" || low === "cedula tecnico" || low.includes("id tecnico") || low.includes("tarjeta tecnico") || low.includes("tech_id") || low === "tarjeta") return "tech_id";
   
-  // Estado y Prioridad (Clave para Tickets y Calidad)
+  // Estado y Prioridad
   if (low === "estado" || low === "status" || low === "estado_orden" || low === "estado inspeccion" || low === "estado_inspeccion") return "status";
   if (low === "prioridad" || low === "priority" || low === "tipo de prioridad" || low === "clasificacion prioridad") return "priority";
   
@@ -61,6 +66,7 @@ function normalizeHeader(h) {
   // Si no coincide con nada, devolver snake_case minúscula
   return low.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 }
+
 
 function getTargetSheetByType(ss, type) {
   var sheets = ss.getSheets();
@@ -153,12 +159,28 @@ function doGet(e) {
 
   var role = e.parameter.role || "admin";
   var data = targetSheet.getDataRange().getValues();
-  if (data.length <= 1)
+  if (data.length === 0)
     return ContentService.createTextOutput("[]").setMimeType(
       ContentService.MimeType.JSON,
     );
 
-  var headers = data[0];
+  // --- DETECCIÓN DINÁMICA DE ENCABEZADOS ---
+  // Buscamos la fila que contenga palabras clave como "trabajo" o "ticket"
+  var headerRowIndex = 0;
+  var foundHeaders = false;
+  for (var r = 0; r < Math.min(data.length, 5); r++) {
+    for (var c = 0; c < data[r].length; c++) {
+      var cellVal = normalizeString(data[r][c]);
+      if (cellVal === "trabajo" || cellVal === "ticket" || cellVal === "orden servicio") {
+        headerRowIndex = r;
+        foundHeaders = true;
+        break;
+      }
+    }
+    if (foundHeaders) break;
+  }
+
+  var headers = data[headerRowIndex];
   var results = [];
   
   // Encontrar columnas para filtrado 24h
@@ -172,8 +194,11 @@ function doGet(e) {
 
   var now = new Date();
 
-  for (var i = 1; i < data.length; i++) {
+  // Los datos comienzan después de la fila de encabezados
+  for (var i = headerRowIndex + 1; i < data.length; i++) {
     var row = data[i];
+    // Evitar procesar filas que estén completamente vacías
+    if (!row.some(cell => cell !== "")) continue;
     
     // Filtrado 24h para Inspectores
     if (role === "inspector" && estadoCol > -1 && fechaCol > -1) {
@@ -570,7 +595,8 @@ function doPost(e) {
     if (
       action === "assign_calidad_by_supervisor" ||
       action === "assign_calidad_individual" ||
-      action === "save_calidad_codigo"
+      action === "save_calidad_codigo" ||
+      action === "cancel_calidad_codigo"
     ) {
       try {
         var sheet = null;
@@ -787,115 +813,63 @@ function doPost(e) {
       }
     }
 
-    // ── Asignación de Órdenes (misma arquitectura que Calidad) ──────────────────
+    // ── Asignación de Órdenes ──────────────────
     if (
       action === "assign_ordenes_by_supervisor" ||
       action === "assign_ordenes_individual"
     ) {
       try {
-        var ordenSheet = null;
-        var allSheets = ss.getSheets();
-        for (var k = 0; k < allSheets.length; k++) {
-          if (allSheets[k].getSheetId() == 885138959) {
-            ordenSheet = allSheets[k];
-            break;
-          }
-        }
-        // Fallback por nombre si no encuentra por GID
-        if (!ordenSheet) ordenSheet = getTargetSheetByType(ss, "ordenes");
-
-        if (!ordenSheet)
-          return ContentService.createTextOutput(
-            JSON.stringify({ status: "error", message: "Hoja de Órdenes no encontrada" })
-          ).setMimeType(ContentService.MimeType.JSON);
+        var ordenSheet = getTargetSheetByType(ss, "ordenes");
+        if (!ordenSheet) throw new Error("Hoja de Órdenes no encontrada");
 
         var ordData = ordenSheet.getDataRange().getValues();
-        var ordHeaders = ordData[0];
+        var ordHeaders = ordData[0].map(normalizeHeader);
 
-        // Asegurar columnas Inspector ID e Inspector
-        var ordInspIdCol = ordHeaders.indexOf("Inspector ID");
-        var ordInspNameCol = ordHeaders.indexOf("Inspector");
-        var needsOrdHeaderUpdate = false;
-        if (ordInspIdCol === -1) {
-          ordHeaders.push("Inspector ID");
-          ordInspIdCol = ordHeaders.length - 1;
-          needsOrdHeaderUpdate = true;
-        }
-        if (ordInspNameCol === -1) {
-          ordHeaders.push("Inspector");
-          ordInspNameCol = ordHeaders.length - 1;
-          needsOrdHeaderUpdate = true;
-        }
-        if (needsOrdHeaderUpdate) {
-          ordenSheet.getRange(1, 1, 1, ordHeaders.length).setValues([ordHeaders]);
+        var ordInspIdCol = ordHeaders.indexOf("inspector_id");
+        var ordInspNameCol = ordHeaders.indexOf("inspector");
+        
+        // Crear columnas si no existen
+        if (ordInspIdCol === -1 || ordInspNameCol === -1) {
+          var rawHeaders = ordenSheet.getRange(1, 1, 1, ordenSheet.getLastColumn()).getValues()[0];
+          if (ordInspIdCol === -1) { rawHeaders.push("Inspector ID"); ordInspIdCol = rawHeaders.length - 1; }
+          if (ordInspNameCol === -1) { rawHeaders.push("Inspector"); ordInspNameCol = rawHeaders.length - 1; }
+          ordenSheet.getRange(1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
           ordData = ordenSheet.getDataRange().getValues();
+          ordHeaders = ordData[0].map(normalizeHeader);
         }
 
-        // Localizar columnas de Supervisor y Técnico/Orden
-        var ordSupervisorCol = -1;
-        var ordTicketCol = -1;
-        for (var j = 0; j < ordHeaders.length; j++) {
-          var h = normalizeString(ordHeaders[j]);
-          if (h.includes("supervisor") && !h.includes("tarjeta") && !h.includes("id"))
-            ordSupervisorCol = j;
-          if (h === "trabajo" || h === "ticket" || h === "orden servicio" || h === "orden_servicio")
-            ordTicketCol = j;
-        }
+        var ordSupervisorCol = ordHeaders.indexOf("supervisor");
+        var ordTicketCol = ordHeaders.indexOf("ticket");
+        if (ordTicketCol === -1) ordTicketCol = ordHeaders.indexOf("orden_servicio");
 
         if (action === "assign_ordenes_by_supervisor") {
           var updatedCount = 0;
           var targetSup = normalizeString(params.supervisor);
-
-          if (ordSupervisorCol === -1)
-            return ContentService.createTextOutput(
-              JSON.stringify({ status: "error", message: "Columna Supervisor no encontrada en Órdenes. Headers: " + ordHeaders.join(",") })
-            ).setMimeType(ContentService.MimeType.JSON);
+          if (ordSupervisorCol === -1) throw new Error("Columna Supervisor no encontrada en Órdenes");
 
           for (var i = 1; i < ordData.length; i++) {
-            var rowSup = normalizeString(ordData[i][ordSupervisorCol]);
-            if (rowSup === targetSup) {
+            if (normalizeString(ordData[i][ordSupervisorCol]) === targetSup) {
               ordenSheet.getRange(i + 1, ordInspIdCol + 1).setValue(params.tech_id);
               ordenSheet.getRange(i + 1, ordInspNameCol + 1).setValue(params.tech_name);
               updatedCount++;
             }
           }
-          if (updatedCount === 0) {
-            var sample = [];
-            for (var m = 1; m < Math.min(ordData.length, 5); m++)
-              sample.push(ordData[m][ordSupervisorCol]);
-            return ContentService.createTextOutput(
-              JSON.stringify({ status: "error", message: "0 órdenes para supervisor '" + params.supervisor + "'. Muestras: " + sample.join(",") })
-            ).setMimeType(ContentService.MimeType.JSON);
-          }
-          return ContentService.createTextOutput(
-            JSON.stringify({ status: "success", updated: updatedCount })
-          ).setMimeType(ContentService.MimeType.JSON);
-
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", updated: updatedCount })).setMimeType(ContentService.MimeType.JSON);
         } else if (action === "assign_ordenes_individual") {
-          var targetOrden = String(params.orden_id).trim();
-
-          if (ordTicketCol === -1)
-            return ContentService.createTextOutput(
-              JSON.stringify({ status: "error", message: "Columna de ID de orden no encontrada" })
-            ).setMimeType(ContentService.MimeType.JSON);
+          var targetTicket = String(params.ticketId || params.orden_id).trim();
+          if (ordTicketCol === -1) throw new Error("Columna de ID de orden no encontrada");
 
           for (var i = 1; i < ordData.length; i++) {
-            if (String(ordData[i][ordTicketCol]).trim() === targetOrden) {
+            if (String(ordData[i][ordTicketCol]).trim() === targetTicket) {
               ordenSheet.getRange(i + 1, ordInspIdCol + 1).setValue(params.tech_id);
               ordenSheet.getRange(i + 1, ordInspNameCol + 1).setValue(params.tech_name);
-              return ContentService.createTextOutput(
-                JSON.stringify({ status: "success" })
-              ).setMimeType(ContentService.MimeType.JSON);
+              return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
             }
           }
-          return ContentService.createTextOutput(
-            JSON.stringify({ status: "error", message: "Orden no encontrada: " + targetOrden })
-          ).setMimeType(ContentService.MimeType.JSON);
+          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Orden no encontrada: " + targetTicket })).setMimeType(ContentService.MimeType.JSON);
         }
       } catch (err) {
-        return ContentService.createTextOutput(
-          JSON.stringify({ status: "error", message: "Error interno ordenes: " + err.toString() })
-        ).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error interno ordenes: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
       }
     }
 

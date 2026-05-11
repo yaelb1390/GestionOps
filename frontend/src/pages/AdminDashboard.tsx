@@ -140,18 +140,19 @@ export default function AdminDashboard() {
       return foundKey ? item[foundKey] : undefined;
     };
 
-    if (!normalized.ticket) normalized.ticket = getVal(['trabajo', 'ticket', 'idd', 'nro orden', 'orden externa', 'work name']);
+    if (!normalized.ticket) normalized.ticket = getVal(['trabajo', 'ticket', 'idd', 'nro trabajo', 'work name']);
     if (!normalized.tech) normalized.tech = getVal(['asignado a', 'nombre tecnico', 'nombre_tecnico', 'tech_name']);
     if (!normalized.tech_id) normalized.tech_id = getVal(['tech_id', 'tecnico', 'cedula', 'id tecnico', 'tarjeta', 'cedula tecnico']);
     if (!normalized.supervisor) normalized.supervisor = getVal(['supervisor', 'nombre supervisor']);
-    if (!normalized.sector) normalized.sector = getVal(['sector', 'zona', 'barrio', 'ciudad']);
+    if (!normalized.sector) normalized.sector = getVal(['sector', 'zona', 'barrio', 'ciudad', 'localidad']);
     if (!normalized.status) normalized.status = getVal(['estado', 'status', 'estado inspeccion', 'estado_inspeccion']);
-    if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red']);
+    if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red', 'tipo_red']);
     
     if (type === 'orden') {
-       if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden externa', 'orden servicio', 'os']);
+       if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden servicio', 'os', 'id orden', 'orden_servicio']);
+       if (!normalized.descripcion_orden) normalized.descripcion_orden = getVal(['descripcion_orden', 'orden externa', 'order externa', 'descripcion']);
        if (!normalized.cliente) normalized.cliente = getVal(['cliente', 'subscriber']);
-       if (!normalized.fecha) normalized.fecha = getVal(['vence', 'fecha', 'oe vencimiento']);
+       if (!normalized.fecha) normalized.fecha = getVal(['fecha', 'oe vencimiento', 'vence', 'oe_vencimiento']);
     }
 
     return normalized;
@@ -561,8 +562,8 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     {[
-                      'Trabajo', 'Orden Servicio', 'Cliente', 'Fecha', 
-                      'Tecnología', 'Sector', 'Terminal', 'Asignado A', 'Supervisor', 'Código Aplicado', 'Estado'
+                      'Trabajo', 'Orden Externa', 'Cliente', 'OE Vencimiento', 'Prioridad', 
+                      'Asignado A', 'Supervisor', 'Estado', 'Tecnología', 'Sector', 'Terminal'
                     ].map(header => (
                       <th key={header}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -608,44 +609,32 @@ export default function AdminDashboard() {
                     const ordenId = o.orden_servicio || o.ticket;
                     return (
                       <tr key={idx}>
-                        <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{o.orden_servicio || o.ticket}</td>
-                        <td>{typeof o.ticket === 'string' ? o.ticket : (o.tipo_trabajo || '-')}</td>
-                        <td>{o.cliente}</td>
-                        <td>{o.fecha}</td>
-                        <td><span className={`badge ${String(o.tecnologia || '').toLowerCase().includes('gpon') ? 'info' : String(o.tecnologia || '').toLowerCase().includes('vsat') ? 'warning' : String(o.tecnologia || '').toLowerCase().includes('hfc') ? 'success' : 'danger'}`}>{o.tecnologia || '-'}</span></td>
-                        <td>{o.sector}</td>
-                        <td>{o.terminal}</td>
-                        <td>{o.tech || (o as any).tech_id}</td>
-                        <td>{o.supervisor}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{o.ticket || (o as any).trabajo || '-'}</td>
+                        <td style={{ fontSize: '0.8rem' }}>{o.descripcion_orden || (o as any)['orden externa'] || '-'}</td>
+                        <td style={{ fontSize: '0.8rem' }}>{o.cliente || '-'}</td>
+                        <td>{o.fecha || (o as any)['oe vencimiento'] || '-'}</td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontWeight: 700, color: '#10b981' }}>{o.codigo_aplicado || '-'}</span>
-                            {o.codigo_aplicado && (
-                              <button 
-                                className="btn-danger" 
-                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem' }}
-                                onClick={() => {
-                                  setConfirmModal({
-                                    isOpen: true,
-                                    message: `¿Cancelar código para la orden ${ordenId}? Volverá al inspector.`,
-                                    onConfirm: async () => {
-                                      const { success } = await cancelManualCodigo(String(ordenId), 'ordenes');
-                                      if (success) { displayToast('Código cancelado'); loadOrdenes(); }
-                                      setConfirmModal(null);
-                                    }
-                                  });
-                                }}
-                              >
-                                X
-                              </button>
-                            )}
-                          </div>
+                          <span style={{ 
+                            padding: '0.2rem 0.5rem', 
+                            borderRadius: '4px', 
+                            fontSize: '0.7rem', 
+                            fontWeight: 600,
+                            background: String(o.priority || (o as any).prioridad).toLowerCase().includes('alta') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                            color: String(o.priority || (o as any).prioridad).toLowerCase().includes('alta') ? '#ef4444' : '#3b82f6'
+                          }}>
+                            {o.priority || (o as any).prioridad || '-'}
+                          </span>
                         </td>
+                        <td>{o.tech || (o as any).tech_name || '-'}</td>
+                        <td>{o.supervisor || '-'}</td>
                         <td>
                           <span className={`badge ${o.status === 'Completado' || o.status === 'Inspeccionado' ? 'success' : o.status === 'Pendiente' ? 'warning' : 'info'}`}>
                             {o.status || 'Pendiente'}
                           </span>
                         </td>
+                        <td>{o.tecnologia || (o as any)['tipo red'] || '-'}</td>
+                        <td>{o.sector || (o as any).ciudad || '-'}</td>
+                        <td>{o.terminal || '-'}</td>
                         {/* Inspector Asignado */}
                         <td>
                           {(o as any).inspector ? (
@@ -787,51 +776,71 @@ export default function AdminDashboard() {
               <table>
                 <thead>
                   <tr>
-                    <th>Ticket</th>
-                    <th>Técnico</th>
-                    <th>Inspector</th>
-                    <th>Asignar</th>
-                    <th>Supervisor</th>
+                    <th>Trabajo</th>
+                    <th>Order Externa</th>
                     <th>Sector</th>
-                    <th>Código Aplicado</th>
+                    <th>Cliente</th>
+                    <th>Tecnología</th>
+                    <th>Terminal</th>
+                    <th>Asignado A</th>
+                    <th>Supervisor</th>
                     <th>Estado</th>
+                    <th>Prioridad</th>
+                    <th>Tipo Prioridad</th>
+                    <th>OE Vencimiento</th>
+                    <th>Inspector Asignado</th>
+                    <th>Acción Asignar</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={8} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={16} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : tickets.filter(t => {
-                    const matchesSearch = t.ticket?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                          t.tech_id?.toString().toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                          (t.tech || (t as any).Asignado_A)?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+                    const search = searchTerm.toLowerCase();
+                    const matchesSearch = !search || 
+                                          t.ticket?.toString().toLowerCase().includes(search) || 
+                                          t.tech_id?.toString().toLowerCase().includes(search) || 
+                                          (t.tech || (t as any).Asignado_A)?.toString().toLowerCase().includes(search) ||
+                                          t.cliente?.toString().toLowerCase().includes(search);
+                    
                     const tSupervisor = getSupervisor(t);
-                    const matchesSupervisor = supervisorFilter === '' || tSupervisor === supervisorFilter;
+                    const matchesSupervisor = !supervisorFilter || tSupervisor === supervisorFilter;
+                    return matchesSearch && matchesSupervisor;
+                  }).length === 0 ? (
+                    <tr><td colSpan={16} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron tickets con los filtros actuales.</td></tr>
+                  ) : tickets.filter(t => {
+                    const search = searchTerm.toLowerCase();
+                    const matchesSearch = !search || 
+                                          t.ticket?.toString().toLowerCase().includes(search) || 
+                                          t.tech_id?.toString().toLowerCase().includes(search) || 
+                                          (t.tech || (t as any).Asignado_A)?.toString().toLowerCase().includes(search) ||
+                                          t.cliente?.toString().toLowerCase().includes(search);
+                    
+                    const tSupervisor = getSupervisor(t);
+                    const matchesSupervisor = !supervisorFilter || tSupervisor === supervisorFilter;
                     return matchesSearch && matchesSupervisor;
                   }).map((t, idx) => (
                     <tr key={t.id || t.ticket || idx}>
                       <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
-                      <td>
-                        <div>{t.tech || (t as any).Asignado_A || t.tech_id || '-'}</div>
-                        {(t.tech || t.tech_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.tech_id || t.tech}</div>}
-                      </td>
-                      <td>
-                        <div>{t.inspector || t.inspector_id || <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>}</div>
-                        {(t.inspector || t.inspector_id) && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.inspector_id || t.inspector}</div>}
-                      </td>
-                      <td>
-                        <select 
-                          className="assign-select" 
-                          value=""
-                          onChange={(e) => handleAssign(t.id || t.ticket, e.target.value)}
-                        >
-                          <option value="" disabled>Asignar a...</option>
-                          {inspectors.map(insp => (
-                            <option key={insp.id} value={insp.id}>{insp.nombre}</option>
-                          ))}
-                        </select>
-                      </td>
+                      <td>{t.descripcion_orden || t.orden_servicio || '-'}</td>
+                      <td>{t.sector || '-'}</td>
+                      <td>{t.cliente || '-'}</td>
+                      <td>{t.tecnologia || '-'}</td>
+                      <td>{t.terminal || '-'}</td>
+                      <td>{t.tech || t.tech_id || '-'}</td>
                       <td>{getSupervisor(t)}</td>
-                      <td>{t.sector}</td>
+                      <td>
+                        <span className={`badge ${t.status === 'Pendiente' ? 'warning' : (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Asignado') ? 'success' : 'danger'}`}>
+                          {t.status || 'Pendiente'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${t.priority === 'Alta' ? 'danger' : t.priority === 'Media' ? 'warning' : 'info'}`}>
+                          {t.priority || '-'}
+                        </span>
+                      </td>
+                      <td>{(t as any).tipo_prioridad || '-'}</td>
+                      <td>{t.fecha || (t as any).oe_vencimiento || '-'}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{ fontWeight: 700, color: '#10b981' }}>{t.codigo_aplicado || '-'}</span>
@@ -857,9 +866,20 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                       <td>
-                        <span className={`badge ${t.status === 'Pendiente' ? 'warning' : (t.status === 'Inspeccionado' || t.status === 'Aprobado') ? 'success' : 'danger'}`}>
-                          {t.status || 'Pendiente'}
-                        </span>
+                        <div>{t.inspector || <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>}</div>
+                        {t.inspector_id && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.inspector_id}</div>}
+                      </td>
+                      <td>
+                        <select 
+                          className="assign-select" 
+                          value=""
+                          onChange={(e) => handleAssign(t.id || t.ticket, e.target.value)}
+                        >
+                          <option value="" disabled>Asignar a...</option>
+                          {inspectors.map(insp => (
+                            <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                          ))}
+                        </select>
                       </td>
                     </tr>
                   ))}
@@ -1391,17 +1411,17 @@ export default function AdminDashboard() {
                     
                     // 1. Tickets Inspeccionados
                     tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').forEach(t => {
-                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.status, _color: '#3b82f6', _code: t.codigo_aplicado });
+                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.fecha || t.oe_vencimiento || 'N/A', _color: '#3b82f6', _code: t.codigo_aplicado });
+                    });
+                    
+                    // 2. Órdenes Inspeccionadas
+                    ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado').forEach(o => {
+                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: o.fecha || (o as any).oe_vencimiento || 'N/A', _color: '#ef4444', _code: o.codigo_aplicado });
                     });
 
-                    // 2. Ordenes
-                    ordenes.forEach(o => {
-                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: o.fecha, _color: '#ef4444', _code: o.codigo_aplicado });
-                    });
-
-                    // 3. Calidad (Repetidas)
-                    calidadData.forEach(c => {
-                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.status || 'Pendiente', _color: '#f59e0b', _code: c.codigo_aplicado });
+                    // 3. Calidad Inspeccionada (Repetidas)
+                    calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado').forEach(c => {
+                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado });
                     });
 
                     const term = inspeccionesSearch.toLowerCase();
