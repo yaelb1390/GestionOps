@@ -13,6 +13,8 @@ export interface Ticket {
   status: string;
   evidence?: string;
   codigo_aplicado?: string;
+  fecha?: string;
+  [key: string]: any;
 }
 
 export interface Orden {

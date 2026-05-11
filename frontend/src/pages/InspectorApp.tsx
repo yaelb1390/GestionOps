@@ -338,6 +338,8 @@ export default function InspectorApp() {
           <><Package size={20} color="var(--primary-color)" /> Mis Órdenes</>
         ) : activeTab === 'menu' ? (
           <><LayoutGrid size={20} color="var(--primary-color)" /> Menú Principal</>
+        ) : activeTab === 'mis_tickets' ? (
+          <><CheckCircle2 size={20} color="var(--primary-color)" /> Inspecciones Realizadas</>
         ) : (
           <><ClipboardList size={20} color="var(--primary-color)" /> Tickets Asignados</>
         )}
@@ -450,8 +452,8 @@ export default function InspectorApp() {
               <CheckCircle2 size={28} />
             </div>
             <div>
-              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Historial</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Mis Tickets</div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Inspecciones</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Realizadas</div>
             </div>
           </button>
 
@@ -502,7 +504,6 @@ export default function InspectorApp() {
                 const status = t.status || (t as any).Estado;
                 if (activeTab === 'pendientes') return (status === 'Pendiente' || status === 'Asignado') && isMine;
                 if (activeTab === 'completadas') return (status === 'Inspeccionado' || status === 'Aprobado' || status === 'Rechazado') && isMine;
-                if (activeTab === 'mis_tickets') return isMine;
                 return false;
               }).map(t => (
                 <div key={t.id} className="mobile-card" style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', padding: '1.25rem', gap: '0.75rem' }} onClick={() => setSelectedTicket(t)}>
@@ -534,15 +535,48 @@ export default function InspectorApp() {
                   </div>
                 </div>
               ))}
-              {tickets.filter(t => {
+              {(activeTab === 'pendientes' || activeTab === 'completadas') && tickets.filter(t => {
                 const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
                 const status = t.status || (t as any).Estado;
                 if (activeTab === 'pendientes') return (status === 'Pendiente' || status === 'Asignado') && isMine;
                 if (activeTab === 'completadas') return (status === 'Inspeccionado' || status === 'Aprobado' || status === 'Rechazado') && isMine;
-                if (activeTab === 'mis_tickets') return isMine;
                 return false;
               }).length === 0 && <p style={{textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem'}}>No hay tickets en esta sección</p>}
             </>
+          )}
+
+          {activeTab === 'mis_tickets' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', animation: 'fadeInUp 0.3s ease' }}>
+              {[
+                ...tickets.filter(t => {
+                  const isMine = t.inspector === inspectorName || t.inspector_id == inspectorName;
+                  const status = t.status || (t as any).Estado;
+                  const isInspected = status === 'Inspeccionado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'];
+                  return isMine && isInspected;
+                }).map(t => ({ id: t.ticket, fecha: t.fecha || (t as any).Fecha || '-', type: 'TICKET' })),
+                ...ordenes.filter(o => {
+                  const isInspected = !!o.codigo_aplicado || !!(o as any)['Código Aplicado'];
+                  return isInspected;
+                }).map(o => ({ id: o.ticket || o.orden_servicio || (o as any).TRABAJO, fecha: o.fecha || (o as any).Fecha || '-', type: 'ORDEN' }))
+              ].sort((a, b) => {
+                if (a.fecha === '-' || b.fecha === '-') return 0;
+                return b.fecha.localeCompare(a.fecha);
+              }).map((item, idx) => (
+                <div key={idx} className="mobile-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', borderRadius: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800 }}>
+                      {item.type}
+                    </div>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{item.id}</div>
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>{item.fecha}</div>
+                </div>
+              ))}
+              {tickets.filter(t => (t.inspector === inspectorName || t.inspector_id == inspectorName) && (t.status === 'Inspeccionado' || !!t.codigo_aplicado)).length === 0 && 
+               ordenes.filter(o => !!o.codigo_aplicado).length === 0 && (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No hay inspecciones realizadas</p>
+              )}
+            </div>
           )}
 
           {activeTab === 'repetidas' && (
