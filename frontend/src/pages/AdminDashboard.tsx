@@ -149,10 +149,17 @@ export default function AdminDashboard() {
     if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red', 'tipo_red']);
     
     if (type === 'orden') {
-       if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden servicio', 'os', 'id orden', 'orden_servicio']);
-       if (!normalized.descripcion_orden) normalized.descripcion_orden = getVal(['descripcion_orden', 'orden externa', 'order externa', 'descripcion']);
+       if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden servicio', 'os', 'id orden', 'orden_servicio', 'orden_externa_id']);
+       if (!normalized.descripcion_orden) normalized.descripcion_orden = getVal(['descripcion_orden', 'orden externa', 'order externa', 'descripcion', 'tipo servicio', 'tipo_servicio']);
        if (!normalized.cliente) normalized.cliente = getVal(['cliente', 'subscriber']);
        if (!normalized.fecha) normalized.fecha = getVal(['fecha', 'oe vencimiento', 'vence', 'oe_vencimiento']);
+       
+       // Si el campo 'ticket' (columna Trabajo) contiene una descripción larga,
+       // y tenemos un ID numérico en 'orden_externa_id', los reajustamos.
+       if (normalized.ticket && String(normalized.ticket).length > 15 && normalized.orden_externa_id) {
+          normalized.descripcion_orden = normalized.ticket;
+          normalized.ticket = normalized.orden_externa_id;
+       }
     }
 
     return normalized;

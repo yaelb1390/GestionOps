@@ -22,15 +22,17 @@ function normalizeHeader(h) {
   var low = normalizeString(h);
 
   // Mappings para IDs de trabajo (Ticket / Trabajo / Orden / IDD)
-  // NOTA: "work name" NO está aquí porque contiene descripciones como "Reparacion Internet",
-  //        no el ID numérico. Se mapea a "tipo_trabajo" más abajo.
   if (low === "trabajo" || low === "idd" || low === "nro trabajo" || low === "id trabajo" || low === "id_trabajo" || low === "job id" || low === "nro orden" || low === "numero de orden" || low === "nro de orden" || low === "nro_orden" || low === "ticket" || low === "id ticket" || low === "nro ticket" || low === "id_ticket") return "ticket";
   
-  // Descripción / tipo del trabajo (NO es el ID numérico)
-  if (low === "work name" || low === "tipo trabajo" || low === "tipo de trabajo" || low === "descripcion trabajo" || low === "descripcion") return "tipo_trabajo";
+  // Descripción / tipo del trabajo
+  if (low === "work name" || low === "tipo trabajo" || low === "tipo de trabajo" || low === "descripcion trabajo" || low === "tipo servicio" || low === "tipo_servicio") return "descripcion_orden";
   
   if (low === "orden servicio" || low === "orden de servicio" || low === "orden_servicio" || low === "os" || low === "id orden") return "orden_servicio";
-  if (low === "orden externa" || low === "order externa" || low === "descripcion" || low === "descripcion orden") return "descripcion_orden";
+  
+  // CORRECCIÓN: En la hoja de Órdenes, "Orden externa" es el ID numérico y "Trabajo" es la descripción.
+  // Mapeamos "orden externa" a orden_externa_id para tener el ID limpio.
+  if (low === "orden externa" || low === "order externa" || low === "external order") return "orden_externa_id";
+  if (low === "descripcion" || low === "descripcion orden") return "descripcion_orden";
   
   // Datos del Cliente y Reporte
   if (low === "cliente" || low === "nombre cliente" || low === "nombre_cliente" || low === "subscriber") return "cliente";

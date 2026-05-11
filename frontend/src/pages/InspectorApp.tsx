@@ -761,32 +761,41 @@ export default function InspectorApp() {
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontró ninguna orden con ese criterio.</p>
                       </div>
                     );
-                    return filtered.map((o, idx) => (
-                      <div
-                        key={idx}
-                        className="mobile-card"
-                        style={{ display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem', cursor: 'pointer' }}
-                        onClick={() => setSelectedOrden(o)}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ORDEN EXTERNA</div>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 800 }}>{o.ticket || o.orden_servicio}</div>
-                          </div>
-                          <ChevronRight color="var(--text-muted)" size={18} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{o.cliente}</div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Asignado:</span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>{o.tech || (o as any).tech_id}</span>
+                    return filtered.map((o, idx) => {
+                      // En el contexto de Órdenes:
+                      // - El ID real es 'orden_externa_id' o 'orden_servicio'
+                      // - La descripción está en 'ticket' (columna Trabajo en el excel) o 'descripcion_orden'
+                      const displayId = o.orden_externa_id || o.orden_servicio || o.ticket;
+                      const displayDesc = (o.orden_externa_id && o.ticket) ? o.ticket : (o.descripcion_orden || '-');
+                      
+                      return (
+                        <div
+                          key={idx}
+                          className="mobile-card"
+                          style={{ display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem', cursor: 'pointer' }}
+                          onClick={() => setSelectedOrden(o)}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>ORDEN EXTERNA</div>
+                              <div style={{ color: 'var(--text-main)', fontWeight: 800 }}>{displayId}</div>
                             </div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.fecha}</span>
+                            <ChevronRight color="var(--text-muted)" size={18} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ color: 'var(--primary-color)', fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.25rem' }}>{displayDesc}</div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{o.cliente}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.4rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Técnico:</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>{o.tech || (o as any).tech_id || '-'}</span>
+                              </div>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.fecha || (o as any).oe_vencimiento}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ));
+                      );
+                    });
                   })()}
                 </>
               )}
