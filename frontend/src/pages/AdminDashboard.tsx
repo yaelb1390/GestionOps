@@ -10,7 +10,7 @@ import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInsp
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('tickets');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,15 +27,15 @@ export default function AdminDashboard() {
   
   // Columnas fijas para el tablero de Calidad (Averías Repetidas)
   const CALIDAD_COLUMNS = [
-    { label: 'TÉCNICO (ID)', key: 'tech_id' },
-    { label: 'NOMBRE TÉCNICO', key: 'tech' },
-    { label: 'TRABAJO', key: 'ticket' },
-    { label: 'TARJETA SUPERVISOR', key: 'supervisor_id' },
-    { label: 'NOMBRE SUPERVISOR', key: 'supervisor' },
-    { label: 'CÓDIGO APLICADO', key: 'codigo_aplicado' },
-    { label: 'ESTADO', key: 'status' },
-    { label: 'SECTOR', key: 'sector' },
-    { label: 'TECNOLOGÍA', key: 'tecnologia' }
+    { label: 'CASO ACTUAL', key: 'ticket' },
+    { label: 'TÉCNICO ACTUAL', key: 'tech' },
+    { label: 'SUPERVISOR ACTUAL', key: 'supervisor' },
+    { label: 'WORK NAME ACTUAL', key: 'work_name' },
+    { label: 'CASO REPETIDO', key: 'caso_repetido' },
+    { label: 'TÉCNICO CASO REPETIDO', key: 'tecnico_repetido' },
+    { label: 'RESPUESTA CASO REPETIDO', key: 'respuesta_repetido' },
+    { label: 'FECHA CIERRE REPETIDO', key: 'fecha_repetido' },
+    { label: 'ESTADO', key: 'status' }
   ];
   const [showAddInspector, setShowAddInspector] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(null);
@@ -60,6 +60,9 @@ export default function AdminDashboard() {
   const [showToast, setShowToast] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
+  const [razonesSearch, setRazonesSearch] = useState('');
+  const [razonesSupervisorFilter, setRazonesSupervisorFilter] = useState('');
+  const [bulkAssignRazonesInspector, setBulkAssignRazonesInspector] = useState('');
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
   const toggleTheme = () => {
@@ -116,9 +119,7 @@ export default function AdminDashboard() {
       loadOrdenes();
       loadRazones();
     }
-    if (activeTab === 'tickets') {
-      loadTickets();
-    }
+
     if (activeTab === 'ordenes') {
       loadOrdenes();
     }
@@ -127,6 +128,9 @@ export default function AdminDashboard() {
     }
     if (activeTab === 'personal') {
       loadInspectors();
+    }
+    if (activeTab === 'razones') {
+      loadRazones();
     }
   }, [activeTab]);
 
@@ -147,6 +151,17 @@ export default function AdminDashboard() {
     if (!normalized.sector) normalized.sector = getVal(['sector', 'zona', 'barrio', 'ciudad', 'localidad']);
     if (!normalized.status) normalized.status = getVal(['estado', 'status', 'estado inspeccion', 'estado_inspeccion']);
     if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red', 'tipo_red']);
+    if (!normalized.inspector) normalized.inspector = getVal(['inspector', 'inspector asignado', 'nombre inspector', 'inspector_asignado', 'inspector_nombre']);
+    if (!normalized.inspector_id) normalized.inspector_id = getVal(['inspector id', 'inspector_id', 'id inspector', 'id_inspector', 'tarjeta inspector']);
+    
+    // Campos de Calidad / Avería Repetida
+    if (type === 'calidad') {
+      if (!normalized.work_name) normalized.work_name = getVal(['work name actual', 'work_name_actual', 'work name', 'trabajo']);
+      if (!normalized.caso_repetido) normalized.caso_repetido = getVal(['caso repetido', 'caso_repetido', 'ticket_repetido', 'trabajo repetido']);
+      if (!normalized.tecnico_repetido) normalized.tecnico_repetido = getVal(['tecnico caso repetido', 'tecnico_repetido', 'tecnico repetido']);
+      if (!normalized.respuesta_repetido) normalized.respuesta_repetido = getVal(['respuesta caso repetido', 'respuesta_repetido', 'respuesta repetido']);
+      if (!normalized.fecha_repetido) normalized.fecha_repetido = getVal(['fecha cierre repetido', 'fecha_repetido', 'fecha repetido']);
+    }
     
     if (type === 'orden') {
        if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden servicio', 'os', 'id orden', 'orden_servicio', 'orden_externa_id']);
@@ -182,7 +197,7 @@ export default function AdminDashboard() {
   const loadRazones = async () => {
     setLoadingRazones(true);
     const data = await fetchRazones();
-    setRazones(data);
+    setRazones(data.map(item => ensureKeys(item, 'calidad'))); // Razones follows similar structure to Calidad/Tickets
     setLoadingRazones(false);
   };
 
@@ -248,9 +263,7 @@ export default function AdminDashboard() {
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             <LayoutDashboard size={20} /> Dashboard
           </button>
-          <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
-            <FileText size={20} /> Tickets <span className="nav-badge">{tickets.length}</span>
-          </button>
+
           <button className={`nav-item ${activeTab === 'ordenes' ? 'active' : ''}`} onClick={() => setActiveTab('ordenes')}>
             <Package size={20} /> Ordenes <span className="nav-badge">{ordenes.length}</span>
           </button>
@@ -258,7 +271,7 @@ export default function AdminDashboard() {
             <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{calidadData.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'inspecciones' ? 'active' : ''}`} onClick={() => setActiveTab('inspecciones')}>
-            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').length + ordenes.length + calidadData.length}</span>
+            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').length + ordenes.length + calidadData.length + _razones.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
             <Users size={20} /> Personal <span className="nav-badge">{inspectors.length}</span>
@@ -283,34 +296,16 @@ export default function AdminDashboard() {
           <div>
             <h1 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
-               activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Gestión de Tickets ({tickets.length})</> : 
                activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
                activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
                activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
                activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
+               activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
                <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
           </div>
-          {activeTab === 'tickets' && (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <select 
-                className="assign-select" 
-                style={{ padding: '0.45rem 2rem 0.45rem 1rem', height: 'auto', background: 'var(--surface-color)', minWidth: '200px' }}
-                value={supervisorFilter}
-                onChange={(e) => setSupervisorFilter(e.target.value)}
-              >
-                <option value="">Todos los supervisores</option>
-                {Array.from(new Set(tickets.map(t => t.supervisor).filter(Boolean))).map(sup => (
-                  <option key={sup} value={sup}>{sup}</option>
-                ))}
-              </select>
-              <div className="search-bar" style={{ margin: 0 }}>
-                <Search size={18} color="var(--text-muted)" />
-                <input type="text" placeholder="Buscar ticket, técnico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              </div>
-            </div>
-          )}
+
         </div>
 
         {activeTab === 'dashboard' && (
@@ -690,211 +685,7 @@ export default function AdminDashboard() {
         )}
 
 
-        {activeTab === 'tickets' && (
-          <div className="glass-panel">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                  <FileText size={20} color="var(--primary-color)" /> Gestión de Tickets
-                </h3>
 
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div className="search-bar" style={{ width: 'auto', minWidth: '240px' }}>
-                    <Search size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar por ticket, técnico..." 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Bulk Assign Section for Tickets */}
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '1rem', 
-                flexWrap: 'wrap', 
-                background: 'rgba(59, 130, 246, 0.05)', 
-                padding: '1rem', 
-                borderRadius: '12px',
-                border: '1px dashed #3b82f6'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={18} color="#3b82f6" />
-                  <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>Asignación Masiva:</span>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minWidth: '300px', flexWrap: 'wrap' }}>
-                  <select 
-                    className="input-control" 
-                    value={supervisorFilter} 
-                    onChange={(e) => setSupervisorFilter(e.target.value)}
-                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
-                  >
-                    <option value="">1. Seleccionar Supervisor...</option>
-                    {Array.from(new Set(tickets.map(t => getSupervisor(t)).filter(s => s && s !== '-'))).map(sup => (
-                      <option key={sup} value={sup}>{sup}</option>
-                    ))}
-                  </select>
-
-                  <span style={{color: '#3b82f6', display: 'flex', alignItems: 'center', fontWeight: 'bold'}}>→</span>
-
-                  <select 
-                    className="assign-select"
-                    style={{ flex: 1, minWidth: '200px', height: '42px', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }}
-                    value={bulkAssignInspector}
-                    onChange={e => setBulkAssignInspector(e.target.value)}
-                  >
-                    <option value="" disabled>2. Seleccionar Inspector...</option>
-                    {inspectors.map(insp => <option key={insp.id} value={insp.id}>{insp.nombre}</option>)}
-                  </select>
-                  
-                  <button 
-                    className="btn-primary" 
-                    style={{ padding: '0 1.5rem', height: '42px', background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)' }}
-                    disabled={!bulkAssignInspector || !supervisorFilter}
-                    onClick={async () => {
-                      const inspector = inspectors.find(i => String(i.id) === String(bulkAssignInspector));
-                      if (inspector && supervisorFilter) {
-                        try {
-                          const updatedCount = await assignTicketsBySupervisor(supervisorFilter, inspector.id, inspector.nombre);
-                          displayToast(`${updatedCount} tickets asignados a ${inspector.nombre}`, 'success');
-                          loadTickets();
-                        } catch (error: any) {
-                          displayToast(error.message || 'Error en la asignación masiva', 'error');
-                        }
-                      }
-                    }}
-                  >
-                    Asignar Masivo
-                  </button>
-                </div>
-                {!supervisorFilter && (
-                  <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontStyle: 'italic' }}>
-                    * Filtra por supervisor primero para habilitar la asignación masiva de tickets.
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Trabajo</th>
-                    <th>Order Externa</th>
-                    <th>Sector</th>
-                    <th>Cliente</th>
-                    <th>Tecnología</th>
-                    <th>Terminal</th>
-                    <th>Asignado A</th>
-                    <th>Supervisor</th>
-                    <th>Estado</th>
-                    <th>Prioridad</th>
-                    <th>Tipo Prioridad</th>
-                    <th>OE Vencimiento</th>
-                    <th>Inspector Asignado</th>
-                    <th>Acción Asignar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan={16} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
-                  ) : tickets.filter(t => {
-                    const search = searchTerm.toLowerCase();
-                    const matchesSearch = !search || 
-                                          t.ticket?.toString().toLowerCase().includes(search) || 
-                                          t.tech_id?.toString().toLowerCase().includes(search) || 
-                                          (t.tech || (t as any).Asignado_A)?.toString().toLowerCase().includes(search) ||
-                                          t.cliente?.toString().toLowerCase().includes(search);
-                    
-                    const tSupervisor = getSupervisor(t);
-                    const matchesSupervisor = !supervisorFilter || tSupervisor === supervisorFilter;
-                    return matchesSearch && matchesSupervisor;
-                  }).length === 0 ? (
-                    <tr><td colSpan={16} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron tickets con los filtros actuales.</td></tr>
-                  ) : tickets.filter(t => {
-                    const search = searchTerm.toLowerCase();
-                    const matchesSearch = !search || 
-                                          t.ticket?.toString().toLowerCase().includes(search) || 
-                                          t.tech_id?.toString().toLowerCase().includes(search) || 
-                                          (t.tech || (t as any).Asignado_A)?.toString().toLowerCase().includes(search) ||
-                                          t.cliente?.toString().toLowerCase().includes(search);
-                    
-                    const tSupervisor = getSupervisor(t);
-                    const matchesSupervisor = !supervisorFilter || tSupervisor === supervisorFilter;
-                    return matchesSearch && matchesSupervisor;
-                  }).map((t, idx) => (
-                    <tr key={t.id || t.ticket || idx}>
-                      <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
-                      <td>{t.descripcion_orden || t.orden_servicio || '-'}</td>
-                      <td>{t.sector || '-'}</td>
-                      <td>{t.cliente || '-'}</td>
-                      <td>{t.tecnologia || '-'}</td>
-                      <td>{t.terminal || '-'}</td>
-                      <td>{t.tech || t.tech_id || '-'}</td>
-                      <td>{getSupervisor(t)}</td>
-                      <td>
-                        <span className={`badge ${t.status === 'Pendiente' ? 'warning' : (t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Asignado') ? 'success' : 'danger'}`}>
-                          {t.status || 'Pendiente'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge ${t.priority === 'Alta' ? 'danger' : t.priority === 'Media' ? 'warning' : 'info'}`}>
-                          {t.priority || '-'}
-                        </span>
-                      </td>
-                      <td>{(t as any).tipo_prioridad || '-'}</td>
-                      <td>{t.fecha || (t as any).oe_vencimiento || '-'}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ fontWeight: 700, color: '#10b981' }}>{t.codigo_aplicado || '-'}</span>
-                          {t.codigo_aplicado && (
-                            <button 
-                              className="btn-danger" 
-                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem' }}
-                              onClick={() => {
-                                setConfirmModal({
-                                  isOpen: true,
-                                  message: `¿Cancelar código para el ticket ${t.ticket}? Volverá al inspector.`,
-                                  onConfirm: async () => {
-                                    const { success } = await cancelManualCodigo(String(t.ticket), 'tickets');
-                                    if (success) { displayToast('Código cancelado'); loadTickets(); }
-                                    setConfirmModal(null);
-                                  }
-                                });
-                              }}
-                            >
-                              X
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div>{t.inspector || <span style={{ color: 'var(--text-muted)' }}>Sin asignar</span>}</div>
-                        {t.inspector_id && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {t.inspector_id}</div>}
-                      </td>
-                      <td>
-                        <select 
-                          className="assign-select" 
-                          value=""
-                          onChange={(e) => handleAssign(t.id || t.ticket, e.target.value)}
-                        >
-                          <option value="" disabled>Asignar a...</option>
-                          {inspectors.map(insp => (
-                            <option key={insp.id} value={insp.id}>{insp.nombre}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {activeTab === 'personal' && (
           <div className="glass-panel">
@@ -1276,15 +1067,16 @@ export default function AdminDashboard() {
                                 onChange={async (e) => {
                                   const inspectorId = e.target.value;
                                   const inspector = inspectors.find(i => String(i.id) === String(inspectorId));
-                                  if (inspector && technician) {
+                                  const ticketId = row.ticket || row.IDD || row.id || row['ID TICKET'] || row['TRABAJO'];
+                                  if (inspector && ticketId) {
                                     try {
-                                      const success = await assignCalidadIndividual(String(technician), inspector.id, inspector.nombre);
+                                      const success = await assignCalidadIndividual(String(ticketId), inspector.id, inspector.nombre);
                                       if (success) {
-                                        displayToast(`Técnico asignado a ${inspector.nombre}`, 'success');
+                                        displayToast(`Ticket ${ticketId} asignado a ${inspector.nombre}`, 'success');
                                         loadCalidad();
                                       }
                                     } catch (error: any) {
-                                      displayToast(error.message || 'Error al asignar técnico', 'error');
+                                      displayToast(error.message || 'Error al asignar ticket', 'error');
                                     }
                                   }
                                 }}
@@ -1381,6 +1173,193 @@ export default function AdminDashboard() {
             </form>
           </div>
         )}
+        {activeTab === 'razones' && (
+          <div className="glass-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                <AlertCircle size={20} color="var(--primary-color)" /> Gestión de Código Razón Cliente
+              </h3>
+              
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-color)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Asignar por Supervisor:</span>
+                  <select 
+                    className="input-control" 
+                    style={{ padding: '0.25rem', fontSize: '0.85rem', width: '180px' }}
+                    value={razonesSupervisorFilter}
+                    onChange={(e) => setRazonesSupervisorFilter(e.target.value)}
+                  >
+                    <option value="">Todos los supervisores</option>
+                    {Array.from(new Set(_razones.map(r => r.supervisor || r['Nombre del Supervisor']).filter(Boolean))).sort().map(sup => (
+                      <option key={String(sup)} value={String(sup)}>{String(sup)}</option>
+                    ))}
+                  </select>
+                  <select 
+                    className="input-control" 
+                    style={{ padding: '0.25rem', fontSize: '0.85rem', width: '180px' }}
+                    value={bulkAssignRazonesInspector}
+                    onChange={(e) => setBulkAssignRazonesInspector(e.target.value)}
+                  >
+                    <option value="">Elegir Inspector...</option>
+                    {inspectors.map(insp => (
+                      <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                    ))}
+                  </select>
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                    disabled={!razonesSupervisorFilter || !bulkAssignRazonesInspector}
+                    onClick={() => {
+                      const inspName = inspectors.find(i => i.id === bulkAssignRazonesInspector)?.nombre || bulkAssignRazonesInspector;
+                      setConfirmModal({
+                        isOpen: true,
+                        message: `¿Deseas asignar TODAS las razones del supervisor "${razonesSupervisorFilter}" al inspector "${inspName}"?`,
+                        onConfirm: async () => {
+                          try {
+                            const { success, message } = await assignRazonesBySupervisor(razonesSupervisorFilter, bulkAssignRazonesInspector, inspName);
+                            if (success) {
+                              displayToast('Asignación masiva completada', 'success');
+                              loadRazones();
+                              setBulkAssignRazonesInspector('');
+                            } else {
+                              displayToast(message || 'Error en la asignación', 'error');
+                            }
+                          } catch (error) {
+                            displayToast('Error de conexión', 'error');
+                          }
+                          setConfirmModal(null);
+                        }
+                      });
+                    }}
+                  >
+                    Asignar Masivo
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="header-actions">
+              <div className="search-bar">
+                <Search size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar por Ticket, Técnico o Motivo..." 
+                  value={razonesSearch}
+                  onChange={(e) => setRazonesSearch(e.target.value)}
+                />
+              </div>
+              <button className="btn-secondary" onClick={loadRazones}>
+                <RotateCcw size={18} /> Actualizar Datos
+              </button>
+            </div>
+
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID Ticket</th>
+                    <th>Supervisor</th>
+                    <th>Técnico</th>
+                    <th>Sector</th>
+                    <th>Motivo / Razón</th>
+                    <th>Estado</th>
+                    <th>Asignación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingRazones ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}><Loader2 className="spinner" size={32} /></td></tr>
+                  ) : _razones
+                    .filter(row => {
+                      const term = razonesSearch.toLowerCase();
+                      const ticketId = String(row.ticket || row.id || row['ID TICKET'] || row['TRABAJO']).toLowerCase();
+                      const tech = String(row.tecnico || row.tech || row['Asignado A']).toLowerCase();
+                      const reason = String(row.motivo || row.razon || row['Motivo']).toLowerCase();
+                      return ticketId.includes(term) || tech.includes(term) || reason.includes(term);
+                    })
+                    .map((row, idx) => {
+                      const ticketId = row.ticket || row.id || row['ID TICKET'] || row['TRABAJO'];
+                      const isAssigned = !!(row.inspector || row['Inspector']);
+                      return (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 700, color: 'var(--primary-color)' }}>{ticketId}</td>
+                          <td>{row.supervisor || row['Nombre del Supervisor']}</td>
+                          <td>{row.tecnico || row.tech || row['Asignado A']}</td>
+                          <td>{row.sector || row['Localidad']}</td>
+                          <td>{row.motivo || row.razon || row['Motivo']}</td>
+                          <td>
+                            {row.codigo_aplicado || row['Código Aplicado'] ? (
+                              <span className="badge success">Finalizado: {row.codigo_aplicado || row['Código Aplicado']}</span>
+                            ) : isAssigned ? (
+                              <span className="badge info">Asignado a: {row.inspector || row['Inspector']}</span>
+                            ) : (
+                              <span className="badge danger">Sin Asignar</span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              <select 
+                                className="assign-select"
+                                value={row.inspector_id || row['Inspector ID'] || ''}
+                                onChange={async (e) => {
+                                  const inspId = e.target.value;
+                                  if (!inspId) return;
+                                  const inspName = inspectors.find(i => i.id === inspId)?.nombre || inspId;
+                                  
+                                  const { success, message } = await assignRazonesIndividual(String(ticketId), inspId, inspName);
+                                  if (success) {
+                                    displayToast(`Asignado a ${inspName}`, 'success');
+                                    loadRazones();
+                                  } else {
+                                    displayToast(message || 'Error al asignar', 'error');
+                                  }
+                                }}
+                              >
+                                <option value="">Asignar...</option>
+                                {inspectors.map(insp => (
+                                  <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                                ))}
+                              </select>
+
+                              {(row.codigo_aplicado || row['Código Aplicado']) && (
+                                <button 
+                                  className="btn-danger" 
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', width: '100%' }}
+                                  onClick={() => {
+                                    setConfirmModal({
+                                      isOpen: true,
+                                      message: `¿Estás seguro de cancelar el código para el ticket ${ticketId}?`,
+                                      onConfirm: async () => {
+                                        try {
+                                          const { success, message } = await cancelManualCodigo(String(ticketId), 'razones');
+                                          if (success) {
+                                            displayToast('Código cancelado correctamente', 'success');
+                                            loadRazones();
+                                          } else {
+                                            displayToast(message || 'Error al cancelar el código', 'error');
+                                          }
+                                        } catch (error) {
+                                          displayToast('Error de conexión', 'error');
+                                        }
+                                        setConfirmModal(null);
+                                      }
+                                    });
+                                  }}
+                                >
+                                  Cancelar Código
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'inspecciones' && (
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -1429,6 +1408,12 @@ export default function AdminDashboard() {
                     // 3. Calidad Inspeccionada (Repetidas)
                     calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado').forEach(c => {
                       mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado });
+                    });
+
+                    // 4. Razones Inspeccionadas
+                    _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).forEach(r => {
+                      const rId = r.ticket || r.id || r['ID TICKET'] || r['TRABAJO'];
+                      mixed.push({ ...r, _origin: 'Razon', _id: rId, _tech: r.tecnico || r.tech || r['Asignado A'], _sup: r.supervisor || getSupervisor(r), _sector: r.sector, _date: r.fecha || 'N/A', _color: '#ec4899', _code: r.codigo_aplicado || r['Código Aplicado'] });
                     });
 
                     const term = inspeccionesSearch.toLowerCase();

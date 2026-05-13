@@ -56,14 +56,28 @@ function normalizeHeader(h) {
   if (low === "nombre tecnico" || low === "nombre_tecnico" || low === "asignado a" || low === "asignado_a" || low === "tech_name" || low === "tech") return "tech";
   if (low === "tecnico" || low === "cedula" || low === "cedula tecnico" || low.includes("id tecnico") || low.includes("tarjeta tecnico") || low.includes("tech_id") || low === "tarjeta") return "tech_id";
   
+  // Inspector (para dashboard móvil)
+  if (low === "inspector" || low === "inspector_nombre" || low === "nombre inspector" || low === "inspector asignado" || low === "inspector_asignado" || low === "nombre_inspector") return "inspector";
+  if (low === "inspector id" || low === "inspector_id" || low === "tarjeta inspector" || low === "id inspector" || low === "id_inspector") return "inspector_id";
+  
+  // Calidad / Avería Repetida Especificos (Alineación con Base de Datos)
+  if (low === "caso actual" || low === "caso_actual" || low === "ticket_actual") return "ticket";
+  if (low === "tecnico actual" || low === "tecnico_actual") return "tech";
+  if (low === "supervisor actual" || low === "supervisor_actual") return "supervisor";
+  if (low === "work name actual" || low === "work_name_actual" || low === "work name") return "work_name";
+  if (low === "caso repetido" || low === "caso_repetido" || low === "ticket_repetido") return "caso_repetido";
+  if (low === "tecnico caso repetido" || low === "tecnico_caso_repetido" || low === "tecnico repetido") return "tecnico_repetido";
+  if (low === "respuesta caso repetido" || low === "respuesta_caso_repetido" || low === "respuesta_repetido") return "respuesta_repetido";
+  if (low === "fecha cierre repetido" || low === "fecha_cierre_repetido" || low === "fecha_repetido") return "fecha_repetido";
+  if (low === "tecnologia actual" || low === "tecnologia_actual") return "tecnologia";
+  if (low === "sector actual" || low === "sector_actual") return "sector";
+
   // Estado y Prioridad
   if (low === "estado" || low === "status" || low === "estado_orden" || low === "estado inspeccion" || low === "estado_inspeccion") return "status";
   if (low === "prioridad" || low === "priority" || low === "tipo de prioridad" || low === "clasificacion prioridad") return "priority";
   
   // Otros
   if (low === "codigo aplicado" || low === "codigo_aplicado" || low === "manual_code" || low === "codigo_razon") return "codigo_aplicado";
-  if (low === "inspector" || low === "inspector_nombre" || low === "nombre inspector") return "inspector";
-  if (low === "inspector id" || low === "inspector_id" || low === "tarjeta inspector") return "inspector_id";
 
   // Si no coincide con nada, devolver snake_case minúscula
   return low.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
@@ -93,12 +107,38 @@ function getTargetSheetByType(ss, type) {
   }
 
   if (type === "tickets") return findSheet(["Tickets", "Averias", "Base", "Tickets_Base"]);
-  if (type === "calidad") return findSheet(["Calidad", "Averias Repetidas", "Repetidas", "Base Calidad"], 1724783398);
+  if (type === "calidad") return findSheet(["Calidad", "Averias Repetidas", "Repetidas", "Base Calidad"], 556329786);
   if (type === "inspectores") return findSheet(["Inspectores", "Usuarios", "Personal", "Inspectores_Base"]);
   if (type === "razones") return findSheet(["Razones", "Codigo Razon Cliente", "Razones_Base"], 761213977);
   if (type === "ordenes") return findSheet(["Ordenes", "Ordenes de Servicio", "Trabajos", "OS", "Ordenes_Base"], 885138959);
   
   return null;
+}
+
+// Helper to find the header row and normalize headers
+function getHeaderInfo(data) {
+  var headerRowIndex = 0;
+  var foundHeaders = false;
+  for (var r = 0; r < Math.min(data.length, 10); r++) {
+    for (var c = 0; c < data[r].length; c++) {
+      var cellVal = normalizeString(data[r][c]);
+      if (cellVal === "trabajo" || cellVal === "ticket" || cellVal === "orden servicio" || cellVal === "id" || cellVal === "caso") {
+        headerRowIndex = r;
+        foundHeaders = true;
+        break;
+      }
+    }
+    if (foundHeaders) break;
+  }
+  
+  var rawHeaders = data[headerRowIndex] || [];
+  var headers = rawHeaders.map(normalizeHeader);
+  
+  return {
+    index: headerRowIndex,
+    headers: headers,
+    rawHeaders: rawHeaders
+  };
 }
 
 function doGet(e) {
@@ -166,32 +206,20 @@ function doGet(e) {
       ContentService.MimeType.JSON,
     );
 
-  // --- DETECCIÓN DINÁMICA DE ENCABEZADOS ---
-  // Buscamos la fila que contenga palabras clave como "trabajo" o "ticket"
-  var headerRowIndex = 0;
-  var foundHeaders = false;
-  for (var r = 0; r < Math.min(data.length, 5); r++) {
-    for (var c = 0; c < data[r].length; c++) {
-      var cellVal = normalizeString(data[r][c]);
-      if (cellVal === "trabajo" || cellVal === "ticket" || cellVal === "orden servicio") {
-        headerRowIndex = r;
-        foundHeaders = true;
-        break;
-      }
-    }
-    if (foundHeaders) break;
-  }
+  var info = getHeaderInfo(data);
+  var headerRowIndex = info.index;
+  var headers = info.rawHeaders;
+  var normalizedHeaders = info.headers;
 
-  var headers = data[headerRowIndex];
   var results = [];
   
   // Encontrar columnas para filtrado 24h
   var estadoCol = -1;
   var fechaCol = -1;
-  for (var j = 0; j < headers.length; j++) {
-    var h = normalizeString(headers[j]);
-    if (h === "estado inspeccion" || h === "estado" || h === "status") estadoCol = j;
-    if (h === "fecha inspeccion") fechaCol = j;
+  for (var j = 0; j < normalizedHeaders.length; j++) {
+    var h = normalizedHeaders[j];
+    if (h === "status") estadoCol = j;
+    if (h === "fecha") fechaCol = j;
   }
 
   var now = new Date();
@@ -199,7 +227,6 @@ function doGet(e) {
   // Los datos comienzan después de la fila de encabezados
   for (var i = headerRowIndex + 1; i < data.length; i++) {
     var row = data[i];
-    // Evitar procesar filas que estén completamente vacías
     if (!row.some(cell => cell !== "")) continue;
     
     // Filtrado 24h para Inspectores
@@ -209,26 +236,24 @@ function doGet(e) {
         var fechaInspeccion = new Date(row[fechaCol]);
         if (!isNaN(fechaInspeccion.getTime())) {
           var diffHours = (now - fechaInspeccion) / (1000 * 60 * 60);
-          if (diffHours > 24) continue; // Ocultar después de 24h
+          if (diffHours > 24) continue;
         }
       }
     }
 
     var obj = {};
-    var trabajoValue = null; // Guardar valor exacto de columna TRABAJO
-    for (var j = 0; j < headers.length; j++) {
-      var rawHeader = String(headers[j] || '').trim();
-      var key = normalizeHeader(rawHeader);
+    var ticketValue = null;
+    for (var j = 0; j < normalizedHeaders.length; j++) {
+      var key = normalizedHeaders[j];
       if (!key) continue;
 
       // La columna "TRABAJO" tiene prioridad absoluta para la clave "ticket"
-      // (evita que columnas posteriores como IDD la sobreescriban)
-      if (normalizeString(rawHeader) === 'trabajo') {
-        trabajoValue = row[j];
+      var rawH = normalizeString(headers[j]);
+      if (rawH === 'trabajo') {
+        ticketValue = row[j];
         obj['ticket'] = row[j];
       } else if (key === 'ticket') {
-        // Solo asignar si TRABAJO aún no ha sido encontrado
-        if (trabajoValue === null) obj['ticket'] = row[j];
+        if (ticketValue === null) obj['ticket'] = row[j];
       } else {
         obj[key] = row[j];
       }
@@ -251,34 +276,35 @@ function doPost(e) {
     if (action === "update_status") {
       var sheet = ss.getSheetByName("Tickets");
       var data = sheet.getDataRange().getValues();
-      var idColIndex = data[0].indexOf("id");
-      var ticketColIndex = data[0].indexOf("ticket");
-      for (var i = 1; i < data.length; i++) {
+      var info = getHeaderInfo(data);
+      var headers = info.headers;
+      var idColIndex = headers.indexOf("id");
+      var ticketColIndex = headers.indexOf("ticket");
+      
+      for (var i = info.index + 1; i < data.length; i++) {
         if (
           (idColIndex > -1 && data[i][idColIndex] == params.id) ||
           (ticketColIndex > -1 && data[i][ticketColIndex] == params.id)
         ) {
-          var statusColIndex = data[0].indexOf("status");
-          var remarksColIndex = data[0].indexOf("remarks");
-          var rootCauseColIndex = data[0].indexOf("rootCause");
+          var statusColIndex = headers.indexOf("status");
+          var remarksColIndex = headers.indexOf("remarks");
+          var rootCauseColIndex = headers.indexOf("root_cause");
 
           if (statusColIndex > -1)
             sheet.getRange(i + 1, statusColIndex + 1).setValue(params.status);
           if (remarksColIndex > -1)
             sheet.getRange(i + 1, remarksColIndex + 1).setValue(params.remarks);
           if (rootCauseColIndex > -1)
-            sheet
-              .getRange(i + 1, rootCauseColIndex + 1)
-              .setValue(params.rootCause);
+            sheet.getRange(i + 1, rootCauseColIndex + 1).setValue(params.rootCause);
 
-          // Manejo de Imágenes (Si existen)
+          // Manejo de Imágenes
           if (params.images && params.images.length > 0) {
-            var evidenceColIndex = data[0].indexOf("evidence");
+            var evidenceColIndex = headers.indexOf("evidence");
             if (evidenceColIndex === -1) {
-              var headers = data[0];
-              headers.push("evidence");
-              sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-              evidenceColIndex = headers.length - 1;
+              var rawHeaders = info.rawHeaders;
+              rawHeaders.push("evidence");
+              sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+              evidenceColIndex = rawHeaders.length - 1;
             }
             try {
               var imageUrls = saveImages(params.images, params.id);
@@ -286,592 +312,341 @@ function doPost(e) {
                 sheet.getRange(i + 1, evidenceColIndex + 1).setValue(imageUrls);
               }
             } catch (imageErr) {
-              Logger.log(
-                "Error saving images for ticket " +
-                  params.id +
-                  ": " +
-                  imageErr.message,
-              );
+              Logger.log("Error saving images: " + imageErr.message);
             }
           }
 
-          return ContentService.createTextOutput(
-            JSON.stringify({ status: "success" }),
-          ).setMimeType(ContentService.MimeType.JSON);
-        }
-      }
-      return ContentService.createTextOutput(
-        JSON.stringify({ status: "error", message: "Ticket no encontrado" }),
-      ).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (action === "assign_ticket") {
-      var sheet = ss.getSheetByName("Tickets");
-      var data = sheet.getDataRange().getValues();
-      var headers = data[0];
-
-      var inspectorIdCol = headers.indexOf("inspector_id");
-      var inspectorCol = headers.indexOf("inspector");
-      var needsHeaderUpdate = false;
-      if (inspectorIdCol === -1) {
-        headers.push("inspector_id");
-        inspectorIdCol = headers.length - 1;
-        needsHeaderUpdate = true;
-      }
-      if (inspectorCol === -1) {
-        headers.push("inspector");
-        inspectorCol = headers.length - 1;
-        needsHeaderUpdate = true;
-      }
-      if (needsHeaderUpdate) {
-        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-        data = sheet.getDataRange().getValues();
-      }
-
-      var idColIndex = headers.indexOf("id");
-      var ticketColIndex = headers.indexOf("ticket");
-      var statusCol = headers.indexOf("status");
-
-      for (var i = 1; i < data.length; i++) {
-        if (
-          (idColIndex > -1 && data[i][idColIndex] == params.id) ||
-          (ticketColIndex > -1 && data[i][ticketColIndex] == params.id)
-        ) {
-          sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
-          sheet.getRange(i + 1, inspectorCol + 1).setValue(params.tech_name);
-          if (statusCol > -1)
-            sheet.getRange(i + 1, statusCol + 1).setValue("Asignado");
-
-          return ContentService.createTextOutput(
-            JSON.stringify({ status: "success" }),
-          ).setMimeType(ContentService.MimeType.JSON);
-        }
-      }
-      return ContentService.createTextOutput(
-        JSON.stringify({ status: "error", message: "Ticket no encontrado" }),
-      ).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (action === "assign_tickets_by_supervisor") {
-      var sheet = ss.getSheetByName("Tickets");
-      var data = sheet.getDataRange().getValues();
-      var headers = data[0];
-
-      var inspectorIdCol = headers.indexOf("inspector_id");
-      var inspectorCol = headers.indexOf("inspector");
-      var needsHeaderUpdate = false;
-      if (inspectorIdCol === -1) {
-        headers.push("inspector_id");
-        inspectorIdCol = headers.length - 1;
-        needsHeaderUpdate = true;
-      }
-      if (inspectorCol === -1) {
-        headers.push("inspector");
-        inspectorCol = headers.length - 1;
-        needsHeaderUpdate = true;
-      }
-      if (needsHeaderUpdate) {
-        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-        data = sheet.getDataRange().getValues();
-      }
-
-      // Busca la columna supervisor con nombre flexible
-      var supervisorCol = -1;
-      for (var j = 0; j < headers.length; j++) {
-        var h = normalizeString(headers[j]);
-        if (
-          h === "nombre supervisor" ||
-          h === "supervisor" ||
-          h === "nombre del supervisor" ||
-          (h.includes("supervisor") && !h.includes("tarjeta"))
-        ) {
-          supervisorCol = j;
-          break;
-        }
-      }
-      var statusCol = headers.indexOf("status");
-
-      if (supervisorCol === -1) {
-        return ContentService.createTextOutput(
-          JSON.stringify({
-            status: "error",
-            message:
-              "Columna NOMBRE SUPERVISOR no encontrada. Columnas: " +
-              headers.join(","),
-          }),
-        ).setMimeType(ContentService.MimeType.JSON);
-      }
-
-      var updatedCount = 0;
-      var targetSup = normalizeString(params.supervisor);
-      for (var i = 1; i < data.length; i++) {
-        var rowSup = normalizeString(data[i][supervisorCol]);
-        if (
-          rowSup === targetSup &&
-          data[i][statusCol] == "Pendiente"
-        ) {
-          sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
-          sheet.getRange(i + 1, inspectorCol + 1).setValue(params.tech_name);
-          if (statusCol > -1)
-            sheet.getRange(i + 1, statusCol + 1).setValue("Asignado");
-          updatedCount++;
-        }
-      }
-      return ContentService.createTextOutput(
-        JSON.stringify({ status: "success", updated: updatedCount }),
-      ).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (
-      action === "assign_razones_by_supervisor" ||
-      action === "assign_razon_individual"
-    ) {
-      var ssTarget = SpreadsheetApp.openByUrl(
-        "https://docs.google.com/spreadsheets/d/1NTBF8C9W3kkfBQbIe56OkwdjwYmO5m6ew2_auP4kQ-s/edit",
-      );
-      var sheets = ssTarget.getSheets();
-      var sheet = null;
-      for (var k = 0; k < sheets.length; k++) {
-        if (sheets[k].getSheetId() == 761213977) {
-          sheet = sheets[k];
-          break;
-        }
-      }
-
-      if (!sheet)
-        return ContentService.createTextOutput(
-          JSON.stringify({
-            status: "error",
-            message: "Hoja de razones no encontrada",
-          }),
-        ).setMimeType(ContentService.MimeType.JSON);
-
-      var data = sheet.getDataRange().getValues();
-      var headers = data[0];
-
-      var inspectorIdCol = headers.indexOf("Inspector ID");
-      var inspectorNameCol = headers.indexOf("Nombre del Inspector");
-      var needsHeaderUpdate = false;
-      if (inspectorIdCol === -1) {
-        headers.push("Inspector ID");
-        inspectorIdCol = headers.length - 1;
-        needsHeaderUpdate = true;
-      }
-      if (inspectorNameCol === -1) {
-        headers.push("Nombre del Inspector");
-        inspectorNameCol = headers.length - 1;
-        needsHeaderUpdate = true;
-      }
-      if (needsHeaderUpdate) {
-        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-        data = sheet.getDataRange().getValues();
-      }
-
-      var supervisorCol = -1;
-      var casosCol = -1;
-      for (var j = 0; j < headers.length; j++) {
-        var h = normalizeString(headers[j]);
-        if (h === "nombre del supervisor" || h === "supervisor" || h === "nombre supervisor" || (h.includes("supervisor") && !h.includes("tarjeta"))) {
-          supervisorCol = j;
-        }
-        if (h === "casos" || h === "caso") {
-          casosCol = j;
-        }
-      }
-
-      if (action === "assign_razones_by_supervisor") {
-        var updatedCount = 0;
-        var targetSup = normalizeString(params.supervisor);
-        for (var i = 1; i < data.length; i++) {
-          var rowSup = normalizeString(data[i][supervisorCol]);
-          if (rowSup === targetSup) {
-            sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
-            sheet
-              .getRange(i + 1, inspectorNameCol + 1)
-              .setValue(params.tech_name);
-            updatedCount++;
-          }
-        }
-        return ContentService.createTextOutput(
-          JSON.stringify({ status: "success", updated: updatedCount }),
-        ).setMimeType(ContentService.MimeType.JSON);
-      } else if (action === "assign_razon_individual") {
-        for (var i = 1; i < data.length; i++) {
-          if (data[i][casosCol] == params.caso) {
-            sheet.getRange(i + 1, inspectorIdCol + 1).setValue(params.tech_id);
-            sheet
-              .getRange(i + 1, inspectorNameCol + 1)
-              .setValue(params.tech_name);
-            return ContentService.createTextOutput(
-              JSON.stringify({ status: "success" }),
-            ).setMimeType(ContentService.MimeType.JSON);
-          }
-        }
-        return ContentService.createTextOutput(
-          JSON.stringify({ status: "error", message: "Caso no encontrado" }),
-        ).setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-
-    if (action === "save_manual_code") {
-      var type = params.type || "calidad";
-      var sheet = getTargetSheetByType(ss, type);
-      if (!sheet) return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Hoja no encontrada" })).setMimeType(ContentService.MimeType.JSON);
-
-      var data = sheet.getDataRange().getValues();
-      var headers = data[0];
-      var ticketCol = -1;
-      var codigoCol = -1;
-      var estadoCol = -1;
-      var fechaCol = -1;
-      
-      for (var j = 0; j < headers.length; j++) {
-        var h = normalizeString(headers[j]);
-        if (h === "trabajo" || h === "ticket" || h === "orden servicio") ticketCol = j;
-        if (h === "codigo aplicado") codigoCol = j;
-        if (h === "estado inspeccion" || h === "estado") estadoCol = j;
-        if (h === "fecha inspeccion") fechaCol = j;
-      }
-      
-      if (ticketCol === -1) return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Columna de identificación no encontrada" })).setMimeType(ContentService.MimeType.JSON);
-      
-      var needsUpdate = false;
-      if (codigoCol === -1) { headers.push("Código Aplicado"); codigoCol = headers.length - 1; needsUpdate = true; }
-      if (estadoCol === -1) { headers.push("Estado Inspección"); estadoCol = headers.length - 1; needsUpdate = true; }
-      if (fechaCol === -1) { headers.push("Fecha Inspección"); fechaCol = headers.length - 1; needsUpdate = true; }
-      
-      if (needsUpdate) {
-        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-        data = sheet.getDataRange().getValues();
-      }
-      
-      var targetTicket = String(params.ticket).trim();
-      for (var i = 1; i < data.length; i++) {
-        var currentTicket = String(data[i][ticketCol]).trim();
-        if (currentTicket === targetTicket) {
-          if (data[i][codigoCol] && String(data[i][codigoCol]).trim() !== "") {
-            return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Este registro ya tiene un código aplicado" })).setMimeType(ContentService.MimeType.JSON);
-          }
-          sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
-          sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Inspeccionado" : "Completado");
-          sheet.getRange(i + 1, fechaCol + 1).setValue(new Date());
           return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
         }
       }
-      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Registro no encontrado" })).setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ticket no encontrado" })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    if (action === "cancel_manual_code") {
-      var type = params.type || "calidad";
-      var sheet = getTargetSheetByType(ss, type);
-      if (!sheet) return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Hoja no encontrada" })).setMimeType(ContentService.MimeType.JSON);
-
-      var data = sheet.getDataRange().getValues();
-      var headers = data[0];
-      var ticketCol = -1;
-      var codigoCol = -1;
-      var estadoCol = -1;
-      var fechaCol = -1;
-      
-      for (var j = 0; j < headers.length; j++) {
-        var h = normalizeString(headers[j]);
-        if (h === "trabajo" || h === "ticket" || h === "orden servicio") ticketCol = j;
-        if (h === "codigo aplicado") codigoCol = j;
-        if (h === "estado inspeccion" || h === "estado") estadoCol = j;
-        if (h === "fecha inspeccion") fechaCol = j;
-      }
-      
-      var targetTicket = String(params.ticket).trim();
-      for (var i = 1; i < data.length; i++) {
-        var currentTicket = String(data[i][ticketCol]).trim();
-        if (currentTicket === targetTicket) {
-          if (codigoCol > -1) sheet.getRange(i + 1, codigoCol + 1).clearContent();
-          if (estadoCol > -1) sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Asignado" : "Pendiente");
-          if (fechaCol > -1) sheet.getRange(i + 1, fechaCol + 1).clearContent();
-          return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Registro no encontrado" })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (
-      action === "assign_calidad_by_supervisor" ||
-      action === "assign_calidad_individual" ||
-      action === "save_calidad_codigo" ||
-      action === "cancel_calidad_codigo"
-    ) {
+    // ── Asignación de Tickets ──────────────────
+    if (action === "assign_ticket" || action === "assign_tickets_by_supervisor") {
       try {
-        var sheet = null;
-        var sheets = ss.getSheets();
-        for (var k = 0; k < sheets.length; k++) {
-          if (sheets[k].getSheetId() == 1724783398) {
-            sheet = sheets[k];
-            break;
-          }
-        }
-
-        if (!sheet)
-          return ContentService.createTextOutput(
-            JSON.stringify({
-              status: "error",
-              message: "Hoja de calidad no encontrada",
-            }),
-          ).setMimeType(ContentService.MimeType.JSON);
+        var sheet = getTargetSheetByType(ss, "tickets");
+        if (!sheet) throw new Error("Hoja de Tickets no encontrada");
 
         var data = sheet.getDataRange().getValues();
-        var headers = data[0];
+        var info = getHeaderInfo(data);
+        var headers = info.headers;
+        var rawHeaders = info.rawHeaders;
 
-        if (action === "save_calidad_codigo") {
-          var ticketCol = -1;
-          var codigoCol = -1;
-          var estadoCol = -1;
-          var fechaCol = -1;
-          
-          for (var j = 0; j < headers.length; j++) {
-            var h = normalizeString(headers[j]);
-            if (h === "trabajo" || h === "ticket") ticketCol = j;
-            if (h === "codigo aplicado") codigoCol = j;
-            if (h === "estado inspeccion") estadoCol = j;
-            if (h === "fecha inspeccion") fechaCol = j;
-          }
-          
-          if (ticketCol === -1) {
-            return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Columna Trabajo no encontrada" })).setMimeType(ContentService.MimeType.JSON);
-          }
-          
-          var needsUpdate = false;
-          if (codigoCol === -1) { headers.push("Código Aplicado"); codigoCol = headers.length - 1; needsUpdate = true; }
-          if (estadoCol === -1) { headers.push("Estado Inspección"); estadoCol = headers.length - 1; needsUpdate = true; }
-          if (fechaCol === -1) { headers.push("Fecha Inspección"); fechaCol = headers.length - 1; needsUpdate = true; }
-          
-          if (needsUpdate) {
-            sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-            data = sheet.getDataRange().getValues();
-          }
-          
-          var targetTicket = String(params.ticket).trim();
-          for (var i = 1; i < data.length; i++) {
-            var currentTicket = String(data[i][ticketCol]).trim();
-            if (currentTicket === targetTicket) {
-              // Validar que no tenga ya un código
-              if (data[i][codigoCol] && String(data[i][codigoCol]).trim() !== "") {
-                return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Este ticket ya tiene un código aplicado" })).setMimeType(ContentService.MimeType.JSON);
-              }
-              sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
-              sheet.getRange(i + 1, estadoCol + 1).setValue("Completado");
-              sheet.getRange(i + 1, fechaCol + 1).setValue(new Date());
-              return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
-            }
-          }
-          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ticket no encontrado: " + targetTicket })).setMimeType(ContentService.MimeType.JSON);
-        }
-
-        if (action === "cancel_calidad_codigo") {
-          var ticketCol = -1;
-          var codigoCol = -1;
-          var estadoCol = -1;
-          var fechaCol = -1;
-          
-          for (var j = 0; j < headers.length; j++) {
-            var h = normalizeString(headers[j]);
-            if (h === "trabajo" || h === "ticket") ticketCol = j;
-            if (h === "codigo aplicado") codigoCol = j;
-            if (h === "estado inspeccion") estadoCol = j;
-            if (h === "fecha inspeccion") fechaCol = j;
-          }
-          
-          var targetTicket = String(params.ticket).trim();
-          for (var i = 1; i < data.length; i++) {
-            var currentTicket = String(data[i][ticketCol]).trim();
-            if (currentTicket === targetTicket) {
-              if (codigoCol > -1) sheet.getRange(i + 1, codigoCol + 1).clearContent();
-              if (estadoCol > -1) sheet.getRange(i + 1, estadoCol + 1).setValue("Pendiente");
-              if (fechaCol > -1) sheet.getRange(i + 1, fechaCol + 1).clearContent();
-              return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
-            }
-          }
-          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ticket no encontrado" })).setMimeType(ContentService.MimeType.JSON);
-        }
-
-        var inspectorIdCol = headers.indexOf("Inspector ID");
-        var inspectorNameCol = headers.indexOf("Inspector");
-        var needsHeaderUpdate = false;
-        if (inspectorIdCol === -1) {
-          headers.push("Inspector ID");
-          inspectorIdCol = headers.length - 1;
-          needsHeaderUpdate = true;
-        }
-        if (inspectorNameCol === -1) {
-          headers.push("Inspector");
-          inspectorNameCol = headers.length - 1;
-          needsHeaderUpdate = true;
-        }
-        if (needsHeaderUpdate) {
-          sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-          data = sheet.getDataRange().getValues();
-        }
-
-        var supervisorCol = -1;
-        var techCol = -1;
-
-        for (var j = 0; j < headers.length; j++) {
-          var h = normalizeString(headers[j]);
-          if (
-            h === "supervisor" ||
-            h === "nombre del supervisor" ||
-            h === "nombre supervisor" ||
-            (h.includes("supervisor") && !h.includes("tarjeta"))
-          ) {
-            supervisorCol = j;
-          }
-          if (h === "tecnico" || h === "nombre del tecnico" || h === "nombre") {
-            techCol = j;
-          }
-        }
-
-        if (action === "assign_calidad_by_supervisor") {
-          var updatedCount = 0;
-          var targetSup = normalizeString(params.supervisor);
-
-          if (supervisorCol === -1)
-            return ContentService.createTextOutput(
-              JSON.stringify({
-                status: "error",
-                message:
-                  "Columna Supervisor no encontrada. Encabezados: " +
-                  headers.join(","),
-              }),
-            ).setMimeType(ContentService.MimeType.JSON);
-
-          for (var i = 1; i < data.length; i++) {
-            var rowSup = normalizeString(data[i][supervisorCol]);
-            if (rowSup === targetSup) {
-              sheet
-                .getRange(i + 1, inspectorIdCol + 1)
-                .setValue(params.tech_id);
-              sheet
-                .getRange(i + 1, inspectorNameCol + 1)
-                .setValue(params.tech_name);
-              updatedCount++;
-            }
-          }
-          if (updatedCount === 0) {
-            var sample = [];
-            for (var m = 1; m < Math.min(data.length, 5); m++)
-              sample.push(data[m][supervisorCol]);
-            return ContentService.createTextOutput(
-              JSON.stringify({
-                status: "error",
-                message:
-                  "0 técnicos encontrados para " +
-                  params.supervisor +
-                  ". Muestras: " +
-                  sample.join(","),
-              }),
-            ).setMimeType(ContentService.MimeType.JSON);
-          }
-          return ContentService.createTextOutput(
-            JSON.stringify({ status: "success", updated: updatedCount }),
-          ).setMimeType(ContentService.MimeType.JSON);
-        } else if (action === "assign_calidad_individual") {
-          var targetTech = normalizeString(params.technician);
-
-          if (techCol === -1)
-            return ContentService.createTextOutput(
-              JSON.stringify({
-                status: "error",
-                message: "Columna Técnico no encontrada",
-              }),
-            ).setMimeType(ContentService.MimeType.JSON);
-
-          for (var i = 1; i < data.length; i++) {
-            var rowTech = normalizeString(data[i][techCol]);
-            if (rowTech === targetTech) {
-              sheet
-                .getRange(i + 1, inspectorIdCol + 1)
-                .setValue(params.tech_id);
-              sheet
-                .getRange(i + 1, inspectorNameCol + 1)
-                .setValue(params.tech_name);
-              return ContentService.createTextOutput(
-                JSON.stringify({ status: "success" }),
-              ).setMimeType(ContentService.MimeType.JSON);
-            }
-          }
-          return ContentService.createTextOutput(
-            JSON.stringify({
-              status: "error",
-              message: "Técnico no encontrado: " + params.technician,
-            }),
-          ).setMimeType(ContentService.MimeType.JSON);
-        }
-      } catch (err) {
-        return ContentService.createTextOutput(
-          JSON.stringify({
-            status: "error",
-            message: "Error interno: " + err.toString(),
-          }),
-        ).setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-
-    // ── Asignación de Órdenes ──────────────────
-    if (
-      action === "assign_ordenes_by_supervisor" ||
-      action === "assign_ordenes_individual"
-    ) {
-      try {
-        var ordenSheet = getTargetSheetByType(ss, "ordenes");
-        if (!ordenSheet) throw new Error("Hoja de Órdenes no encontrada");
-
-        var ordData = ordenSheet.getDataRange().getValues();
-        var ordHeaders = ordData[0].map(normalizeHeader);
-
-        var ordInspIdCol = ordHeaders.indexOf("inspector_id");
-        var ordInspNameCol = ordHeaders.indexOf("inspector");
+        // Asegurar columnas de inspector
+        var inspIdCol = headers.indexOf("inspector_id");
+        var inspNameCol = headers.indexOf("inspector");
         
-        // Crear columnas si no existen
-        if (ordInspIdCol === -1 || ordInspNameCol === -1) {
-          var rawHeaders = ordenSheet.getRange(1, 1, 1, ordenSheet.getLastColumn()).getValues()[0];
-          if (ordInspIdCol === -1) { rawHeaders.push("Inspector ID"); ordInspIdCol = rawHeaders.length - 1; }
-          if (ordInspNameCol === -1) { rawHeaders.push("Inspector"); ordInspNameCol = rawHeaders.length - 1; }
-          ordenSheet.getRange(1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
-          ordData = ordenSheet.getDataRange().getValues();
-          ordHeaders = ordData[0].map(normalizeHeader);
+        var needsHeaderUpdate = false;
+        if (inspIdCol === -1) { rawHeaders.push("Inspector ID"); inspIdCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        if (inspNameCol === -1) { rawHeaders.push("Inspector"); inspNameCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        
+        if (needsHeaderUpdate) {
+          sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+          data = sheet.getDataRange().getValues();
+          // Actualizar info después de añadir columnas
+          info = getHeaderInfo(data);
+          headers = info.headers;
         }
 
-        var ordSupervisorCol = ordHeaders.indexOf("supervisor");
-        var ordTicketCol = ordHeaders.indexOf("ticket");
-        if (ordTicketCol === -1) ordTicketCol = ordHeaders.indexOf("orden_servicio");
+        var ticketCol = headers.indexOf("ticket");
+        var statusCol = headers.indexOf("status");
+        var supervisorCol = headers.indexOf("supervisor");
 
-        if (action === "assign_ordenes_by_supervisor") {
-          var updatedCount = 0;
+        if (action === "assign_ticket") {
+          var targetId = normalizeString(params.id || params.ticket);
+          if (ticketCol === -1) throw new Error("Columna Ticket/Trabajo no encontrada");
+
+          var found = false;
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (normalizeString(data[i][ticketCol]) === targetId) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              if (statusCol > -1) {
+                 var currentStatus = String(data[i][statusCol]).trim();
+                 if (currentStatus === "" || currentStatus === "Pendiente") {
+                   sheet.getRange(i + 1, statusCol + 1).setValue("Asignado");
+                 }
+              }
+              found = true;
+            }
+          }
+          if (!found) throw new Error("No se encontró el ticket " + targetId + " en la columna " + (info.rawHeaders[ticketCol] || "Ticket"));
+          return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+        } else {
+          // Bulk assign by supervisor
           var targetSup = normalizeString(params.supervisor);
-          if (ordSupervisorCol === -1) throw new Error("Columna Supervisor no encontrada en Órdenes");
+          if (supervisorCol === -1) throw new Error("Columna Supervisor no encontrada");
 
-          for (var i = 1; i < ordData.length; i++) {
-            if (normalizeString(ordData[i][ordSupervisorCol]) === targetSup) {
-              ordenSheet.getRange(i + 1, ordInspIdCol + 1).setValue(params.tech_id);
-              ordenSheet.getRange(i + 1, ordInspNameCol + 1).setValue(params.tech_name);
+          var updatedCount = 0;
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (normalizeString(data[i][supervisorCol]) === targetSup) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              if (statusCol > -1) {
+                var currentStatus = String(data[i][statusCol]).trim();
+                if (currentStatus === "" || currentStatus === "Pendiente") {
+                  sheet.getRange(i + 1, statusCol + 1).setValue("Asignado");
+                }
+              }
               updatedCount++;
             }
           }
           return ContentService.createTextOutput(JSON.stringify({ status: "success", updated: updatedCount })).setMimeType(ContentService.MimeType.JSON);
-        } else if (action === "assign_ordenes_individual") {
-          var targetTicket = String(params.ticketId || params.orden_id).trim();
-          if (ordTicketCol === -1) throw new Error("Columna de ID de orden no encontrada");
+        }
+      } catch (err) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error tickets: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
 
-          for (var i = 1; i < ordData.length; i++) {
-            if (String(ordData[i][ordTicketCol]).trim() === targetTicket) {
-              ordenSheet.getRange(i + 1, ordInspIdCol + 1).setValue(params.tech_id);
-              ordenSheet.getRange(i + 1, ordInspNameCol + 1).setValue(params.tech_name);
+
+    // ── Asignación de Razones ──────────────────
+    if (action === "assign_razones_by_supervisor" || action === "assign_razon_individual" || action === "assign_razones_individual") {
+      try {
+        var sheet = getTargetSheetByType(ss, "razones");
+        if (!sheet) throw new Error("Hoja de Razones no encontrada");
+
+        var data = sheet.getDataRange().getValues();
+        var info = getHeaderInfo(data);
+        var headers = info.headers;
+        var rawHeaders = info.rawHeaders;
+
+        // Asegurar columnas de inspector
+        var inspIdCol = headers.indexOf("inspector_id");
+        var inspNameCol = headers.indexOf("inspector");
+        
+        var needsHeaderUpdate = false;
+        if (inspIdCol === -1) { rawHeaders.push("Inspector ID"); inspIdCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        if (inspNameCol === -1) { rawHeaders.push("Inspector"); inspNameCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        
+        if (needsHeaderUpdate) {
+          sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+          data = sheet.getDataRange().getValues();
+          info = getHeaderInfo(data);
+          headers = info.headers;
+        }
+
+        var supervisorCol = headers.indexOf("supervisor");
+        var ticketCol = headers.indexOf("ticket"); 
+
+        if (action === "assign_razon_individual" || action === "assign_razones_individual") {
+          var targetId = String(params.ticket || params.id).trim();
+          if (ticketCol === -1) throw new Error("Columna Caso/Ticket no encontrada");
+
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (String(data[i][ticketCol]).trim() === targetId) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Caso no encontrado: " + targetId })).setMimeType(ContentService.MimeType.JSON);
+        } else {
+          var targetSup = normalizeString(params.supervisor);
+          if (supervisorCol === -1) throw new Error("Columna Supervisor no encontrada");
+
+          var updatedCount = 0;
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (normalizeString(data[i][supervisorCol]) === targetSup) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              updatedCount++;
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", updated: updatedCount })).setMimeType(ContentService.MimeType.JSON);
+        }
+      } catch (err) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error razones: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+
+    if (action === "save_manual_code" || action === "cancel_manual_code") {
+      try {
+        var type = params.type || "calidad";
+        var sheet = getTargetSheetByType(ss, type);
+        if (!sheet) throw new Error("Hoja no encontrada");
+
+        var data = sheet.getDataRange().getValues();
+        var info = getHeaderInfo(data);
+        var headers = info.headers;
+        var rawHeaders = info.rawHeaders;
+
+        var ticketCol = headers.indexOf("ticket");
+        var codigoCol = headers.indexOf("codigo_aplicado");
+        var estadoCol = headers.indexOf("status");
+        var fechaCol = headers.indexOf("fecha");
+        
+        if (ticketCol === -1) throw new Error("Columna de identificación no encontrada");
+        
+        var needsUpdate = false;
+        if (codigoCol === -1) { rawHeaders.push("Código Aplicado"); codigoCol = rawHeaders.length - 1; needsUpdate = true; }
+        if (estadoCol === -1) { rawHeaders.push("Estado Inspección"); estadoCol = rawHeaders.length - 1; needsUpdate = true; }
+        if (fechaCol === -1) { rawHeaders.push("Fecha Inspección"); fechaCol = rawHeaders.length - 1; needsUpdate = true; }
+        
+        if (needsUpdate) {
+          sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+          data = sheet.getDataRange().getValues();
+          info = getHeaderInfo(data);
+          headers = info.headers;
+        }
+
+        var targetTicket = String(params.ticket).trim();
+        for (var i = info.index + 1; i < data.length; i++) {
+          if (String(data[i][ticketCol]).trim() === targetTicket) {
+            if (action === "save_manual_code") {
+              if (data[i][codigoCol] && String(data[i][codigoCol]).trim() !== "") {
+                return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ya tiene un código aplicado" })).setMimeType(ContentService.MimeType.JSON);
+              }
+              sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
+              sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Inspeccionado" : "Completado");
+              sheet.getRange(i + 1, fechaCol + 1).setValue(new Date());
+            } else {
+              sheet.getRange(i + 1, codigoCol + 1).clearContent();
+              sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Asignado" : "Pendiente");
+              sheet.getRange(i + 1, fechaCol + 1).clearContent();
+            }
+            return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Registro no encontrado: " + targetTicket })).setMimeType(ContentService.MimeType.JSON);
+      } catch (err) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error manual_code: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // ── Asignación de Calidad ──────────────────
+    if (action === "assign_calidad_by_supervisor" || action === "assign_calidad_individual") {
+      try {
+        var sheet = getTargetSheetByType(ss, "calidad");
+        if (!sheet) throw new Error("Hoja de Calidad no encontrada");
+
+        var data = sheet.getDataRange().getValues();
+        var info = getHeaderInfo(data);
+        var headers = info.headers;
+        var rawHeaders = info.rawHeaders;
+
+        var inspIdCol = headers.indexOf("inspector_id");
+        var inspNameCol = headers.indexOf("inspector");
+        
+        var needsHeaderUpdate = false;
+        if (inspIdCol === -1) { rawHeaders.push("Inspector ID"); inspIdCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        if (inspNameCol === -1) { rawHeaders.push("Inspector"); inspNameCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        
+        if (needsHeaderUpdate) {
+          sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+          data = sheet.getDataRange().getValues();
+          info = getHeaderInfo(data);
+          headers = info.headers;
+        }
+
+        var supervisorCol = headers.indexOf("supervisor");
+        var techIdCol = headers.indexOf("tech_id");
+        var techNameCol = headers.indexOf("tech");
+        var ticketCol = headers.indexOf("ticket");
+
+        if (action === "assign_calidad_individual") {
+          var targetTicket = String(params.ticket || params.technician).trim();
+          if (ticketCol === -1) ticketCol = headers.indexOf("trabajo");
+          if (ticketCol === -1) throw new Error("Columna de Ticket/Trabajo no encontrada en Calidad");
+
+          var updatedCount = 0;
+          for (var i = info.index + 1; i < data.length; i++) {
+            var rowTicket = String(data[i][ticketCol]).trim();
+            var rowTechName = techNameCol > -1 ? String(data[i][techNameCol]).trim() : "";
+            var rowTechId = techIdCol > -1 ? String(data[i][techIdCol]).trim() : "";
+
+            if (rowTicket === targetTicket || rowTechName === targetTicket || rowTechId === targetTicket) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              var stCol = headers.indexOf("status");
+              if (stCol > -1) sheet.getRange(i + 1, stCol + 1).setValue("Asignado");
+              updatedCount++;
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", updated: updatedCount })).setMimeType(ContentService.MimeType.JSON);
+        } else {
+          var targetSup = normalizeString(params.supervisor);
+          if (supervisorCol === -1) throw new Error("Columna Supervisor no encontrada");
+
+          var updatedCount = 0;
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (normalizeString(data[i][supervisorCol]) === targetSup) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              var stCol = headers.indexOf("status");
+              if (stCol > -1) sheet.getRange(i + 1, stCol + 1).setValue("Asignado");
+              updatedCount++;
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", updated: updatedCount })).setMimeType(ContentService.MimeType.JSON);
+        }
+      } catch (err) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error calidad: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+
+    // ── Asignación de Órdenes ──────────────────
+    if (action === "assign_ordenes_by_supervisor" || action === "assign_ordenes_individual") {
+      try {
+        var sheet = getTargetSheetByType(ss, "ordenes");
+        if (!sheet) throw new Error("Hoja de Órdenes no encontrada");
+
+        var data = sheet.getDataRange().getValues();
+        var info = getHeaderInfo(data);
+        var headers = info.headers;
+        var rawHeaders = info.rawHeaders;
+
+        var inspIdCol = headers.indexOf("inspector_id");
+        var inspNameCol = headers.indexOf("inspector");
+        
+        var needsHeaderUpdate = false;
+        if (inspIdCol === -1) { rawHeaders.push("Inspector ID"); inspIdCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        if (inspNameCol === -1) { rawHeaders.push("Inspector"); inspNameCol = rawHeaders.length - 1; needsHeaderUpdate = true; }
+        
+        if (needsHeaderUpdate) {
+          sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+          data = sheet.getDataRange().getValues();
+          info = getHeaderInfo(data);
+          headers = info.headers;
+        }
+
+        var supervisorCol = headers.indexOf("supervisor");
+        var ticketCol = headers.indexOf("ticket");
+
+        if (action === "assign_ordenes_individual") {
+          var targetTicket = String(params.ticketId || params.orden_id).trim();
+          if (ticketCol === -1) throw new Error("Columna Ticket no encontrada");
+
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (String(data[i][ticketCol]).trim() === targetTicket) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              var stCol = headers.indexOf("status");
+              if (stCol > -1) sheet.getRange(i + 1, stCol + 1).setValue("Asignado");
               return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
             }
           }
           return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Orden no encontrada: " + targetTicket })).setMimeType(ContentService.MimeType.JSON);
+        } else {
+          var targetSup = normalizeString(params.supervisor);
+          if (supervisorCol === -1) throw new Error("Columna Supervisor no encontrada");
+
+          var updatedCount = 0;
+          for (var i = info.index + 1; i < data.length; i++) {
+            if (normalizeString(data[i][supervisorCol]) === targetSup) {
+              sheet.getRange(i + 1, inspIdCol + 1).setValue(params.tech_id);
+              sheet.getRange(i + 1, inspNameCol + 1).setValue(params.tech_name);
+              var stCol = headers.indexOf("status");
+              if (stCol > -1) sheet.getRange(i + 1, stCol + 1).setValue("Asignado");
+              updatedCount++;
+            }
+          }
+          return ContentService.createTextOutput(JSON.stringify({ status: "success", updated: updatedCount })).setMimeType(ContentService.MimeType.JSON);
         }
       } catch (err) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error interno ordenes: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Error ordenes: " + err.toString() })).setMimeType(ContentService.MimeType.JSON);
       }
     }
 
@@ -989,55 +764,57 @@ function doPost(e) {
       ).setMimeType(ContentService.MimeType.JSON);
     }
 
+
     if (action === "auto_assign") {
-      var ticketSheet = ss.getSheetByName("Tickets");
+      var ticketSheet = getTargetSheetByType(ss, "tickets");
       var inspectorSheet = ss.getSheetByName("Inspectores");
       if (!ticketSheet || !inspectorSheet)
-        return ContentService.createTextOutput(
-          JSON.stringify({ status: "error" }),
-        ).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Hojas no encontradas" })).setMimeType(ContentService.MimeType.JSON);
 
       var tData = ticketSheet.getDataRange().getValues();
-      var iData = inspectorSheet.getDataRange().getValues();
-      if (iData.length <= 1)
-        return ContentService.createTextOutput(
-          JSON.stringify({ status: "error" }),
-        ).setMimeType(ContentService.MimeType.JSON);
+      var tInfo = getHeaderInfo(tData);
+      var tHeaders = tInfo.headers;
 
-      var tHeaders = tData[0];
-      var techIdCol = tHeaders.indexOf("tech_id");
-      var techCol = tHeaders.indexOf("tech");
+      var iData = inspectorSheet.getDataRange().getValues();
+      var iInfo = getHeaderInfo(iData);
+      var iHeaders = iInfo.headers;
+
+      if (iData.length <= iInfo.index + 1)
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "No hay inspectores" })).setMimeType(ContentService.MimeType.JSON);
+
+      var techIdCol = tHeaders.indexOf("inspector_id");
+      var techCol = tHeaders.indexOf("inspector");
       var statusCol = tHeaders.indexOf("status");
 
-      var iHeaders = iData[0];
       var iNameCol = iHeaders.indexOf("nombre");
       var iIdCol = iHeaders.indexOf("id");
       var iEstadoCol = iHeaders.indexOf("estado");
 
       var loadMap = {};
       var inspectors = [];
-      for (var j = 1; j < iData.length; j++) {
-        if (iEstadoCol > -1 && iData[j][iEstadoCol] !== "Activo") continue; // Solo activos
+      for (var j = iInfo.index + 1; j < iData.length; j++) {
+        if (iEstadoCol > -1 && iData[j][iEstadoCol] !== "Activo") continue;
         var insp = { name: iData[j][iNameCol], id: iData[j][iIdCol], count: 0 };
-        loadMap[insp.id] = insp; // Key by ID instead of name
+        loadMap[insp.id] = insp;
         inspectors.push(insp);
       }
 
-      for (var i = 1; i < tData.length; i++) {
-        var tStatus = tData[i][statusCol];
-        var tTechId = tData[i][techIdCol];
-        if (tStatus === "Pendiente" && loadMap[tTechId]) {
+      // Contar carga actual
+      for (var i = tInfo.index + 1; i < tData.length; i++) {
+        var tStatus = String(tData[i][statusCol]).trim();
+        var tTechId = String(tData[i][techIdCol]).trim();
+        if (tStatus === "Asignado" && loadMap[tTechId]) {
           loadMap[tTechId].count++;
         }
       }
 
       var updated = 0;
-      for (var i = 1; i < tData.length; i++) {
-        var currentTech = tData[i][techIdCol];
-        var currentStatus = tData[i][statusCol];
+      for (var i = tInfo.index + 1; i < tData.length; i++) {
+        var currentTech = String(tData[i][techIdCol]).trim();
+        var currentStatus = String(tData[i][statusCol]).trim();
         if (
-          currentStatus === "Pendiente" &&
-          (!currentTech || currentTech.toString().trim() === "")
+          (currentStatus === "" || currentStatus === "Pendiente") &&
+          (!currentTech || currentTech === "")
         ) {
           var minInspector = null;
           var minCount = 999999;
@@ -1048,16 +825,9 @@ function doPost(e) {
             }
           }
           if (minInspector) {
-            if (techIdCol > -1)
-              ticketSheet
-                .getRange(i + 1, techIdCol + 1)
-                .setValue(minInspector.id);
-            if (techCol > -1)
-              ticketSheet
-                .getRange(i + 1, techCol + 1)
-                .setValue(minInspector.name);
-            if (statusCol > -1)
-              ticketSheet.getRange(i + 1, statusCol + 1).setValue("Asignado");
+            if (techIdCol > -1) ticketSheet.getRange(i + 1, techIdCol + 1).setValue(minInspector.id);
+            if (techCol > -1) ticketSheet.getRange(i + 1, techCol + 1).setValue(minInspector.name);
+            if (statusCol > -1) ticketSheet.getRange(i + 1, statusCol + 1).setValue("Asignado");
             minInspector.count++;
             updated++;
           }
@@ -1067,6 +837,7 @@ function doPost(e) {
         JSON.stringify({ status: "success", updated: updated }),
       ).setMimeType(ContentService.MimeType.JSON);
     }
+
 
     if (action === "update_admin_profile") {
       var sheet = ss.getSheetByName("Config");

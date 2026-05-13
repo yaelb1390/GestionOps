@@ -59,6 +59,8 @@ export default function Login() {
         if (inspector) {
           localStorage.setItem('userRole', 'inspector');
           localStorage.setItem('inspectorName', inspector.nombre); // Para filtrar tickets
+          localStorage.setItem('inspectorId', String(inspector.id));
+          localStorage.setItem('username', String(inspector.usuario));
           navigate('/inspector');
         } else {
           setError('Credenciales incorrectas o inspector inactivo');

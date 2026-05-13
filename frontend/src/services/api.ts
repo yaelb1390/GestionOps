@@ -30,7 +30,7 @@ export interface Orden {
   [key: string]: any;
 }
 
-export async function fetchTickets(): Promise<Ticket[]> {
+export async function fetchTickets(role: string = 'admin'): Promise<Ticket[]> {
   try {
     if (SCRIPT_URL === "URL_DE_TU_GOOGLE_APPS_SCRIPT_AQUI") {
       console.warn("Usando datos de prueba. Configura la URL del script de Google.");
@@ -41,7 +41,7 @@ export async function fetchTickets(): Promise<Ticket[]> {
       ];
     }
 
-    const response = await fetch(`${SCRIPT_URL}?_t=${Date.now()}`);
+    const response = await fetch(`${SCRIPT_URL}?type=tickets&role=${role}&_t=${Date.now()}`);
     const data = await response.json();
     return data as Ticket[];
   } catch (error) {
@@ -247,9 +247,9 @@ export const fetchCalidad = async (role: string = 'admin'): Promise<any[]> => {
   }
 };
 
-export const fetchRazones = async (): Promise<any[]> => {
+export const fetchRazones = async (role: string = 'admin'): Promise<any[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=razones`);
+    const res = await fetch(`${SCRIPT_URL}?type=razones&role=${role}&_t=${Date.now()}`);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -258,9 +258,9 @@ export const fetchRazones = async (): Promise<any[]> => {
   }
 };
 
-export const fetchOrdenes = async (): Promise<Orden[]> => {
+export const fetchOrdenes = async (role: string = 'admin'): Promise<Orden[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=ordenes&_t=${Date.now()}`);
+    const res = await fetch(`${SCRIPT_URL}?type=ordenes&role=${role}&_t=${Date.now()}`);
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -311,6 +311,52 @@ export async function assignCalidadIndividual(technician: string, tech_id: strin
     return true;
   } catch (error: any) {
     console.error("Error assigning individual calidad:", error);
+    throw error;
+  }
+}
+
+// ── Asignación de Razones ────────────────────────────────────────────────────
+
+export async function assignRazonesBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_razones_by_supervisor",
+        supervisor: supervisor,
+        tech_id: tech_id,
+        tech_name: tech_name
+      })
+    });
+    const result = await response.json();
+    if (result.status !== "success") {
+      throw new Error(result.message || "Error en la asignación masiva de razones");
+    }
+    return result.updated;
+  } catch (error: any) {
+    console.error("Error bulk assigning razones:", error);
+    throw error;
+  }
+}
+
+export async function assignRazonesIndividual(ticket: string, tech_id: string, tech_name: string): Promise<boolean> {
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign_razones_individual",
+        ticket: ticket,
+        tech_id: tech_id,
+        tech_name: tech_name
+      })
+    });
+    const result = await response.json();
+    if (result.status !== "success") {
+      throw new Error(result.message || "Error al asignar razón individual");
+    }
+    return true;
+  } catch (error: any) {
+    console.error("Error assigning individual razon:", error);
     throw error;
   }
 }

@@ -446,7 +446,7 @@ tbody tr:hover {
   max-width: 650px; /* Centered narrow layout for PC/Tablet */
   margin: 0 auto;
   padding: 1.5rem;
-  padding-bottom: 9rem;
+  padding-bottom: 12rem; /* Increased to prevent nav overlap */
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -457,6 +457,7 @@ tbody tr:hover {
   .mobile-view {
     max-width: 850px;
     padding: 3rem 2rem;
+    padding-bottom: 12rem;
   }
 }
 
@@ -464,14 +465,14 @@ tbody tr:hover {
   .mobile-view {
     max-width: 100%;
     padding: 1.25rem;
-    padding-bottom: 8.5rem;
+    padding-bottom: 11rem;
   }
 }
 
 @media (max-width: 480px) {
   .mobile-view {
     padding: 1rem;
-    padding-bottom: 8rem;
+    padding-bottom: 10rem;
   }
 }
 
@@ -502,22 +503,22 @@ tbody tr:hover {
 
 .bottom-nav {
   position: fixed;
-  bottom: 1.5rem;
+  bottom: 2rem; /* Lifted slightly */
   left: 50%;
   transform: translateX(-50%);
   width: calc(100% - 2.5rem);
   max-width: 480px;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1.5px solid var(--glass-border);
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 0.6rem;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.15);
+  padding: 0.75rem;
+  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.2);
   z-index: 1000;
-  border-radius: 24px;
+  border-radius: 28px;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
