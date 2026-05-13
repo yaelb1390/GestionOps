@@ -1,7 +1,7 @@
 {
   "name": "Claro FiberOptic Nexus",
   "short_name": "Claro Nexus",
-  "description": "Plataforma de inspección de averías",
+  "description": "Plataforma de inspeccion de averias",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
