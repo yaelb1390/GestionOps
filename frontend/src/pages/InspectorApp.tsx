@@ -341,6 +341,32 @@ export default function InspectorApp() {
           </button>
 
           <button 
+            onClick={() => window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUODJaQjBTNENIWEwxSThONVFIMllDN1AyQi4u&origin=lprLink&route=shorturl', '_blank')}
+            className="mobile-card" 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.75rem 1rem', 
+              textAlign: 'center', 
+              justifyContent: 'center',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              borderRadius: '24px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.2)' }}>
+              <ClipboardList size={28} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Actividades</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Registro Gestores</div>
+            </div>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('mis_tickets')}
             className="mobile-card" 
             style={{ 
