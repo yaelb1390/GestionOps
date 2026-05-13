@@ -1216,13 +1216,13 @@ export default function AdminDashboard() {
                         message: `¿Deseas asignar TODAS las razones del supervisor "${razonesSupervisorFilter}" al inspector "${inspName}"?`,
                         onConfirm: async () => {
                           try {
-                            const { success, message } = await assignRazonesBySupervisor(razonesSupervisorFilter, bulkAssignRazonesInspector, inspName);
-                            if (success) {
-                              displayToast('Asignación masiva completada', 'success');
+                            const updatedCount = await assignRazonesBySupervisor(razonesSupervisorFilter, bulkAssignRazonesInspector, inspName);
+                            if (updatedCount > 0) {
+                              displayToast(`Asignación masiva completada: ${updatedCount} registros`, 'success');
                               loadRazones();
                               setBulkAssignRazonesInspector('');
                             } else {
-                              displayToast(message || 'Error en la asignación', 'error');
+                              displayToast('No se encontraron registros para asignar o error en la operación', 'error');
                             }
                           } catch (error) {
                             displayToast('Error de conexión', 'error');
@@ -1267,7 +1267,7 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loadingRazones ? (
+                  {_loadingRazones ? (
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}><Loader2 className="spinner" size={32} /></td></tr>
                   ) : _razones
                     .filter(row => {
@@ -1306,12 +1306,12 @@ export default function AdminDashboard() {
                                   if (!inspId) return;
                                   const inspName = inspectors.find(i => i.id === inspId)?.nombre || inspId;
                                   
-                                  const { success, message } = await assignRazonesIndividual(String(ticketId), inspId, inspName);
+                                  const success = await assignRazonesIndividual(String(ticketId), inspId, inspName);
                                   if (success) {
                                     displayToast(`Asignado a ${inspName}`, 'success');
                                     loadRazones();
                                   } else {
-                                    displayToast(message || 'Error al asignar', 'error');
+                                    displayToast('Error al asignar', 'error');
                                   }
                                 }}
                               >
