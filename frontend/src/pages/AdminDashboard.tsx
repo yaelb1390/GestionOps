@@ -14,8 +14,6 @@ export default function AdminDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [supervisorFilter, setSupervisorFilter] = useState('');
-  const [bulkAssignInspector, setBulkAssignInspector] = useState('');
 
   // Estados de Inspectores
   const [inspectors, setInspectors] = useState<Inspector[]>([]);
@@ -206,22 +204,6 @@ export default function AdminDashboard() {
     const data = await fetchOrdenes();
     setOrdenes(data.map(item => ensureKeys(item, 'orden')));
     setLoadingOrdenes(false);
-  };
-
-
-
-  const handleAssign = async (ticketId: string | number, inspectorId: string) => {
-    if(!inspectorId) return;
-    const inspector = inspectors.find(i => String(i.id) === String(inspectorId));
-    if(inspector) {
-      const success = await assignTicket(ticketId, inspector.id, inspector.nombre);
-      if(success) {
-        displayToast(`Ticket asignado a ${inspector.nombre}`, 'success');
-        loadTickets();
-      } else {
-        displayToast('Error al asignar el ticket', 'error');
-      }
-    }
   };
 
   const loadTickets = async () => {
@@ -1006,7 +988,7 @@ export default function AdminDashboard() {
 
                     .map((row, idx) => {
                       const techKey = Object.keys(row).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
-                      const technician = row[techKey];
+                      // const technician = row[techKey];
                       
                       return (
                         <tr key={idx}>
