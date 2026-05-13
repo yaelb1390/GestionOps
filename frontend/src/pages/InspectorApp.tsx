@@ -28,7 +28,6 @@ export default function InspectorApp() {
   const [isSubmittingCode, setIsSubmittingCode] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [razones, setRazones] = useState<any[]>([]);
-  const [loadingRazones, setLoadingRazones] = useState(false);
   const [selectedRazon, setSelectedRazon] = useState<any | null>(null);
 
   const toggleTheme = () => {
@@ -130,10 +129,8 @@ export default function InspectorApp() {
   };
 
   const loadRazones = async () => {
-    setLoadingRazones(true);
     const data = await fetchRazones('inspector');
     setRazones(data);
-    setLoadingRazones(false);
   };
 
   const clean = (val: any) => String(val || '').replace(/\.0$/, '').toLowerCase().trim();
@@ -595,10 +592,10 @@ export default function InspectorApp() {
                    const trabajo   = getField(['ticket', 'trabajo', 'tickets', 'caso actual', 'id', 'caso_actual']);
                    const supervisor = getField(['supervisor', 'nombre del supervisor', 'supervisor actual', 'supervisor_actual']);
                    const workName  = getField(['work_name', 'work name actual', 'work_name_actual', 'work name', 'trabajo']);
-                   const cliente   = getField(['cliente', 'nombre cliente', 'customer', 'nombre del cliente']);
-                   const sector    = getField(['sector']);
-                   const barrio    = getField(['barrio']);
-                   const calle     = getField(['calle']);
+                   // const cliente   = getField(['cliente', 'nombre cliente', 'customer', 'nombre del cliente']);
+                   // const sector    = getField(['sector']);
+                   // const barrio    = getField(['barrio']);
+                   // const calle     = getField(['calle']);
                    
                    const casoRepetido = getField(['caso_repetido', 'caso repetido', 'ticket_repetido', 'trabajo repetido']);
                    const tecnicoRepetido = getField(['tecnico_repetido', 'tecnico caso repetido', 'tecnico repetido']);
