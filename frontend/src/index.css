@@ -443,10 +443,10 @@ tbody tr:hover {
 /* App Mobile Inspector styles - Optimized for all devices */
 .mobile-view {
   width: 100%;
-  max-width: 650px; /* Centered narrow layout for PC/Tablet */
+  max-width: 1400px; /* Expande para layout corporativo en PC */
   margin: 0 auto;
-  padding: 1.5rem;
-  padding-bottom: 12rem; /* Increased to prevent nav overlap */
+  padding: 2rem;
+  padding-bottom: 12rem;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -455,8 +455,8 @@ tbody tr:hover {
 
 @media (min-width: 1024px) {
   .mobile-view {
-    max-width: 850px;
-    padding: 3rem 2rem;
+    max-width: 1400px;
+    padding: 3rem 4rem;
     padding-bottom: 12rem;
   }
 }

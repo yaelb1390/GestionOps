@@ -430,8 +430,8 @@ export default function InspectorApp() {
       ) : (
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-          gap: '0.75rem' 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+          gap: '1.25rem' 
         }}>
           {(activeTab === 'pendientes' || activeTab === 'completadas' || activeTab === 'mis_tickets') && (
             <>
@@ -545,7 +545,13 @@ export default function InspectorApp() {
           )}
 
           {activeTab === 'mis_tickets' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', animation: 'fadeInUp 0.3s ease' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+              gap: '1.25rem', 
+              animation: 'fadeInUp 0.3s ease',
+              gridColumn: '1 / -1' 
+            }}>
               {[
                 ...tickets.filter(t => {
                   const isMine = isMyTicket(t);
@@ -747,7 +753,12 @@ export default function InspectorApp() {
 
 
           {activeTab === 'razones' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+              gap: '1.25rem',
+              gridColumn: '1 / -1'
+            }}>
               {(() => {
                 const filtered = (razones || []).filter(r => {
                   if (!r) return false;
@@ -825,7 +836,8 @@ export default function InspectorApp() {
                 borderRadius: '14px',
                 padding: '0.65rem 1rem',
                 marginBottom: '1rem',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                gridColumn: '1 / -1'
               }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -873,14 +885,14 @@ export default function InspectorApp() {
                       return isMine && matchesTerm;
                     });
                     if (ordenes.length === 0) return (
-                      <div className="mobile-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+                      <div className="mobile-card" style={{ textAlign: 'center', padding: '3rem 1.5rem', gridColumn: '1 / -1' }}>
                         <Package size={48} color="var(--text-muted)" style={{ marginBottom: '1rem', opacity: 0.5 }} />
                         <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Sin Órdenes</h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontraron órdenes de trabajo asignadas.</p>
                       </div>
                     );
                     if (filtered.length === 0) return (
-                      <div className="mobile-card" style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
+                      <div className="mobile-card" style={{ textAlign: 'center', padding: '2rem 1.5rem', gridColumn: '1 / -1' }}>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No se encontró ninguna orden con ese criterio.</p>
                       </div>
                     );
