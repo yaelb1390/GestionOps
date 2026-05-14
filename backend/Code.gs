@@ -669,7 +669,7 @@ function doPost(e) {
       var headers = sheet
         .getRange(1, 1, 1, sheet.getLastColumn())
         .getValues()[0];
-      var id = new Date().getTime().toString().slice(-6);
+      var id = params.id ? String(params.id) : new Date().getTime().toString().slice(-6);
       var newRow = new Array(headers.length).fill("");
 
       newRow[headers.indexOf("id")] = id;
@@ -703,6 +703,10 @@ function doPost(e) {
 
       for (var i = 1; i < data.length; i++) {
         if (data[i][idCol] == params.id) {
+          if (params.new_id && headers.indexOf("id") > -1)
+            sheet
+              .getRange(i + 1, headers.indexOf("id") + 1)
+              .setValue(params.new_id);
           if (params.nombre && headers.indexOf("nombre") > -1)
             sheet
               .getRange(i + 1, headers.indexOf("nombre") + 1)

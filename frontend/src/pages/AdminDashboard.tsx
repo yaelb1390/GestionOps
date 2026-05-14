@@ -698,6 +698,7 @@ export default function AdminDashboard() {
               <form style={{ marginBottom: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-color)' }} onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const id_inspector = formData.get('id_inspector') as string;
                 const nombre = formData.get('nombre') as string;
                 const rol = formData.get('rol') as string;
                 const sector = formData.get('sector') as string;
@@ -707,9 +708,9 @@ export default function AdminDashboard() {
                 
                 let success;
                 if (editingInspector) {
-                  success = await updateInspector(editingInspector.id, { nombre, rol: rol as 'Admin' | 'Inspector', sector, usuario, password, correo_recuperacion });
+                  success = await updateInspector(editingInspector.id, { new_id: id_inspector, nombre, rol: rol as 'Admin' | 'Inspector', sector, usuario, password, correo_recuperacion } as any);
                 } else {
-                  success = await createInspector(nombre, sector, usuario, password, rol, correo_recuperacion);
+                  success = await createInspector(id_inspector, nombre, sector, usuario, password, rol, correo_recuperacion);
                 }
                 
                 if (success) {
@@ -722,6 +723,10 @@ export default function AdminDashboard() {
               }}>
                 <h4 style={{ marginBottom: '1rem', color: 'var(--text-main)' }}>{editingInspector ? 'Editar Inspector' : 'Nuevo Inspector'}</h4>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div className="input-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
+                    <label>ID del Inspector</label>
+                    <input type="text" name="id_inspector" className="input-control" placeholder="Ej. 12345" defaultValue={editingInspector?.id || ''} />
+                  </div>
                   <div className="input-group" style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}>
                     <label>Nombre del Inspector</label>
                     <input type="text" name="nombre" required className="input-control" placeholder="Ej. Juan Perez" defaultValue={editingInspector?.nombre || ''} />

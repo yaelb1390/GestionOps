@@ -151,11 +151,11 @@ export const fetchInspectors = async (): Promise<Inspector[]> => {
   }
 };
 
-export const createInspector = async (nombre: string, sector: string, usuario: string, password: string, rol: string = 'Inspector', correo_recuperacion: string = ''): Promise<boolean> => {
+export const createInspector = async (id: string, nombre: string, sector: string, usuario: string, password: string, rol: string = 'Inspector', correo_recuperacion: string = ''): Promise<boolean> => {
   try {
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'add_inspector', nombre, sector, usuario, password, rol, correo_recuperacion }),
+      body: JSON.stringify({ action: 'add_inspector', id, nombre, sector, usuario, password, rol, correo_recuperacion }),
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }
     });
     const data = await res.json();
