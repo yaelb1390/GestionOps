@@ -4,7 +4,45 @@ import { useNavigate } from 'react-router-dom';
 import { fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones } from '../services/api';
 
 export default function InspectorApp() {
+  
   const [activeTab, setActiveTab] = useState('menu');
+
+  // MANEJO DE BOTON "ATRÁS" EN CELULARES
+  useEffect(() => {
+    window.history.replaceState({ tab: 'menu' }, '');
+
+    const handlePopState = (event: PopStateEvent) => {
+      // Forzar cierre de cualquier modal/formulario abierto
+      setIsFormActive(false);
+      setSelectedTicket(null);
+      setSelectedCalidadTicket(null);
+      setSelectedOrden(null);
+      setSelectedRazon(null);
+      setShowManualInput(false);
+
+      if (event.state && event.state.tab) {
+        setActiveTab(event.state.tab);
+      } else {
+        setActiveTab('menu');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleTabChange = (newTab: string) => {
+    if (newTab !== activeTab) {
+      window.history.pushState({ tab: newTab }, '');
+      setActiveTab(newTab as any);
+    }
+  };
+
+  const handleTicketOpen = (setter: Function, item: any) => {
+    window.history.pushState({ tab: activeTab, modalOpen: true }, '');
+    setter(item);
+  };
+
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,7 +213,7 @@ export default function InspectorApp() {
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             {activeTab !== 'menu' && (
-              <button onClick={() => setActiveTab('menu')} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+              <button onClick={() => handleTabChange('menu')} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                 <LayoutGrid size={16} /> Menú Principal
               </button>
             )}
@@ -211,7 +249,7 @@ export default function InspectorApp() {
           animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
         }}>
           <button 
-            onClick={() => setActiveTab('pendientes')}
+            onClick={() => handleTabChange('pendientes')}
             className="mobile-card" 
             style={{ 
               display: 'flex', 
@@ -243,7 +281,7 @@ export default function InspectorApp() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('ordenes')}
+            onClick={() => handleTabChange('ordenes')}
             className="mobile-card" 
             style={{ 
               display: 'flex', 
@@ -271,7 +309,7 @@ export default function InspectorApp() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('repetidas')}
+            onClick={() => handleTabChange('repetidas')}
             className="mobile-card" 
             style={{ 
               display: 'flex', 
@@ -351,7 +389,7 @@ export default function InspectorApp() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('mis_tickets')}
+            onClick={() => handleTabChange('mis_tickets')}
             className="mobile-card" 
             style={{ 
               display: 'flex', 
@@ -493,7 +531,7 @@ export default function InspectorApp() {
                     }
 
                     return filtered.map((t, idx) => (
-                      <div key={t.id || t.ticket || idx} className="mobile-card" style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', padding: '1.25rem', gap: '0.75rem' }} onClick={() => setSelectedTicket(t)}>
+                      <div key={t.id || t.ticket || idx} className="mobile-card" style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', padding: '1.25rem', gap: '0.75rem' }} onClick={() => handleTicketOpen(setSelectedTicket, t)}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
@@ -779,7 +817,7 @@ export default function InspectorApp() {
                     <div 
                       key={idx} 
                       className="mobile-card" 
-                      onClick={() => setSelectedRazon(r)}
+                      onClick={() => handleTicketOpen(setSelectedRazon, r)}
                       style={{ 
                         marginBottom: '1rem', 
                         padding: '1.25rem', 
@@ -892,7 +930,7 @@ export default function InspectorApp() {
                           key={idx}
                           className="mobile-card"
                           style={{ display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem', cursor: 'pointer' }}
-                          onClick={() => setSelectedOrden(o)}
+                          onClick={() => handleTicketOpen(setSelectedOrden, o)}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
