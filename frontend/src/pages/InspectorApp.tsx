@@ -158,50 +158,34 @@ export default function InspectorApp() {
   };
 
   return (
-    <div className="mobile-view">
-        <header className="header-actions" style={{ marginBottom: '1.5rem', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ 
-              width: '48px', 
-              height: '48px', 
-              borderRadius: '14px', 
-              background: 'linear-gradient(135deg, var(--primary-color), #b91c1c)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: 'white',
-              boxShadow: '0 4px 12px rgba(218, 41, 28, 0.2)'
-            }}>
-              <LayoutGrid size={24} />
-            </div>
-            <div>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Inspector Asignado</p>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>{inspectorName}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.15rem' }}>
-                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)' }}></span>
-                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>ID: {inspectorId}</span>
+    <div className="inspector-layout">
+        
+        <header className="inspector-header">
+          <div className="corp-header-info">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="corp-avatar">
+                <LayoutGrid size={20} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Inspector Claro</div>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>{inspectorName}</h2>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>ID: {inspectorId}</div>
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              onClick={handleLogout}
-              style={{ 
-                background: 'var(--glass-bg)', 
-                border: '1px solid var(--glass-border)', 
-                color: '#ef4444', 
-                padding: '0.5rem', 
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.1)'
-              }}
-            >
-              <LogOut size={20} />
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            {activeTab !== 'menu' && (
+              <button onClick={() => setActiveTab('menu')} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                <LayoutGrid size={16} /> Menú Principal
+              </button>
+            )}
+            <button onClick={handleLogout} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2' }}>
+              <LogOut size={16} /> Salir
             </button>
           </div>
         </header>
+        <main className="inspector-main">
+
 
 
       <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -961,27 +945,7 @@ export default function InspectorApp() {
         }
       `}</style>
 
-      <nav className="bottom-nav">
-        <button 
-          className={`bottom-nav-item ${activeTab === 'menu' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('menu')}
-          style={{ 
-            background: activeTab === 'menu' ? 'var(--primary-color)' : 'transparent',
-            color: activeTab === 'menu' ? 'white' : 'var(--primary-color)',
-            borderRadius: '18px',
-            padding: '0.6rem 2.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            boxShadow: activeTab === 'menu' ? '0 8px 20px rgba(218, 41, 28, 0.25)' : 'none',
-            border: 'none',
-            flex: 'none'
-          }}
-        >
-          <LayoutGrid size={24} />
-          <span style={{ fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.05em' }}>MENÚ</span>
-        </button>
-      </nav>
+      
 
       {/* Toast Notification */}
       {showToast && (
@@ -1233,7 +1197,7 @@ export default function InspectorApp() {
         }
       `}</style>
       {/* Spacer for bottom nav */}
-      <div style={{ height: '160px', width: '100%', flexShrink: 0 }}></div>
+      </main>
     </div>
   );
 }
