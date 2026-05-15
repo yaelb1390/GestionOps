@@ -633,12 +633,12 @@ export default function InspectorApp() {
                 ...tickets.filter(t => {
                   const isMine = isMyTicket(t);
                   const status = clean(t.status || getFlexVal(t, ['estado', 'status']));
-                  const isInspected = status === 'inspeccionado' || status === 'completado' || status === 'cerrado' || status === 'cerrada' || status === 'finalizado' || !!t.codigo_aplicado;
+                  const isInspected = status === 'inspeccionado' || status === 'completado' || status === 'cerrado' || status === 'cerrada' || status === 'finalizado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado'];
                   return isMine && isInspected;
                 }).map(t => ({ id: t.ticket, fecha: t.fecha || (t as any).Fecha || '-', type: 'TICKET' })),
                 ...ordenes.filter(o => {
                   const isMine = isMyTicket(o);
-                  const isInspected = !!o.codigo_aplicado;
+                  const isInspected = !!o.codigo_aplicado || !!(o as any)['Código Aplicado'] || !!(o as any)['codigo aplicado'] || !!(o as any)['codigo'] || !!(o as any)['código aplicado'];
                   return isMine && isInspected;
                 }).map(o => ({ id: o.ticket || o.orden_servicio || (o as any).TRABAJO, fecha: o.fecha || (o as any).Fecha || '-', type: 'ORDEN' }))
               ].sort((a, b) => {
@@ -656,9 +656,9 @@ export default function InspectorApp() {
                 </div>
               ))}
               {tickets.filter(t => {
-                return isMyTicket(t) && (clean(t.status || '') === 'inspeccionado' || !!t.codigo_aplicado);
+                return isMyTicket(t) && (clean(t.status || '') === 'inspeccionado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado']);
               }).length === 0 && 
-               ordenes.filter(o => isMyTicket(o) && !!o.codigo_aplicado).length === 0 && (
+               ordenes.filter(o => isMyTicket(o) && (!!o.codigo_aplicado || !!(o as any)['Código Aplicado'] || !!(o as any)['codigo aplicado'] || !!(o as any)['codigo'] || !!(o as any)['código aplicado'])).length === 0 && (
                 <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No hay inspecciones realizadas</p>
               )}
             </div>
@@ -711,7 +711,7 @@ export default function InspectorApp() {
                    const respuestaRepetido = getField(['respuesta_repetido', 'respuesta caso repetido', 'respuesta repetido']);
                    const fechaRepetido = getField(['fecha_repetido', 'fecha cierre repetido', 'fecha repetido']);
 
-                    const isCompleted = (c.status || c['Estado Inspección']) === 'Completado' || !!c.codigo_aplicado;
+                    const isCompleted = (c.status || c['Estado Inspección']) === 'Completado' || !!c.codigo_aplicado || !!(c as any)['Código Aplicado'] || !!(c as any)['codigo aplicado'] || !!(c as any)['codigo'] || !!(c as any)['código aplicado'];
 
                     return (
                       <div 
@@ -866,7 +866,7 @@ export default function InspectorApp() {
                   const idTicket = getField(['ticket', 'id', 'id ticket', 'trabajo', 'razon id']);
                   const tecnico = getField(['tech', 'tecnico', 'nombre del técnico', 'nombre', 'técnico', 'nombre técnico']);
                   const sector = getField(['sector', 'localidad', 'municipio']);
-                  const isCompleted = !!(r.codigo_aplicado || r['Código Aplicado']);
+                  const isCompleted = !!(r.codigo_aplicado || r['Código Aplicado'] || r['codigo aplicado'] || r['codigo'] || r['código aplicado']);
 
                   return (
                     <div 

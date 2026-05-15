@@ -151,6 +151,7 @@ export default function AdminDashboard() {
     if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red', 'tipo_red']);
     if (!normalized.inspector) normalized.inspector = getVal(['inspector', 'gestor asignado', 'nombre inspector', 'inspector_asignado', 'inspector_nombre']);
     if (!normalized.inspector_id) normalized.inspector_id = getVal(['inspector id', 'inspector_id', 'id inspector', 'id_inspector', 'tarjeta inspector']);
+    if (!normalized.codigo_aplicado) normalized.codigo_aplicado = getVal(['código aplicado', 'codigo_aplicado', 'codigo aplicado', 'codigo', 'código', 'estado codigo']);
     
     // Campos de Calidad / Avería Repetida
     if (type === 'calidad') {
@@ -254,7 +255,7 @@ export default function AdminDashboard() {
             <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{calidadData.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'inspecciones' ? 'active' : ''}`} onClick={() => setActiveTab('inspecciones')}>
-            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').length + ordenes.length + calidadData.length + _razones.length}</span>
+            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length + ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length + calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length + _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
             <Users size={20} /> Personal <span className="nav-badge">{inspectors.length}</span>
@@ -294,32 +295,64 @@ export default function AdminDashboard() {
         {activeTab === 'dashboard' && (
           <>
             <div className="kpi-grid">
-              <div className="glass-panel kpi-card">
-                <div className="kpi-icon blue"><FileText /></div>
-                <div className="kpi-info">
-                  <h3>Tickets Totales</h3>
-                  <p>{tickets.length}</p>
+              {/* Card 1 */}
+              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Ticket'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                <div className="kpi-icon blue" style={{ background: 'rgba(59, 130, 246, 0.1)' }}><FileText color="#3b82f6" /></div>
+                <div className="kpi-info" style={{ width: '100%' }}>
+                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Tickets Inspeccionados</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{tickets.filter(t => t.status === 'Aprobado' || t.status === 'Inspeccionado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length}</p>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {tickets.length}</span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${(tickets.filter(t => t.status === 'Aprobado' || t.status === 'Inspeccionado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length / (tickets.length || 1)) * 100}%`, height: '100%', background: '#3b82f6', transition: 'width 1s ease-out' }}></div>
+                  </div>
                 </div>
               </div>
-              <div className="glass-panel kpi-card">
-                <div className="kpi-icon amber"><AlertTriangle /></div>
-                <div className="kpi-info">
-                  <h3>Pendientes Inspección</h3>
-                  <p>{tickets.filter(t => t.status === 'Pendiente').length}</p>
+
+              {/* Card 2 */}
+              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Orden'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                <div className="kpi-icon red" style={{ background: 'rgba(239, 68, 68, 0.1)' }}><Package color="#ef4444" /></div>
+                <div className="kpi-info" style={{ width: '100%' }}>
+                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Órdenes Inspeccionadas</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length}</p>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {ordenes.length}</span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${(ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length / (ordenes.length || 1)) * 100}%`, height: '100%', background: '#ef4444', transition: 'width 1s ease-out' }}></div>
+                  </div>
                 </div>
               </div>
-              <div className="glass-panel kpi-card">
-                <div className="kpi-icon green"><CheckCircle2 /></div>
-                <div className="kpi-info">
-                  <h3>Inspeccionados</h3>
-                  <p>{tickets.filter(t => t.status === 'Aprobado' || t.status === 'Inspeccionado').length}</p>
+
+              {/* Card 3 */}
+              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Repetida'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                <div className="kpi-icon amber" style={{ background: 'rgba(245, 158, 11, 0.1)' }}><RotateCcw color="#f59e0b" /></div>
+                <div className="kpi-info" style={{ width: '100%' }}>
+                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Averías Repetidas Insp.</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length}</p>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {calidadData.length}</span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${(calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length / (calidadData.length || 1)) * 100}%`, height: '100%', background: '#f59e0b', transition: 'width 1s ease-out' }}></div>
+                  </div>
+
                 </div>
               </div>
-              <div className="glass-panel kpi-card">
-                <div className="kpi-icon red"><Activity /></div>
-                <div className="kpi-info">
-                  <h3>Requieren Corrección</h3>
-                  <p>{tickets.filter(t => t.status === 'Requiere corrección').length}</p>
+
+              {/* Card 4 */}
+              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Razon'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                <div className="kpi-icon" style={{ background: 'rgba(236, 72, 153, 0.1)' }}><AlertCircle color="#ec4899" /></div>
+                <div className="kpi-info" style={{ width: '100%' }}>
+                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Razones Inspeccionadas</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{_razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length}</p>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {_razones.length}</span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ width: `${(_razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length / (_razones.length || 1)) * 100}%`, height: '100%', background: '#ec4899', transition: 'width 1s ease-out' }}></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1384,18 +1417,18 @@ export default function AdminDashboard() {
                     const mixed: any[] = [];
                     
                     // 1. Tickets Inspeccionados
-                    tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado').forEach(t => {
-                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.fecha || t.oe_vencimiento || 'N/A', _color: '#3b82f6', _code: t.codigo_aplicado });
+                    tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
+                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.fecha || t.oe_vencimiento || 'N/A', _color: '#3b82f6', _code: t.codigo_aplicado || t['Código Aplicado'] });
                     });
                     
                     // 2. Órdenes Inspeccionadas
-                    ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado').forEach(o => {
-                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: o.fecha || (o as any).oe_vencimiento || 'N/A', _color: '#ef4444', _code: o.codigo_aplicado });
+                    ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
+                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: o.fecha || (o as any).oe_vencimiento || 'N/A', _color: '#ef4444', _code: o.codigo_aplicado || (o as any)['Código Aplicado'] });
                     });
 
                     // 3. Calidad Inspeccionada (Repetidas)
-                    calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado').forEach(c => {
-                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado });
+                    calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
+                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado || c['Código Aplicado'] });
                     });
 
                     // 4. Razones Inspeccionadas
@@ -1404,13 +1437,18 @@ export default function AdminDashboard() {
                       mixed.push({ ...r, _origin: 'Razon', _id: rId, _tech: r.tecnico || r.tech || r['Asignado A'], _sup: r.supervisor || getSupervisor(r), _sector: r.sector, _date: r.fecha || 'N/A', _color: '#ec4899', _code: r.codigo_aplicado || r['Código Aplicado'] });
                     });
 
-                    const term = inspeccionesSearch.toLowerCase();
-                    const filtered = mixed.filter(item => 
-                      String(item._id).toLowerCase().includes(term) ||
-                      String(item._tech).toLowerCase().includes(term) ||
-                      String(item._sup).toLowerCase().includes(term) ||
-                      String(item._sector).toLowerCase().includes(term)
-                    );
+                    const term = inspeccionesSearch.toLowerCase().trim();
+                    const terms = term.split(' ').filter(Boolean);
+                    const filtered = mixed.filter(item => {
+                      if (!term) return true;
+                      return terms.some(t => 
+                        String(item._id).toLowerCase().includes(t) ||
+                        String(item._tech).toLowerCase().includes(t) ||
+                        String(item._sup).toLowerCase().includes(t) ||
+                        String(item._sector).toLowerCase().includes(t) ||
+                        String(item._origin).toLowerCase().includes(t)
+                      );
+                    });
 
                     if (filtered.length === 0) return <tr><td colSpan={7} style={{textAlign: 'center', padding: '2rem'}}>No se encontraron resultados</td></tr>;
 

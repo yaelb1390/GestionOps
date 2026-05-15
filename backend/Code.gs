@@ -473,6 +473,14 @@ function doPost(e) {
         var rawHeaders = info.rawHeaders;
 
         var ticketCol = headers.indexOf("ticket");
+        
+        if (type === "ordenes") {
+          var extCol = headers.indexOf("orden_externa_id");
+          var servCol = headers.indexOf("orden_servicio");
+          if (extCol > -1) ticketCol = extCol;
+          else if (servCol > -1) ticketCol = servCol;
+        }
+
         var codigoCol = headers.indexOf("codigo_aplicado");
         var estadoCol = headers.indexOf("status");
         var fechaCol = headers.indexOf("fecha");
