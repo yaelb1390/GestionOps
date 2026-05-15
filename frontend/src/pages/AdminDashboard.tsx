@@ -238,9 +238,9 @@ export default function AdminDashboard() {
     <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', padding: '1rem 0' }}>
-          <img src="/logo-gestores.png" alt="Gestores OPS Logo" style={{ height: '55px', objectFit: 'contain', filter: 'drop-shadow(0px 3px 5px rgba(0,0,0,0.12))' }} />
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>GESTIÓN OPS DE CAMPO</span>
+        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', padding: '1.5rem 0' }}>
+          <img src="/logo-gestores.png" alt="Gestores OPS Logo" style={{ width: '85%', maxWidth: '180px', height: 'auto', objectFit: 'contain', transform: 'scale(1.2)', filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.2))' }} />
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px', marginTop: '0.2rem' }}>GESTIÓN OPS DE CAMPO</span>
         </div>
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
