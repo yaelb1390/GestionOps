@@ -78,7 +78,7 @@ export default function Login() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
           <img src="https://logodownload.org/wp-content/uploads/2014/02/claro-logo-8.png" alt="Claro Logo" style={{ height: '60px' }} />
         </div>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontWeight: 500 }}>Gestión de Averías de Fibra Óptica</p>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontWeight: 500 }}>Gestores OPS</p>
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
           <button 
