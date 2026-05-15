@@ -63,7 +63,7 @@ export default function Login() {
           localStorage.setItem('username', String(inspector.usuario));
           navigate('/inspector');
         } else {
-          setError('Credenciales incorrectas o inspector inactivo');
+          setError('Credenciales incorrectas o gestor inactivo');
         }
       } catch (err) {
         setError('Error de conexión con el servidor');
@@ -75,10 +75,10 @@ export default function Login() {
   return (
     <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)' }}>
       <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <img src="https://logodownload.org/wp-content/uploads/2014/02/claro-logo-8.png" alt="Claro Logo" style={{ height: '60px' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+          <img src="/logo-gestores.png" alt="Gestores OPS Logo" style={{ width: '100%', maxWidth: '240px', height: 'auto', objectFit: 'contain', transform: 'scale(1.2)', filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.12))' }} />
         </div>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontWeight: 500 }}>Gestores OPS</p>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2.5rem', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '1px' }}>GESTIÓN OPS DE CAMPO</p>
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
           <button 
@@ -113,7 +113,7 @@ export default function Login() {
             }}
           >
             <Activity size={24} />
-            <span>Inspector</span>
+            <span>Gestor</span>
           </button>
         </div>
 

@@ -149,7 +149,7 @@ export default function AdminDashboard() {
     if (!normalized.sector) normalized.sector = getVal(['sector', 'zona', 'barrio', 'ciudad', 'localidad']);
     if (!normalized.status) normalized.status = getVal(['estado', 'status', 'estado inspeccion', 'estado_inspeccion']);
     if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red', 'tipo_red']);
-    if (!normalized.inspector) normalized.inspector = getVal(['inspector', 'inspector asignado', 'nombre inspector', 'inspector_asignado', 'inspector_nombre']);
+    if (!normalized.inspector) normalized.inspector = getVal(['inspector', 'gestor asignado', 'nombre inspector', 'inspector_asignado', 'inspector_nombre']);
     if (!normalized.inspector_id) normalized.inspector_id = getVal(['inspector id', 'inspector_id', 'id inspector', 'id_inspector', 'tarjeta inspector']);
     
     // Campos de Calidad / Avería Repetida
@@ -238,8 +238,9 @@ export default function AdminDashboard() {
     <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-header">
-          <img src="https://logodownload.org/wp-content/uploads/2014/02/claro-logo-8.png" alt="Claro" style={{ height: '32px' }} />
+        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', padding: '1rem 0' }}>
+          <img src="/logo-gestores.png" alt="Gestores OPS Logo" style={{ height: '55px', objectFit: 'contain', filter: 'drop-shadow(0px 3px 5px rgba(0,0,0,0.12))' }} />
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>GESTIÓN OPS DE CAMPO</span>
         </div>
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
@@ -422,7 +423,7 @@ export default function AdminDashboard() {
                     <tr>
                       <th>Ticket</th>
                       <th>Técnico</th>
-                      <th>Inspector</th>
+                      <th>Gestor</th>
                       <th>Supervisor</th>
                       <th>Estado</th>
                     </tr>
@@ -507,7 +508,7 @@ export default function AdminDashboard() {
                     onChange={(e) => setBulkAssignOrdenesInspector(e.target.value)}
                     style={{ flex: 1, minWidth: '200px', height: '42px' }}
                   >
-                    <option value="">2. Seleccionar Inspector...</option>
+                    <option value="">2. Seleccionar Gestor...</option>
                     {inspectors.map(insp => (
                       <option key={insp.id} value={insp.id}>{insp.nombre}</option>
                     ))}
@@ -565,7 +566,7 @@ export default function AdminDashboard() {
                         </div>
                       </th>
                     ))}
-                    <th>Inspector Asignado</th>
+                    <th>Gestor Asignado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -619,7 +620,7 @@ export default function AdminDashboard() {
                         <td>{o.tecnologia || (o as any)['tipo red'] || '-'}</td>
                         <td>{o.sector || (o as any).ciudad || '-'}</td>
                         <td>{o.terminal || '-'}</td>
-                        {/* Inspector Asignado */}
+                        {/* Gestor Asignado */}
                         <td>
                           {(o as any).inspector ? (
                             <span className="badge info">{(o as any).inspector}</span>
@@ -672,7 +673,7 @@ export default function AdminDashboard() {
         {activeTab === 'personal' && (
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
-              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Users size={20} color="var(--primary-color)" /> Directorio de Inspectores</h3>
+              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Users size={20} color="var(--primary-color)" /> Directorio de Gestores</h3>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button className="btn-secondary" onClick={async () => {
                   const res = await autoAssignTickets();
@@ -689,7 +690,7 @@ export default function AdminDashboard() {
                   setEditingInspector(null);
                   setShowAddInspector(!showAddInspector);
                 }}>
-                  {showAddInspector && !editingInspector ? 'Cancelar' : 'Añadir Inspector'}
+                  {showAddInspector && !editingInspector ? 'Cancelar' : 'Añadir Gestor'}
                 </button>
               </div>
             </div>
@@ -718,23 +719,23 @@ export default function AdminDashboard() {
                   setEditingInspector(null);
                   loadInspectors();
                 } else {
-                  displayToast('Error al guardar inspector', 'error');
+                  displayToast('Error al guardar gestor', 'error');
                 }
               }}>
-                <h4 style={{ marginBottom: '1rem', color: 'var(--text-main)' }}>{editingInspector ? 'Editar Inspector' : 'Nuevo Inspector'}</h4>
+                <h4 style={{ marginBottom: '1rem', color: 'var(--text-main)' }}>{editingInspector ? 'Editar Gestor' : 'Nuevo Gestor'}</h4>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div className="input-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
-                    <label>ID del Inspector</label>
+                    <label>ID del Gestor</label>
                     <input type="text" name="id_inspector" className="input-control" placeholder="Ej. 12345" defaultValue={editingInspector?.id || ''} />
                   </div>
                   <div className="input-group" style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}>
-                    <label>Nombre del Inspector</label>
+                    <label>Nombre del Gestor</label>
                     <input type="text" name="nombre" required className="input-control" placeholder="Ej. Juan Perez" defaultValue={editingInspector?.nombre || ''} />
                   </div>
                   <div className="input-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
                     <label>Rol</label>
                     <select name="rol" className="input-control" defaultValue={editingInspector?.rol || 'Inspector'}>
-                      <option value="Inspector">Inspector</option>
+                      <option value="Inspector">Gestor</option>
                       <option value="Admin">Administrador</option>
                     </select>
                   </div>
@@ -768,9 +769,9 @@ export default function AdminDashboard() {
                            setShowAddInspector(false);
                            setEditingInspector(null);
                            loadInspectors();
-                           displayToast('Inspector eliminado', 'success');
+                           displayToast('Gestor eliminado', 'success');
                          } else {
-                           displayToast('Error al eliminar inspector', 'error');
+                           displayToast('Error al eliminar gestor', 'error');
                            e.currentTarget.textContent = 'Eliminar';
                          }
                        } else {
@@ -811,13 +812,13 @@ export default function AdminDashboard() {
                   {loadingInspectors ? (
                     <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : inspectors.length === 0 ? (
-                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay inspectores registrados. Haz clic en "Añadir Inspector".</td></tr>
+                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay gestores registrados. Haz clic en "Añadir Gestor".</td></tr>
                   ) : inspectors.map((insp, idx) => (
                     <tr key={idx}>
                       <td>
                         <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{insp.nombre}</div>
                       </td>
-                      <td><span className={`badge ${insp.rol === 'Admin' ? 'danger' : 'info'}`}>{insp.rol || 'Inspector'}</span></td>
+                      <td><span className={`badge ${insp.rol === 'Admin' ? 'danger' : 'info'}`}>{insp.rol === 'Inspector' ? 'Gestor' : insp.rol}</span></td>
                       <td>
                         <div>ID: {insp.id}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{insp.usuario || 'Sin usuario'}</div>
@@ -900,7 +901,7 @@ export default function AdminDashboard() {
                     onChange={(e) => setBulkAssignCalidadInspector(e.target.value)}
                     style={{ flex: 1, minWidth: '200px', height: '42px' }}
                   >
-                    <option value="">2. Seleccionar Inspector...</option>
+                    <option value="">2. Seleccionar Gestor...</option>
                     {inspectors.map(insp => (
                       <option key={insp.id} value={insp.id}>{insp.nombre}</option>
                     ))}
@@ -955,7 +956,7 @@ export default function AdminDashboard() {
                         </div>
                       </th>
                     ))}
-                    <th>Inspector Asignado</th>
+                    <th>Gestor Asignado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -1082,7 +1083,7 @@ export default function AdminDashboard() {
                                     const ticketId = row.ticket || row.IDD || row.id || row['ID TICKET'] || row['TRABAJO'];
                                     setConfirmModal({
                                       isOpen: true,
-                                      message: `¿Estás seguro de cancelar el código para el ticket ${ticketId}? Esto lo devolverá al inspector.`,
+                                      message: `¿Estás seguro de cancelar el código para el ticket ${ticketId}? Esto lo devolverá al gestor.`,
                                       onConfirm: async () => {
                                         try {
                                           const { success, message } = await cancelManualCodigo(String(ticketId), 'calidad');
@@ -1187,7 +1188,7 @@ export default function AdminDashboard() {
                     value={bulkAssignRazonesInspector}
                     onChange={(e) => setBulkAssignRazonesInspector(e.target.value)}
                   >
-                    <option value="">Elegir Inspector...</option>
+                    <option value="">Elegir Gestor...</option>
                     {inspectors.map(insp => (
                       <option key={insp.id} value={insp.id}>{insp.nombre}</option>
                     ))}
@@ -1200,7 +1201,7 @@ export default function AdminDashboard() {
                       const inspName = inspectors.find(i => i.id === bulkAssignRazonesInspector)?.nombre || bulkAssignRazonesInspector;
                       setConfirmModal({
                         isOpen: true,
-                        message: `¿Deseas asignar TODAS las razones del supervisor "${razonesSupervisorFilter}" al inspector "${inspName}"?`,
+                        message: `¿Deseas asignar TODAS las razones del supervisor "${razonesSupervisorFilter}" al gestor "${inspName}"?`,
                         onConfirm: async () => {
                           try {
                             const updatedCount = await assignRazonesBySupervisor(razonesSupervisorFilter, bulkAssignRazonesInspector, inspName);
@@ -1447,7 +1448,7 @@ export default function AdminDashboard() {
                                 onClick={() => {
                                   setConfirmModal({
                                     isOpen: true,
-                                    message: `¿Cancelar código para ${item._id}? Volverá al inspector.`,
+                                    message: `¿Cancelar código para ${item._id}? Volverá al gestor.`,
                                     onConfirm: async () => {
                                       const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : 'calidad';
                                       const { success } = await cancelManualCodigo(String(item._id), type);

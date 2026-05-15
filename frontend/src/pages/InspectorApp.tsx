@@ -190,7 +190,7 @@ export default function InspectorApp() {
 
     // Búsqueda específica en columnas conocidas
     const inspId = clean(t.inspector_id || getFlexVal(t, ['inspector_id', 'id_inspector', 'tarjeta_inspector', 'id inspector', 'tarjeta inspector']));
-    const inspName = clean(t.inspector || getFlexVal(t, ['inspector', 'nombre_inspector', 'inspector_asignado', 'inspector asignado']));
+    const inspName = clean(t.inspector || getFlexVal(t, ['inspector', 'nombre_inspector', 'inspector_asignado', 'gestor asignado']));
 
     if ((inspId !== '' && (inspId === myId || inspId === myUser)) || 
         (inspName !== '' && (inspName === myName || inspName.includes(myName) || myName.includes(inspName)))) {
@@ -260,7 +260,7 @@ export default function InspectorApp() {
                 <LayoutGrid size={20} />
               </div>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Inspector Claro</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Gestor Claro</div>
                 <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>{inspectorName}</h2>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>ID: {inspectorId}</div>
               </div>
@@ -839,7 +839,7 @@ export default function InspectorApp() {
               {(() => {
                 const filtered = (razones || []).filter(r => {
                   if (!r) return false;
-                  const inspName = String(r.inspector || getFlexVal(r, ['inspector', 'nombre inspector', 'inspector asignado']) || '').toLowerCase().trim();
+                  const inspName = String(r.inspector || getFlexVal(r, ['inspector', 'nombre inspector', 'gestor asignado']) || '').toLowerCase().trim();
                   const inspId = String(r.inspector_id || getFlexVal(r, ['inspector id', 'id inspector', 'tarjeta inspector']) || '').toLowerCase().trim();
                   const myName = inspectorName.toLowerCase().trim();
                   const myId = inspectorId.toLowerCase().trim();
