@@ -1403,7 +1403,7 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Origen</th>
-                    <th>ID / Ticket</th>
+                    <th>ORDEN / TICKET</th>
                     <th>Técnico</th>
                     <th>Supervisor</th>
                     <th>Sector</th>
