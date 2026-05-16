@@ -256,8 +256,8 @@ export default function InspectorApp() {
         <header className="inspector-header">
           <div className="corp-header-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div className="corp-avatar" style={{ overflow: 'hidden' }}>
-                <img src="/logo-gestores.png" alt="Gestor" style={{ width: '120%', height: '120%', objectFit: 'contain', transform: 'scale(1.4)' }} />
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <img src="/logo-gestores.png" alt="Gestor" style={{ height: '42px', width: 'auto', objectFit: 'contain' }} />
               </div>
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Gestor Claro</div>
