@@ -508,7 +508,8 @@ function doPost(e) {
               }
               sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
               sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Inspeccionado" : "Completado");
-              sheet.getRange(i + 1, fechaCol + 1).setValue(new Date());
+              var rdDate = Utilities.formatDate(new Date(), "GMT-4", "dd/MM/yyyy HH:mm:ss");
+              sheet.getRange(i + 1, fechaCol + 1).setValue(rdDate);
             } else {
               sheet.getRange(i + 1, codigoCol + 1).clearContent();
               sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Asignado" : "Pendiente");
