@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2,
-  Sun, Moon, Settings, RotateCcw, AlertCircle, Activity,
+  Sun, Moon, Settings, RotateCcw, AlertCircle,
   LayoutDashboard, FileText, Users, Package
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
