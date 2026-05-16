@@ -111,25 +111,26 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    let interval: any;
     if (activeTab === 'dashboard') {
-      loadTickets();
-      loadCalidad();
-      loadOrdenes();
-      loadRazones();
+      const refresh = () => {
+        loadTickets();
+        loadCalidad();
+        loadOrdenes();
+        loadRazones();
+      };
+      refresh();
+      interval = setInterval(refresh, 30000); // 30 seconds
     }
 
-    if (activeTab === 'ordenes') {
-      loadOrdenes();
-    }
-    if (activeTab === 'calidad') {
-      loadCalidad();
-    }
-    if (activeTab === 'personal') {
-      loadInspectors();
-    }
-    if (activeTab === 'razones') {
-      loadRazones();
-    }
+    if (activeTab === 'ordenes') loadOrdenes();
+    if (activeTab === 'calidad') loadCalidad();
+    if (activeTab === 'personal') loadInspectors();
+    if (activeTab === 'razones') loadRazones();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [activeTab]);
 
   const ensureKeys = (item: any, type: 'ticket' | 'orden' | 'calidad') => {
@@ -464,19 +465,46 @@ export default function AdminDashboard() {
                   <tbody>
                     {loading ? (
                       <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
-                    ) : tickets.slice(0, 5).map((t, idx) => (
-                      <tr key={t.id || t.ticket || idx}>
-                        <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>{t.ticket}</td>
-                        <td>{t.tech || t.tech_id || '-'}</td>
-                        <td>{t.inspector || t.inspector_id || 'Sin asignar'}</td>
-                        <td>{getSupervisor(t)}</td>
-                        <td>
-                          <span className={`badge ${t.status === 'Pendiente' ? 'warning' : t.status === 'Inspeccionado' ? 'success' : 'danger'}`}>
-                            {t.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    ) : (() => {
+                      const inspected: any[] = [];
+                      
+                      tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
+                        inspected.push({ ...t, _type: 'Ticket', _id: t.ticket, _gestor: t.inspector || t.inspector_id });
+                      });
+                      
+                      ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
+                        inspected.push({ ...o, _type: 'Orden', _id: o.ticket || o.orden_servicio, _gestor: o.gestor || o.inspector });
+                      });
+
+                      calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
+                        inspected.push({ ...c, _type: 'Calidad', _id: c.ticket, _gestor: c.inspector || c.inspector_id });
+                      });
+
+                      // Sort by recent (assuming newest are at the end of the lists, so we reverse or use slice)
+                      // If we have a timestamp, we should use it. For now, we take the last 5.
+                      const latest = inspected.slice(-5).reverse();
+
+                      if (latest.length === 0) return <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}>No se han realizado inspecciones aún</td></tr>;
+
+                      return latest.map((t, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 500, color: 'var(--text-main)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span>{t._id}</span>
+                              <small style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{t._type}</small>
+                            </div>
+                          </td>
+                          <td>{t.tech || t.tech_id || '-'}</td>
+                          <td>{t._gestor || 'Sin asignar'}</td>
+                          <td>{getSupervisor(t)}</td>
+                          <td>
+                            <span className="badge success">
+                              {t.codigo_aplicado || t['Código Aplicado'] || 'Completado'}
+                            </span>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
