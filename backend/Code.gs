@@ -483,14 +483,21 @@ function doPost(e) {
 
         var codigoCol = headers.indexOf("codigo_aplicado");
         var estadoCol = headers.indexOf("status");
-        var fechaCol = headers.indexOf("fecha");
+        
+        // Priorizar columna de fecha de inspección para no sobrescribir la original (vencimiento)
+        var fechaCol = headers.indexOf("fecha_inspeccion");
+        if (fechaCol === -1) fechaCol = headers.indexOf("fecha");
         
         if (ticketCol === -1) throw new Error("Columna de identificación no encontrada");
         
         var needsUpdate = false;
         if (codigoCol === -1) { rawHeaders.push("Código Aplicado"); codigoCol = rawHeaders.length - 1; needsUpdate = true; }
         if (estadoCol === -1) { rawHeaders.push("Estado Inspección"); estadoCol = rawHeaders.length - 1; needsUpdate = true; }
-        if (fechaCol === -1) { rawHeaders.push("Fecha Inspección"); fechaCol = rawHeaders.length - 1; needsUpdate = true; }
+        if (fechaCol === -1 || (type === "ordenes" && headers.indexOf("fecha_inspeccion") === -1)) { 
+          rawHeaders.push("Fecha Inspección"); 
+          fechaCol = rawHeaders.length - 1; 
+          needsUpdate = true; 
+        }
         
         if (needsUpdate) {
           sheet.getRange(info.index + 1, 1, 1, rawHeaders.length).setValues([rawHeaders]);

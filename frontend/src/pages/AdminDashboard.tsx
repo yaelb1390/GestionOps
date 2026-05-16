@@ -151,9 +151,9 @@ export default function AdminDashboard() {
     if (!normalized.status) normalized.status = getVal(['estado', 'status', 'estado inspeccion', 'estado_inspeccion']);
     if (!normalized.tecnologia) normalized.tecnologia = getVal(['tecnologia', 'tipo red', 'tipo_red']);
     if (!normalized.inspector) normalized.inspector = getVal(['inspector', 'gestor asignado', 'nombre inspector', 'inspector_asignado', 'inspector_nombre']);
-    if (!normalized.inspector_id) normalized.inspector_id = getVal(['inspector id', 'inspector_id', 'id inspector', 'id_inspector', 'tarjeta inspector']);
     if (!normalized.codigo_aplicado) normalized.codigo_aplicado = getVal(['código aplicado', 'codigo_aplicado', 'codigo aplicado', 'codigo', 'código', 'estado codigo']);
-    if (!normalized.fecha) normalized.fecha = getVal(['fecha inspección', 'fecha inspeccion', 'fecha_inspeccion', 'fecha', 'fecha_repetido', 'oe vencimiento', 'vence', 'oe_vencimiento']);
+    if (!normalized.fecha_inspeccion) normalized.fecha_inspeccion = getVal(['fecha inspección', 'fecha inspeccion', 'fecha_inspeccion']);
+    if (!normalized.fecha) normalized.fecha = getVal(['fecha', 'fecha_repetido', 'oe vencimiento', 'vence', 'oe_vencimiento']);
     
     // Campos de Calidad / Avería Repetida
     if (type === 'calidad') {
@@ -1447,17 +1447,17 @@ export default function AdminDashboard() {
                     
                     // 1. Tickets Inspeccionados
                     tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
-                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.fecha || t.oe_vencimiento || 'N/A', _color: '#3b82f6', _code: t.codigo_aplicado || t['Código Aplicado'] });
+                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.fecha_inspeccion || t.fecha || t.oe_vencimiento || 'N/A', _color: '#3b82f6', _code: t.codigo_aplicado || t['Código Aplicado'] });
                     });
                     
                     // 2. Órdenes Inspeccionadas
                     ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
-                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: o.fecha || (o as any).oe_vencimiento || 'N/A', _color: '#ef4444', _code: o.codigo_aplicado || (o as any)['Código Aplicado'] });
+                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: (o as any).fecha_inspeccion || o.fecha || (o as any).oe_vencimiento || 'N/A', _color: '#ef4444', _code: o.codigo_aplicado || (o as any)['Código Aplicado'] });
                     });
 
                     // 3. Calidad Inspeccionada (Repetidas)
                     calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
-                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado || c['Código Aplicado'] });
+                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha_inspeccion || c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado || c['Código Aplicado'] });
                     });
 
                     // 4. Razones Inspeccionadas
