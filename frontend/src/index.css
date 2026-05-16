@@ -877,3 +877,59 @@ tbody tr:hover {
 .btn-logout-mobile:active {
   transform: scale(0.95);
 }
+
+/* Panel de Asignación Masiva Responsivo */
+.bulk-assign-panel {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: rgba(218, 41, 28, 0.05);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px dashed var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.bulk-assign-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 300px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.bulk-assign-arrow {
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .bulk-assign-panel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+  
+  .bulk-assign-controls {
+    flex-direction: column;
+    min-width: 100%;
+    align-items: stretch;
+  }
+  
+  .bulk-assign-arrow {
+    display: none;
+  }
+
+  .bulk-assign-controls .input-control,
+  .bulk-assign-controls .assign-select,
+  .bulk-assign-controls button {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+}
