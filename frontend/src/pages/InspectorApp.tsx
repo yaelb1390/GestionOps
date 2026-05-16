@@ -266,14 +266,26 @@ export default function InspectorApp() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             {activeTab !== 'menu' && (
-              <button onClick={() => handleTabChange('menu')} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                <LayoutGrid size={16} /> Menú Principal
+              <button 
+                onClick={() => handleTabChange('menu')} 
+                className="btn-secondary" 
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                title="Menú Principal"
+              >
+                <LayoutGrid size={18} /> 
+                <span className="hide-mobile">Menú</span>
               </button>
             )}
-            <button onClick={handleLogout} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2' }}>
-              <LogOut size={16} /> Salir
+            <button 
+              onClick={handleLogout} 
+              className="btn-logout-mobile" 
+              title="Salir"
+              style={{ flexShrink: 0 }}
+            >
+              <LogOut size={20} />
+              <span className="hide-mobile" style={{ marginLeft: '0.5rem', fontWeight: 600 }}>Salir</span>
             </button>
           </div>
         </header>
