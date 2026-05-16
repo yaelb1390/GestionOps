@@ -257,7 +257,7 @@ export default function InspectorApp() {
           <div className="corp-header-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div className="corp-avatar">
-                <LayoutGrid size={20} />
+                <img src="/logo-gestores.png" alt="Gestor" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '2px' }} />
               </div>
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Gestor Claro</div>
