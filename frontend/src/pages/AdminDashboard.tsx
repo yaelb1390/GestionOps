@@ -1506,7 +1506,7 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }} onClick={() => {
+                            <button className="btn-secondary" style={{ padding: '0.4rem 1.2rem', fontSize: '0.75rem', height: '32px' }} onClick={() => {
                               if (item._origin === 'Ticket') setActiveTab('tickets');
                               else if (item._origin === 'Orden') setActiveTab('ordenes');
                               else setActiveTab('calidad');
@@ -1515,7 +1515,7 @@ export default function AdminDashboard() {
                             </button>
                             <button 
                               className="btn-danger" 
-                              style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+                              style={{ padding: '0.4rem 1.2rem', fontSize: '0.75rem', height: '32px' }}
                               onClick={() => {
                                 setConfirmModal({
                                   isOpen: true,
