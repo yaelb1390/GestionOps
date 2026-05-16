@@ -1505,13 +1505,36 @@ export default function AdminDashboard() {
                           </div>
                         </td>
                         <td>
-                          <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }} onClick={() => {
-                            if (item._origin === 'Ticket') setActiveTab('tickets');
-                            else if (item._origin === 'Orden') setActiveTab('ordenes');
-                            else setActiveTab('calidad');
-                          }}>
-                            Ver Detalle
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }} onClick={() => {
+                              if (item._origin === 'Ticket') setActiveTab('tickets');
+                              else if (item._origin === 'Orden') setActiveTab('ordenes');
+                              else setActiveTab('calidad');
+                            }}>
+                              Ver Detalle
+                            </button>
+                            <button 
+                              className="btn-danger" 
+                              style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  message: `¿Eliminar inspección para ${item._id}? El registro volverá a estar pendiente.`,
+                                  onConfirm: async () => {
+                                    const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : 'calidad';
+                                    const { success } = await cancelManualCodigo(String(item._id), type);
+                                    if (success) { 
+                                      displayToast('Inspección eliminada'); 
+                                      loadTickets(); loadOrdenes(); loadCalidad();
+                                    }
+                                    setConfirmModal(null);
+                                  }
+                                });
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ));
