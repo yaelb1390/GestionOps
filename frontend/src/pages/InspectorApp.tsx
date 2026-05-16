@@ -364,7 +364,7 @@ export default function InspectorApp() {
               transition: 'all 0.3s ease'
             }}
           >
-            <div style={{ background: 'linear-gradient(135deg, var(--primary-color) 0%, #b91c1c 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(218, 41, 28, 0.2)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(139, 92, 246, 0.2)' }}>
               <Package size={28} />
             </div>
             <div>
@@ -420,7 +420,7 @@ export default function InspectorApp() {
               transition: 'all 0.3s ease'
             }}
           >
-            <div style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(139, 92, 246, 0.2)' }}>
+            <div style={{ background: 'linear-gradient(135deg, var(--primary-color) 0%, #b91c1c 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(218, 41, 28, 0.2)' }}>
               <Activity size={28} />
             </div>
             <div>
