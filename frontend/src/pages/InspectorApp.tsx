@@ -571,9 +571,15 @@ export default function InspectorApp() {
                       if (!t) return false;
                       const isMine = isMyTicket(t);
                       const s = clean(t.status || getFlexVal(t, ['estado', 'status', 'estado_inspeccion', 'estado inspeccion']));
-                      const matchesSearch = !ticketsSearch || 
-                        String(t.ticket || '').toLowerCase().includes(ticketsSearch.toLowerCase()) ||
-                        String(t.cliente || '').toLowerCase().includes(ticketsSearch.toLowerCase());
+                      const matchesSearch = !ticketsSearch || [
+                        t.ticket,
+                        t.cliente,
+                        t.tech,
+                        t.tech_id,
+                        t.sector,
+                        t.barrio,
+                        getFlexVal(t, ['tecnico', 'tech', 'sector', 'barrio', 'localidad', 'cliente', 'nombre'])
+                      ].some(v => clean(v).includes(clean(ticketsSearch)));
                       
                       if (activeTab === 'pendientes') {
                         const isPending = s === 'pendiente' || s === 'asignado' || s === 'asignada' || s === 'en proceso' || s === '' || s === '-';
@@ -966,10 +972,17 @@ export default function InspectorApp() {
                       if (!o) return false;
                       const isMine = isMyTicket(o);
                       
-                      const matchesTerm = !term ||
-                        String(o.orden_servicio || o.ticket || '').toLowerCase().includes(term) ||
-                        String(o.cliente || '').toLowerCase().includes(term) ||
-                        String(o.tech || (o as any).tech_id || '').toLowerCase().includes(term);
+                      const matchesTerm = !term || [
+                        o.orden_servicio,
+                        o.orden_externa_id,
+                        o.ticket,
+                        o.cliente,
+                        o.tech,
+                        o.tech_id,
+                        o.sector,
+                        o.supervisor,
+                        o.descripcion_orden
+                      ].some(v => clean(v).includes(term));
                         
                       return isMine && matchesTerm;
                     });

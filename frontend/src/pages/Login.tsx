@@ -73,12 +73,12 @@ export default function Login() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
+    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0F172A' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem', background: '#FFFFFF', borderRadius: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', color: '#1e293b' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
           <img src="/logo-gestores.png" alt="Gestores OPS Logo" style={{ width: '100%', maxWidth: '240px', height: 'auto', objectFit: 'contain', transform: 'scale(1.2)', filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.12))' }} />
         </div>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2.5rem', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '1px' }}>GESTIÓN OPS DE CAMPO</p>
+        <p style={{ textAlign: 'center', color: '#64748b', marginBottom: '2.5rem', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '1px' }}>GESTIÓN OPS DE CAMPO</p>
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
           <button 
@@ -88,9 +88,9 @@ export default function Login() {
               flex: 1, 
               padding: '0.75rem', 
               borderRadius: '12px',
-              border: `2px solid ${role === 'admin' ? 'var(--primary-color)' : 'var(--border-color)'}`,
+              border: `2px solid ${role === 'admin' ? 'var(--primary-color)' : '#E2E8F0'}`,
               background: role === 'admin' ? 'rgba(218, 41, 28, 0.05)' : 'transparent',
-              color: role === 'admin' ? 'var(--primary-color)' : 'var(--text-muted)',
+              color: role === 'admin' ? 'var(--primary-color)' : '#64748b',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
               transition: 'all 0.2s', fontWeight: 600
             }}
@@ -105,9 +105,9 @@ export default function Login() {
               flex: 1, 
               padding: '0.75rem', 
               borderRadius: '12px',
-              border: `2px solid ${role === 'inspector' ? 'var(--primary-color)' : 'var(--border-color)'}`,
+              border: `2px solid ${role === 'inspector' ? 'var(--primary-color)' : '#E2E8F0'}`,
               background: role === 'inspector' ? 'rgba(218, 41, 28, 0.05)' : 'transparent',
-              color: role === 'inspector' ? 'var(--primary-color)' : 'var(--text-muted)',
+              color: role === 'inspector' ? 'var(--primary-color)' : '#64748b',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
               transition: 'all 0.2s', fontWeight: 600
             }}
@@ -121,12 +121,12 @@ export default function Login() {
 
         <form onSubmit={handleLogin}>
           <div className="input-group">
-            <label>Usuario</label>
-            <input type="text" className="input-control" placeholder="Ingrese su usuario" value={username} onChange={(e) => setUsername(e.target.value)} required />
+            <label style={{ color: '#475569' }}>Usuario</label>
+            <input type="text" className="input-control" placeholder="Ingrese su usuario" value={username} onChange={(e) => setUsername(e.target.value)} required style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#0F172A' }} />
           </div>
           <div className="input-group">
-            <label>Contraseña</label>
-            <input type="password" className="input-control" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <label style={{ color: '#475569' }}>Contraseña</label>
+            <input type="password" className="input-control" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#0F172A' }} />
           </div>
           <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', padding: '1rem', fontSize: '1rem' }} disabled={loading}>
             {loading ? <Loader2 className="spinner" size={20} /> : 'Ingresar al Sistema'}

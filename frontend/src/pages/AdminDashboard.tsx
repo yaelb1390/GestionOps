@@ -165,17 +165,21 @@ export default function AdminDashboard() {
     }
     
     if (type === 'orden') {
-       if (!normalized.orden_servicio) normalized.orden_servicio = getVal(['orden servicio', 'os', 'id orden', 'orden_servicio', 'orden_externa_id']);
-       if (!normalized.descripcion_orden) normalized.descripcion_orden = getVal(['descripcion_orden', 'orden externa', 'order externa', 'descripcion', 'tipo servicio', 'tipo_servicio']);
+       // El ID real suele estar en 'orden_externa_id' o 'orden_servicio'
+       const realId = getVal(['orden_externa_id', 'orden externa', 'orden_servicio', 'orden servicio', 'os', 'id orden']);
+       
+       if (realId) {
+         normalized.orden_servicio = realId;
+         // Si 'ticket' (columna Trabajo) es una descripción larga, lo movemos y usamos realId
+         if (normalized.ticket && String(normalized.ticket).length > 15) {
+           if (!normalized.descripcion_orden) normalized.descripcion_orden = normalized.ticket;
+           normalized.ticket = realId;
+         }
+       }
+
+       if (!normalized.descripcion_orden) normalized.descripcion_orden = getVal(['descripcion_orden', 'descripcion', 'tipo servicio', 'tipo_servicio', 'tipo trabajo']);
        if (!normalized.cliente) normalized.cliente = getVal(['cliente', 'subscriber']);
        if (!normalized.fecha) normalized.fecha = getVal(['fecha', 'oe vencimiento', 'vence', 'oe_vencimiento']);
-       
-       // Si el campo 'ticket' (columna Trabajo) contiene una descripción larga,
-       // y tenemos un ID numérico en 'orden_externa_id', los reajustamos.
-       if (normalized.ticket && String(normalized.ticket).length > 15 && normalized.orden_externa_id) {
-          normalized.descripcion_orden = normalized.ticket;
-          normalized.ticket = normalized.orden_externa_id;
-       }
     }
 
     return normalized;
@@ -631,7 +635,7 @@ export default function AdminDashboard() {
                   ) : ordenes.filter(o => {
                     const term = ordenesSearch.toLowerCase();
                     const matchesGlobal = !term || [
-                      o.orden_servicio, o.cliente, o.supervisor, o.tech, o.ticket
+                      o.orden_servicio, o.orden_externa_id, o.cliente, o.supervisor, o.tech, o.tech_id, o.ticket, o.sector, o.descripcion_orden
                     ].some(v => String(v || '').toLowerCase().includes(term));
                     
                     const matchesSupervisor = ordenesSupervisorFilter === '' || 
@@ -1017,12 +1021,16 @@ export default function AdminDashboard() {
                       const tech = String(c.tech || c['Asignado A'] || '').trim();
                       
                       // Sin término de búsqueda → mostrar todo (solo filtrar supervisor si está activo)
-                      const matchesSearch = !term || 
-                        tech.toLowerCase().includes(term) ||
-                        String(c.ticket || '').toLowerCase().includes(term) ||
-                        String(c.tech_id || '').toLowerCase().includes(term) ||
-                        String(c.sector || '').toLowerCase().includes(term) ||
-                        String(c.status || '').toLowerCase().includes(term);
+                      const matchesSearch = !term || [
+                        tech,
+                        c.ticket,
+                        c.tech_id,
+                        c.sector,
+                        c.status,
+                        sup,
+                        c.cliente,
+                        c.work_name
+                      ].some(v => String(v || '').toLowerCase().includes(term));
 
                       const matchesSupervisor = calidadSupervisorFilter === '' || sup === calidadSupervisorFilter;
 
@@ -1312,10 +1320,14 @@ export default function AdminDashboard() {
                   ) : _razones
                     .filter(row => {
                       const term = razonesSearch.toLowerCase();
-                      const ticketId = String(row.ticket || row.id || row['ID TICKET'] || row['TRABAJO']).toLowerCase();
-                      const tech = String(row.tecnico || row.tech || row['Asignado A']).toLowerCase();
-                      const reason = String(row.motivo || row.razon || row['Motivo']).toLowerCase();
-                      return ticketId.includes(term) || tech.includes(term) || reason.includes(term);
+                      const matchesSearch = !term || [
+                        row.ticket, row.id, row['ID TICKET'], row['TRABAJO'],
+                        row.tecnico, row.tech, row['Asignado A'],
+                        row.motivo, row.razon, row['Motivo'],
+                        row.supervisor, row['Nombre del Supervisor'],
+                        row.sector, row['Localidad']
+                      ].some(v => String(v || '').toLowerCase().includes(term));
+                      return matchesSearch;
                     })
                     .map((row, idx) => {
                       const ticketId = row.ticket || row.id || row['ID TICKET'] || row['TRABAJO'];
