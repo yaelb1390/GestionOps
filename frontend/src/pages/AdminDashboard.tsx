@@ -153,6 +153,7 @@ export default function AdminDashboard() {
     if (!normalized.inspector) normalized.inspector = getVal(['inspector', 'gestor asignado', 'nombre inspector', 'inspector_asignado', 'inspector_nombre']);
     if (!normalized.inspector_id) normalized.inspector_id = getVal(['inspector id', 'inspector_id', 'id inspector', 'id_inspector', 'tarjeta inspector']);
     if (!normalized.codigo_aplicado) normalized.codigo_aplicado = getVal(['código aplicado', 'codigo_aplicado', 'codigo aplicado', 'codigo', 'código', 'estado codigo']);
+    if (!normalized.fecha) normalized.fecha = getVal(['fecha inspección', 'fecha inspeccion', 'fecha_inspeccion', 'fecha', 'fecha_repetido', 'oe vencimiento', 'vence', 'oe_vencimiento']);
     
     // Campos de Calidad / Avería Repetida
     if (type === 'calidad') {
