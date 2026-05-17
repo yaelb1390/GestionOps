@@ -78,6 +78,7 @@ function normalizeHeader(h) {
   
   // Otros
   if (low === "codigo aplicado" || low === "codigo_aplicado" || low === "manual_code" || low === "codigo_razon") return "codigo_aplicado";
+  if (low === "fecha inspeccion" || low === "fecha_inspeccion" || low === "fecha inspecci\u00f3n" || low === "fecha_inspecci\u00f3n" || low === "fecha registro" || low === "fecha_registro") return "fecha_inspeccion";
 
   // Si no coincide con nada, devolver snake_case minúscula
   return low.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');

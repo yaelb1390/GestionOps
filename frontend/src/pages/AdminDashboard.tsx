@@ -578,6 +578,7 @@ export default function AdminDashboard() {
                       <th>Gestor</th>
                       <th>Supervisor</th>
                       <th>Estado</th>
+                      <th>Fecha Registro</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -587,22 +588,22 @@ export default function AdminDashboard() {
                       const inspected: any[] = [];
                       
                       tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
-                        inspected.push({ ...t, _type: 'Ticket', _id: t.ticket, _gestor: t.inspector || t.inspector_id });
+                        inspected.push({ ...t, _type: 'Ticket', _id: t.ticket, _gestor: t.inspector || t.inspector_id, _fecha: t.fecha_inspeccion || t['fecha_inspeccion'] || t['Fecha Inspección'] || '' });
                       });
                       
                       ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
-                        inspected.push({ ...o, _type: 'Orden', _id: o.ticket || o.orden_servicio, _gestor: o.gestor || o.inspector });
+                        inspected.push({ ...o, _type: 'Orden', _id: o.ticket || o.orden_servicio, _gestor: o.gestor || o.inspector, _fecha: (o as any).fecha_inspeccion || (o as any)['Fecha Inspección'] || '' });
                       });
 
                       calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
-                        inspected.push({ ...c, _type: 'Calidad', _id: c.ticket, _gestor: c.inspector || c.inspector_id });
+                        inspected.push({ ...c, _type: 'Calidad', _id: c.ticket, _gestor: c.inspector || c.inspector_id, _fecha: c.fecha_inspeccion || c['fecha_inspeccion'] || c['Fecha Inspección'] || '' });
                       });
 
                       // Sort by recent (assuming newest are at the end of the lists, so we reverse or use slice)
                       // If we have a timestamp, we should use it. For now, we take the last 5.
                       const latest = inspected.slice(-5).reverse();
 
-                      if (latest.length === 0) return <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}>No se han realizado inspecciones aún</td></tr>;
+                      if (latest.length === 0) return <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}>No se han realizado inspecciones aún</td></tr>;
 
                       return latest.map((t, idx) => (
                         <tr key={idx}>
@@ -619,6 +620,20 @@ export default function AdminDashboard() {
                             <span className="badge success">
                               {t.codigo_aplicado || t['Código Aplicado'] || 'Completado'}
                             </span>
+                          </td>
+                          <td>
+                            {t._fecha ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                                  {String(t._fecha).split(' ')[0]}
+                                </span>
+                                <small style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                  {String(t._fecha).split(' ')[1] || ''}
+                                </small>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
+                            )}
                           </td>
                         </tr>
                       ));
