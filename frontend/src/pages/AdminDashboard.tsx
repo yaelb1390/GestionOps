@@ -122,30 +122,38 @@ export default function AdminDashboard() {
     localStorage.setItem('theme', newTheme);
   };
 
-  // Convierte cualquier fecha (ISO o texto "dd/MM/yyyy HH:mm:ss") a formato "dd-MM-yyyy H:mm" en hora RD (GMT-4)
+  // Convierte cualquier fecha a formato "dd-MM-yyyy H:mm" en hora RD (GMT-4)
   const formatRDDate = (raw: any): string => {
-    if (!raw || raw === 'N/A') return '—';
-    const s = String(raw);
-    // Formato ISO: 2026-05-17T01:30:32.000Z
+    if (!raw || raw === 'N/A' || String(raw).trim() === '') return '—';
+    const s = String(raw).trim();
+    const toRDParts = (d: Date) => {
+      const opts: Intl.DateTimeFormatOptions = {
+        timeZone: 'America/Santo_Domingo',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      };
+      const parts = new Intl.DateTimeFormat('es-DO', opts).formatToParts(d);
+      const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+      return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`;
+    };
+    // 1. Formato ISO: 2026-05-17T01:30:32.000Z
     if (s.includes('T') && (s.includes('Z') || s.includes('+'))) {
-      try {
-        const d = new Date(s);
-        const opts: Intl.DateTimeFormatOptions = {
-          timeZone: 'America/Santo_Domingo',
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit', hour12: false
-        };
-        const parts = new Intl.DateTimeFormat('es-DO', opts).formatToParts(d);
-        const get = (type: string) => parts.find(p => p.type === type)?.value || '';
-        return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`;
-      } catch { return s; }
+      try { return toRDParts(new Date(s)); } catch { /* continuar */ }
     }
-    // Formato texto "dd/MM/yyyy HH:mm:ss"
-    const sp = s.split(' ');
-    const datePart = (sp[0] || '').replace(/\//g, '-');
-    const timePart = (sp[1] || '').split(':').slice(0, 2).join(':');
-    const result = `${datePart} ${timePart}`.trim();
-    return result || s;
+    // 2. Formato texto "dd/MM/yyyy HH:mm:ss" → convertir slashes y recortar segundos
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+      const sp = s.split(' ');
+      const datePart = (sp[0] || '').replace(/\//g, '-');
+      const timePart = (sp[1] || '').split(':').slice(0, 2).join(':');
+      return `${datePart} ${timePart}`.trim();
+    }
+    // 3. Cualquier otro formato ("Apr 24, 2026", "May 16 2026", etc.) → dejar que JS parsee
+    try {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return toRDParts(d);
+    } catch { /* continuar */ }
+    // 4. Fallback: mostrar tal cual si no se pudo parsear
+    return s;
   };
 
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
@@ -1408,6 +1416,7 @@ export default function AdminDashboard() {
                     <th>Sector</th>
                     <th>Motivo / Razón</th>
                     <th>Estado</th>
+                    <th>Fecha Registro</th>
                     <th>Asignación</th>
                   </tr>
                 </thead>
@@ -1419,11 +1428,11 @@ export default function AdminDashboard() {
                       const isAssigned = !!(row.inspector || row['Inspector']);
                       return (
                         <tr key={idx}>
-                          <td style={{ fontWeight: 700, color: 'var(--primary-color)' }}>{ticketId}</td>
-                          <td>{row.supervisor || row['Nombre del Supervisor']}</td>
-                          <td>{row.tecnico || row.tech || row['Asignado A']}</td>
-                          <td>{row.sector || row['Localidad']}</td>
-                          <td>{row.motivo || row.razon || row['Motivo']}</td>
+                          <td>{ticketId}</td>
+                          <td>{row.supervisor || row['Nombre del Supervisor'] || '-'}</td>
+                          <td>{row.tecnico || row.tech || row['Asignado A'] || '-'}</td>
+                          <td>{row.sector || row['Localidad'] || '-'}</td>
+                          <td>{row.motivo || row.razon || row['Motivo'] || '-'}</td>
                           <td>
                             {row.codigo_aplicado || row['Código Aplicado'] ? (
                               <span className="badge success">Finalizado: {row.codigo_aplicado || row['Código Aplicado']}</span>
@@ -1433,6 +1442,7 @@ export default function AdminDashboard() {
                               <span className="badge danger">Sin Asignar</span>
                             )}
                           </td>
+                          <td>{formatRDDate(row.fecha_inspeccion || row['Fecha Inspección'] || row.fecha || row['Fecha'] || '')}</td>
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                               <select 
