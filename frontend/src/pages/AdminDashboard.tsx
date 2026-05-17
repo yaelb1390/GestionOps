@@ -761,8 +761,7 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     {[
-                      'Trabajo', 'Orden Externa', 'Cliente', 'OE Vencimiento', 'Prioridad', 
-                      'Asignado A', 'Supervisor', 'Estado', 'Tecnología', 'Sector', 'Terminal'
+                      'Trabajo', 'Cliente', 'Asignado A', 'Supervisor', 'Tecnología', 'Sector', 'Terminal'
                     ].map(header => (
                       <th key={header}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -786,36 +785,17 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {loadingOrdenes ? (
-                    <tr><td colSpan={13} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : ordenes.length === 0 ? (
-                    <tr><td colSpan={13} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
+                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
                   ) : currentPaginatedOrdenes.map((o, idx) => {
                     const ordenId = o.orden_servicio || o.ticket;
                     return (
                       <tr key={idx}>
                         <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{o.ticket || (o as any).trabajo || '-'}</td>
-                        <td style={{ fontSize: '0.8rem' }}>{o.descripcion_orden || (o as any)['orden externa'] || '-'}</td>
                         <td style={{ fontSize: '0.8rem' }}>{o.cliente || '-'}</td>
-                        <td>{o.fecha || (o as any)['oe vencimiento'] || '-'}</td>
-                        <td>
-                          <span style={{ 
-                            padding: '0.2rem 0.5rem', 
-                            borderRadius: '4px', 
-                            fontSize: '0.7rem', 
-                            fontWeight: 600,
-                            background: String(o.priority || (o as any).prioridad).toLowerCase().includes('alta') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                            color: String(o.priority || (o as any).prioridad).toLowerCase().includes('alta') ? '#ef4444' : '#3b82f6'
-                          }}>
-                            {o.priority || (o as any).prioridad || '-'}
-                          </span>
-                        </td>
                         <td>{o.tech || (o as any).tech_name || '-'}</td>
                         <td>{o.supervisor || '-'}</td>
-                        <td>
-                          <span className={`badge ${o.status === 'Completado' || o.status === 'Inspeccionado' ? 'success' : o.status === 'Pendiente' ? 'warning' : 'info'}`}>
-                            {o.status || 'Pendiente'}
-                          </span>
-                        </td>
                         <td>{o.tecnologia || (o as any)['tipo red'] || '-'}</td>
                         <td>{o.sector || (o as any).ciudad || '-'}</td>
                         <td>{o.terminal || '-'}</td>
