@@ -81,6 +81,7 @@ export default function AdminDashboard() {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
         <button 
+          type="button"
           onClick={() => onPageChange(currentPage - 1)} 
           disabled={currentPage === 1}
           className="btn-secondary"
@@ -92,6 +93,7 @@ export default function AdminDashboard() {
         {pages.map(p => (
           <button
             key={p}
+            type="button"
             onClick={() => onPageChange(p)}
             className={currentPage === p ? "btn-primary" : "btn-secondary"}
             style={{ padding: '0.4rem 0.8rem', minWidth: '36px' }}
@@ -101,6 +103,7 @@ export default function AdminDashboard() {
         ))}
         {endPage < totalPages && <span style={{ color: 'var(--text-muted)' }}>...</span>}
         <button 
+          type="button"
           onClick={() => onPageChange(currentPage + 1)} 
           disabled={currentPage === totalPages}
           className="btn-secondary"
