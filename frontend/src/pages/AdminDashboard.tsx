@@ -623,10 +623,23 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             {t._fecha ? (() => {
-                              const raw = String(t._fecha); // "dd/MM/yyyy HH:mm:ss"
-                              const parts = raw.split(' ');
-                              const datePart = (parts[0] || '').replace(/\//g, '-');
-                              const timePart = (parts[1] || '').split(':').slice(0, 2).join(':');
+                              const raw = String(t._fecha);
+                              // Si es ISO (ej: "2026-05-17T01:30:32.000Z"), convertir a GMT-4
+                              if (raw.includes('T') && raw.includes('Z')) {
+                                const d = new Date(raw);
+                                const rdOpts: Intl.DateTimeFormatOptions = {
+                                  timeZone: 'America/Santo_Domingo',
+                                  day: '2-digit', month: '2-digit', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', hour12: false
+                                };
+                                const parts = new Intl.DateTimeFormat('es-DO', rdOpts).formatToParts(d);
+                                const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+                                return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`;
+                              }
+                              // Si ya viene formateado "dd/MM/yyyy HH:mm:ss"
+                              const sp = raw.split(' ');
+                              const datePart = (sp[0] || '').replace(/\//g, '-');
+                              const timePart = (sp[1] || '').split(':').slice(0, 2).join(':');
                               return `${datePart} ${timePart}`.trim();
                             })() : '—'}
                           </td>
