@@ -36,7 +36,8 @@ function normalizeHeader(h) {
   
   // Datos del Cliente y Reporte
   if (low === "cliente" || low === "nombre cliente" || low === "nombre_cliente" || low === "subscriber") return "cliente";
-  if (low === "fecha" || low === "fecha reporte" || low === "fecha_creacion" || low === "vence" || low === "oe vencimiento" || low === "oe_vencimiento") return "fecha";
+  if (low === "fecha" || low === "fecha reporte" || low === "fecha_creacion") return "fecha";
+  if (low === "vence" || low === "oe vencimiento" || low === "oe_vencimiento" || low === "oe vence" || low === "oe_vence") return "oe_vence";
   
   // Tecnología de red
   if (low === "tecnologia" || low === "tipo red" || low === "tipo_red" || low === "red" || low === "servicio" || low === "tipo servicio") return "tecnologia";
@@ -255,15 +256,40 @@ function doGet(e) {
         cellVal = Utilities.formatDate(cellVal, "GMT-4", "dd/MM/yyyy HH:mm");
       }
 
-      // La columna "TRABAJO" tiene prioridad absoluta para la clave "ticket"
+      // Smart ticket/work mapping: Prioritize actual numeric or ticket IDs over descriptive text.
       var rawH = normalizeString(headers[j]);
-      if (rawH === 'trabajo') {
-        ticketValue = cellVal;
-        obj['ticket'] = cellVal;
-      } else if (key === 'ticket') {
-        if (ticketValue === null) obj['ticket'] = cellVal;
+      if (rawH === 'ticket' || rawH === 'nro_ticket' || rawH === 'id_ticket' || rawH === 'id') {
+        if (cellVal && String(cellVal).trim() !== "") {
+          obj['ticket'] = cellVal;
+          ticketValue = cellVal;
+        }
+      } else if (rawH === 'trabajo') {
+        var cellStr = String(cellVal).trim();
+        var isDescription = cellStr.toLowerCase().indexOf("reparacion") > -1 || 
+                            cellStr.toLowerCase().indexOf("instalacion") > -1 || 
+                            cellStr.toLowerCase().indexOf("averia") > -1 || 
+                            cellStr.toLowerCase().indexOf("proactiva") > -1 || 
+                            cellStr.toLowerCase().indexOf("internet") > -1 || 
+                            cellStr.toLowerCase().indexOf("voip") > -1 || 
+                            cellStr.toLowerCase().indexOf("cobre") > -1;
+        
+        if (!isDescription) {
+          if (!obj['ticket'] || obj['ticket'] === "") {
+            obj['ticket'] = cellVal;
+            ticketValue = cellVal;
+          }
+        } else {
+          obj['descripcion_orden'] = cellVal;
+        }
       } else {
-        obj[key] = cellVal;
+        if (key === 'ticket') {
+          if (!obj['ticket'] || obj['ticket'] === "") {
+            obj['ticket'] = cellVal;
+            ticketValue = cellVal;
+          }
+        } else {
+          obj[key] = cellVal;
+        }
       }
     }
     results.push(obj);

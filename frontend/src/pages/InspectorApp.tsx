@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink, AlertCircle, Activity } from 'lucide-react';
+import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink, AlertCircle, Activity, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones } from '../services/api';
 
@@ -192,12 +192,13 @@ export default function InspectorApp() {
     const inspId = clean(t.inspector_id || getFlexVal(t, ['inspector_id', 'id_inspector', 'tarjeta_inspector', 'id inspector', 'tarjeta inspector']));
     const inspName = clean(t.inspector || getFlexVal(t, ['inspector', 'nombre_inspector', 'inspector_asignado', 'gestor asignado']));
 
-    if ((inspId !== '' && (inspId === myId || inspId === myUser)) || 
-        (inspName !== '' && (inspName === myName || inspName.includes(myName) || myName.includes(inspName)))) {
-      return true;
+    // Si existen las columnas del inspector y no están vacías, usamos solo esa coincidencia estricta
+    if (inspId !== '' || inspName !== '') {
+      return (inspId !== '' && (inspId === myId || inspId === myUser)) || 
+             (inspName !== '' && (inspName === myName || inspName.includes(myName) || myName.includes(inspName)));
     }
 
-    // Búsqueda de "último recurso": Escanear TODOS los valores del objeto
+    // Búsqueda de "último recurso" SOLO si las columnas específicas no existen/están vacías
     const allValues = Object.values(t).map(v => clean(v));
     return allValues.includes(myId) || 
            allValues.includes(myUser) || 
@@ -647,38 +648,154 @@ export default function InspectorApp() {
               animation: 'fadeInUp 0.3s ease',
               gridColumn: '1 / -1' 
             }}>
-              {[
-                ...tickets.filter(t => {
+              {(() => {
+                const completedTickets = tickets.filter(t => {
                   const isMine = isMyTicket(t);
                   const status = clean(t.status || getFlexVal(t, ['estado', 'status']));
-                  const isInspected = status === 'inspeccionado' || status === 'completado' || status === 'cerrado' || status === 'cerrada' || status === 'finalizado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado'];
+                  // Strict check: Only display if explicitly 'inspeccionado' OR has code applied!
+                  const isInspected = status === 'inspeccionado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado'];
                   return isMine && isInspected;
-                }).map(t => ({ id: t.ticket, fecha: t.fecha || (t as any).Fecha || '-', type: 'TICKET' })),
-                ...ordenes.filter(o => {
+                }).map(t => ({ 
+                  id: t.ticket, 
+                  desc: t.descripcion_orden || getFlexVal(t, ['descripcion_orden', 'descripcion', 'tipo_trabajo', 'trabajo']),
+                  fecha: t.fecha || (t as any).Fecha || '-', 
+                  type: 'TICKET' 
+                }));
+
+                const completedOrdenes = ordenes.filter(o => {
                   const isMine = isMyTicket(o);
                   const isInspected = !!o.codigo_aplicado || !!(o as any)['Código Aplicado'] || !!(o as any)['codigo aplicado'] || !!(o as any)['codigo'] || !!(o as any)['código aplicado'];
                   return isMine && isInspected;
-                }).map(o => ({ id: o.ticket || o.orden_servicio || (o as any).TRABAJO, fecha: o.fecha || (o as any).Fecha || '-', type: 'ORDEN' }))
-              ].sort((a, b) => {
-                if (a.fecha === '-' || b.fecha === '-') return 0;
-                return b.fecha.localeCompare(a.fecha);
-              }).map((item, idx) => (
-                <div key={idx} className="mobile-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', borderRadius: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 800 }}>
-                      {item.type === 'TICKET' ? 'TRABAJO' : 'ORDEN EXTERNA'}
+                }).map(o => ({ 
+                  id: o.orden_servicio || o.orden_externa_id || o.ticket || (o as any).TRABAJO || '-', 
+                  desc: o.descripcion_orden || getFlexVal(o, ['descripcion_orden', 'descripcion', 'tipo_trabajo', 'trabajo']),
+                  fecha: o.fecha || (o as any).Fecha || '-', 
+                  type: 'ORDEN' 
+                }));
+
+                const completedCalidad = (calidadAssignments || []).filter(c => {
+                  const isMine = isMyTicket(c);
+                  const isInspected = (c.status || c['Estado Inspección']) === 'Completado' || !!c.codigo_aplicado || !!(c as any)['Código Aplicado'] || !!(c as any)['codigo aplicado'] || !!(c as any)['codigo'] || !!(c as any)['código aplicado'];
+                  return isMine && isInspected;
+                }).map(c => {
+                  const fVal = c.fecha_inspeccion || c.fecha || c.fecha_repetido || (c as any)['FECHA CIERRE REPETIDO'] || (c as any).Fecha || '-';
+                  return { 
+                    id: c.ticket || c['CASO ACTUAL'] || c['TRABAJO'] || '-', 
+                    desc: c.work_name || getFlexVal(c, ['work_name', 'descripcion', 'trabajo']),
+                    fecha: fVal, 
+                    type: 'REPETIDA' 
+                  };
+                });
+
+                const completedRazones = (razones || []).filter(r => {
+                  const isMine = isMyTicket(r);
+                  const isInspected = !!(r.codigo_aplicado || r['Código Aplicado'] || r['codigo aplicado'] || r['codigo'] || r['código aplicado']);
+                  return isMine && isInspected;
+                }).map(r => ({ 
+                  id: r.ticket || r.id || r['TRABAJO'] || '-', 
+                  desc: r.descripcion || getFlexVal(r, ['descripcion', 'trabajo']),
+                  fecha: r.fecha_inspeccion || r.fecha || (r as any).Fecha || '-', 
+                  type: 'RAZON' 
+                }));
+
+                const allCompleted = [...completedTickets, ...completedOrdenes, ...completedCalidad, ...completedRazones].sort((a, b) => {
+                  if (a.fecha === '-' || b.fecha === '-') return 0;
+                  return b.fecha.localeCompare(a.fecha);
+                });
+
+                if (allCompleted.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem', gridColumn: '1 / -1' }}>
+                      No hay inspecciones realizadas
                     </div>
-                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.05rem' }}>{item.id}</div>
-                  </div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>{item.fecha}</div>
-                </div>
-              ))}
-              {tickets.filter(t => {
-                return isMyTicket(t) && (clean(t.status || '') === 'inspeccionado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado']);
-              }).length === 0 && 
-               ordenes.filter(o => isMyTicket(o) && (!!o.codigo_aplicado || !!(o as any)['Código Aplicado'] || !!(o as any)['codigo aplicado'] || !!(o as any)['codigo'] || !!(o as any)['código aplicado'])).length === 0 && (
-                <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No hay inspecciones realizadas</p>
-              )}
+                  );
+                }
+
+                const formatDisplayDate = (dateStr: string) => {
+                  if (!dateStr || dateStr === '-') return '-';
+                  let cleanStr = dateStr;
+                  if (cleanStr.includes('@')) {
+                    cleanStr = cleanStr.replace(/\.\d+/, ''); // Remove milliseconds
+                    cleanStr = cleanStr.replace('@', 'a las'); // Readable separator
+                  }
+                  return cleanStr;
+                };
+
+                return allCompleted.map((item, idx) => {
+                  const showDesc = item.desc && item.desc !== item.id && String(item.desc).trim() !== '-';
+                  return (
+                    <div key={idx} className="mobile-card" style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '0.65rem', 
+                      padding: '1.25rem', 
+                      borderRadius: '16px',
+                      borderLeft: item.type === 'TICKET' ? '4px solid var(--primary-color)' : 
+                                  item.type === 'ORDEN' ? '4px solid #3b82f6' : 
+                                  item.type === 'REPETIDA' ? '4px solid #f59e0b' : '4px solid #ec4899',
+                      background: 'var(--surface-color)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                      transition: 'all 0.2s ease',
+                      animation: 'fadeInUp 0.3s ease'
+                    }}>
+                      {/* Top Row: Tag & Date */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ 
+                          background: item.type === 'TICKET' ? 'rgba(218, 41, 28, 0.1)' : 
+                                      item.type === 'ORDEN' ? 'rgba(59, 130, 246, 0.1)' : 
+                                      item.type === 'REPETIDA' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(236, 72, 153, 0.1)', 
+                          color: item.type === 'TICKET' ? 'var(--primary-color)' : 
+                                 item.type === 'ORDEN' ? '#3b82f6' : 
+                                 item.type === 'REPETIDA' ? '#f59e0b' : '#ec4899', 
+                          padding: '0.25rem 0.6rem', 
+                          borderRadius: '6px', 
+                          fontSize: '0.65rem', 
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>
+                          {item.type === 'TICKET' ? 'TRABAJO' : 
+                           item.type === 'ORDEN' ? 'ORDEN EXTERNA' : 
+                           item.type === 'REPETIDA' ? 'AVERÍA REPETIDA' : 'RAZÓN CLIENTE'}
+                        </div>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.35rem',
+                          color: 'var(--text-muted)', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 500 
+                        }}>
+                          <Calendar size={13} style={{ opacity: 0.7 }} />
+                          <span>{formatDisplayDate(item.fecha)}</span>
+                        </div>
+                      </div>
+
+                      {/* Middle Row: ID */}
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginTop: '0.15rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>ID:</span>
+                        <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.25rem', letterSpacing: '-0.01em' }}>{item.id}</span>
+                      </div>
+
+                      {/* Bottom Row: Description */}
+                      {showDesc && (
+                        <div style={{ 
+                          color: 'var(--text-muted)', 
+                          fontSize: '0.9rem', 
+                          fontWeight: 500, 
+                          background: 'rgba(0,0,0,0.015)',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '8px',
+                          borderLeft: '2.5px solid var(--border-color)',
+                          marginTop: '0.15rem'
+                        }}>
+                          {item.desc}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
 
@@ -814,7 +931,7 @@ export default function InspectorApp() {
                             <div style={{ background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>CASO ANTERIOR</span>
-                                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)' }}>{casoRepetido}</span>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444' }}>{casoRepetido}</span>
                               </div>
                               
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -1027,7 +1144,16 @@ export default function InspectorApp() {
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Técnico:</span>
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>{o.tech || (o as any).tech_id || '-'}</span>
                               </div>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.fecha || (o as any).oe_vencimiento}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600 }}>Fecha:</span>
+                                <span style={{ 
+                                  fontSize: '0.75rem', 
+                                  fontWeight: 700, 
+                                  color: String(o.oe_vence || o.fecha || (o as any).oe_vencimiento).toLowerCase().includes('vencid') ? '#ef4444' : 'var(--text-muted)' 
+                                }}>
+                                  {o.oe_vence || o.fecha || (o as any).oe_vencimiento || '-'}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1123,6 +1249,44 @@ export default function InspectorApp() {
                   </div>
                 </div>
               </div>
+
+              {/* Historial de Incidencia / Caso Anterior */}
+              {(selectedCalidadTicket.caso_repetido || selectedCalidadTicket['CASO REPETIDO'] || selectedCalidadTicket['TRABAJO REPETIDO']) && (selectedCalidadTicket.caso_repetido !== '-' && selectedCalidadTicket['CASO REPETIDO'] !== '-') && (
+                <div style={{ marginTop: '0.5rem', borderTop: '1.5px solid var(--border-color)', paddingTop: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <RotateCcw size={16} color="var(--primary-color)" />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary-color)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Historial de Incidencia</span>
+                  </div>
+                  
+                  <div style={{ background: 'rgba(0, 0, 0, 0.02)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>CASO ANTERIOR</span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ef4444' }}>{selectedCalidadTicket.caso_repetido || selectedCalidadTicket['CASO REPETIDO'] || selectedCalidadTicket['TRABAJO REPETIDO']}</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <div style={{ background: 'var(--glass-bg)', padding: '0.3rem', borderRadius: '6px' }}>
+                        <LayoutGrid size={14} color="var(--text-muted)" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>TÉCNICO PREVIO</div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{selectedCalidadTicket.tecnico_repetido || selectedCalidadTicket['TÉCNICO CASO REPETIDO'] || selectedCalidadTicket['TÉCNICO REPETIDO'] || '-'}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(239, 68, 68, 0.05)', padding: '0.75rem', borderRadius: '10px', borderLeft: '3px solid #ef4444' }}>
+                      <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 800, marginBottom: '0.2rem', textTransform: 'uppercase' }}>Respuesta Anterior</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: '1.4', fontStyle: 'italic' }}>{selectedCalidadTicket.respuesta_repetido || selectedCalidadTicket['RESPUESTA CASO REPETIDO'] || selectedCalidadTicket['RESPUESTA REPETIDO'] || '-'}</div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.3rem', marginTop: '0.2rem' }}>
+                      <AlertCircle size={12} color="var(--text-muted)" />
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>Cierre: {selectedCalidadTicket.fecha_repetido || selectedCalidadTicket['FECHA CIERRE REPETIDO'] || selectedCalidadTicket['FECHA REPETIDO'] || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {!isFormActive && !showManualInput && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
                   <button onClick={() => { setIsFormActive(true); window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank'); }} className="btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}><ExternalLink size={20} /> Registrar Hallazgos (Forms)</button>
@@ -1226,6 +1390,15 @@ export default function InspectorApp() {
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Prioridad</div>
                   <div style={{ fontWeight: 600 }}>{selectedOrden.priority || selectedOrden.prioridad || 'Media'}</div>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fecha</div>
+                <div style={{ 
+                  fontWeight: 700, 
+                  color: String(selectedOrden.oe_vence || selectedOrden.fecha || (selectedOrden as any).oe_vencimiento).toLowerCase().includes('vencid') ? '#ef4444' : 'var(--text-main)' 
+                }}>
+                  {selectedOrden.oe_vence || selectedOrden.fecha || (selectedOrden as any).oe_vencimiento || '-'}
                 </div>
               </div>
               {!isFormActive && !showManualInput && (
