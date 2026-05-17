@@ -63,6 +63,55 @@ export default function AdminDashboard() {
   const [bulkAssignRazonesInspector, setBulkAssignRazonesInspector] = useState('');
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
 
+  const [ordenesPage, setOrdenesPage] = useState(1);
+  const [calidadPage, setCalidadPage] = useState(1);
+  const [razonesPage, setRazonesPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const Pagination = ({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (p: number) => void }) => {
+    if (totalPages <= 1) return null;
+    const pages = [];
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, startPage + 4);
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+        <button 
+          onClick={() => onPageChange(currentPage - 1)} 
+          disabled={currentPage === 1}
+          className="btn-secondary"
+          style={{ padding: '0.4rem 0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
+        >
+          Retroceder
+        </button>
+        {startPage > 1 && <span style={{ color: 'var(--text-muted)' }}>...</span>}
+        {pages.map(p => (
+          <button
+            key={p}
+            onClick={() => onPageChange(p)}
+            className={currentPage === p ? "btn-primary" : "btn-secondary"}
+            style={{ padding: '0.4rem 0.8rem', minWidth: '36px' }}
+          >
+            {p}
+          </button>
+        ))}
+        {endPage < totalPages && <span style={{ color: 'var(--text-muted)' }}>...</span>}
+        <button 
+          onClick={() => onPageChange(currentPage + 1)} 
+          disabled={currentPage === totalPages}
+          className="btn-secondary"
+          style={{ padding: '0.4rem 0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
+        >
+          Avanzar
+        </button>
+      </div>
+    );
+  };
+
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
@@ -239,7 +288,54 @@ export default function AdminDashboard() {
     return '-';
   };
 
+  // Computed Arrays for Pagination
+  const filteredOrdenes = ordenes.filter(o => {
+    const term = ordenesSearch.toLowerCase();
+    const matchesGlobal = !term || [
+      o.orden_servicio, o.orden_externa_id, o.cliente, o.supervisor, o.tech, o.tech_id, o.ticket, o.sector, o.descripcion_orden
+    ].some(v => String(v || '').toLowerCase().includes(term));
+    const matchesSupervisor = ordenesSupervisorFilter === '' || 
+      String(o.supervisor || '').toLowerCase() === ordenesSupervisorFilter.toLowerCase();
+    const matchesColumns = Object.entries(ordenesColumnFilters).every(([key, val]) => {
+      if (!val) return true;
+      return String((o as any)[key] || '').toLowerCase().includes(val.toLowerCase());
+    });
+    return matchesGlobal && matchesSupervisor && matchesColumns;
+  });
+  const totalOrdenesPages = Math.ceil(filteredOrdenes.length / itemsPerPage);
+  const currentPaginatedOrdenes = filteredOrdenes.slice((ordenesPage - 1) * itemsPerPage, ordenesPage * itemsPerPage);
 
+  const filteredCalidad = calidadData.filter(c => {
+    const term = calidadSearch.toLowerCase();
+    const sup = getSupervisor(c);
+    const tech = String(c.tech || c['Asignado A'] || '').trim();
+    const matchesSearch = !term || [
+      tech, c.ticket, c.tech_id, c.sector, c.status, sup, c.cliente, c.work_name
+    ].some(v => String(v || '').toLowerCase().includes(term));
+    const matchesSupervisor = calidadSupervisorFilter === '' || sup === calidadSupervisorFilter;
+    const matchesColumns = Object.entries(columnFilters).every(([key, val]) => {
+      if (!val) return true;
+      const cellVal = String(c[key] || '').toLowerCase();
+      return cellVal.includes(val.toLowerCase());
+    });
+    return matchesSearch && matchesSupervisor && matchesColumns;
+  });
+  const totalCalidadPages = Math.ceil(filteredCalidad.length / itemsPerPage);
+  const currentPaginatedCalidad = filteredCalidad.slice((calidadPage - 1) * itemsPerPage, calidadPage * itemsPerPage);
+
+  const filteredRazones = _razones.filter(row => {
+    const term = razonesSearch.toLowerCase();
+    const matchesSearch = !term || [
+      row.ticket, row.id, row['ID TICKET'], row['TRABAJO'],
+      row.tecnico, row.tech, row['Asignado A'],
+      row.motivo, row.razon, row['Motivo'],
+      row.supervisor, row['Nombre del Supervisor'],
+      row.sector, row['Localidad']
+    ].some(v => String(v || '').toLowerCase().includes(term));
+    return matchesSearch;
+  });
+  const totalRazonesPages = Math.ceil(filteredRazones.length / itemsPerPage);
+  const currentPaginatedRazones = filteredRazones.slice((razonesPage - 1) * itemsPerPage, razonesPage * itemsPerPage);
 
   return (
     <div className="app-container">
@@ -531,7 +627,7 @@ export default function AdminDashboard() {
                       type="text" 
                       placeholder="Buscar por Orden, Cliente, Supervisor..." 
                       value={ordenesSearch}
-                      onChange={(e) => setOrdenesSearch(e.target.value)}
+                      onChange={(e) => { setOrdenesSearch(e.target.value); setOrdenesPage(1); }}
                     />
                   </div>
                 </div>
@@ -548,7 +644,7 @@ export default function AdminDashboard() {
                   <select 
                     className="input-control" 
                     value={ordenesSupervisorFilter} 
-                    onChange={(e) => setOrdenesSupervisorFilter(e.target.value)}
+                    onChange={(e) => { setOrdenesSupervisorFilter(e.target.value); setOrdenesPage(1); }}
                     style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid var(--primary-color)' }}
                   >
                     <option value="">1. Seleccionar Supervisor...</option>
@@ -616,7 +712,7 @@ export default function AdminDashboard() {
                               type="text" 
                               placeholder="Filtrar..." 
                               value={ordenesColumnFilters[header] || ''} 
-                              onChange={(e) => setOrdenesColumnFilters(prev => ({ ...prev, [header]: e.target.value }))}
+                              onChange={(e) => { setOrdenesColumnFilters(prev => ({ ...prev, [header]: e.target.value })); setOrdenesPage(1); }}
                               style={{ fontSize: '0.75rem' }}
                             />
                           </div>
@@ -632,22 +728,7 @@ export default function AdminDashboard() {
                     <tr><td colSpan={13} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : ordenes.length === 0 ? (
                     <tr><td colSpan={13} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
-                  ) : ordenes.filter(o => {
-                    const term = ordenesSearch.toLowerCase();
-                    const matchesGlobal = !term || [
-                      o.orden_servicio, o.orden_externa_id, o.cliente, o.supervisor, o.tech, o.tech_id, o.ticket, o.sector, o.descripcion_orden
-                    ].some(v => String(v || '').toLowerCase().includes(term));
-                    
-                    const matchesSupervisor = ordenesSupervisorFilter === '' || 
-                      String(o.supervisor || '').toLowerCase() === ordenesSupervisorFilter.toLowerCase();
-
-                    const matchesColumns = Object.entries(ordenesColumnFilters).every(([key, val]) => {
-                      if (!val) return true;
-                      return String((o as any)[key] || '').toLowerCase().includes(val.toLowerCase());
-                    });
-                    
-                    return matchesGlobal && matchesSupervisor && matchesColumns;
-                  }).map((o, idx) => {
+                  ) : currentPaginatedOrdenes.map((o, idx) => {
                     const ordenId = o.orden_servicio || o.ticket;
                     return (
                       <tr key={idx}>
@@ -720,6 +801,7 @@ export default function AdminDashboard() {
                   })}
                 </tbody>
               </table>
+              <Pagination currentPage={ordenesPage} totalPages={totalOrdenesPages} onPageChange={setOrdenesPage} />
             </div>
           </div>
         )}
@@ -932,7 +1014,7 @@ export default function AdminDashboard() {
                   <select 
                     className="input-control" 
                     value={calidadSupervisorFilter} 
-                    onChange={(e) => setCalidadSupervisorFilter(e.target.value)}
+                    onChange={(e) => { setCalidadSupervisorFilter(e.target.value); setCalidadPage(1); }}
                     style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid var(--primary-color)' }}
                   >
                     <option value="">1. Seleccionar Supervisor...</option>
@@ -997,7 +1079,7 @@ export default function AdminDashboard() {
                               type="text" 
                               placeholder="Filtrar..." 
                               value={columnFilters[col.key] || ''} 
-                              onChange={(e) => setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                              onChange={(e) => { setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value })); setCalidadPage(1); }}
                               style={{ fontSize: '0.75rem' }}
                             />
                           </div>
@@ -1013,38 +1095,7 @@ export default function AdminDashboard() {
                     <tr><td colSpan={8} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : calidadData.length === 0 ? (
                     <tr><td colSpan={10} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay datos disponibles.</td></tr>
-                  ) : calidadData
-                    .filter(c => {
-                      const term = calidadSearch.toLowerCase();
-                      const sup = getSupervisor(c);
-                      // Usar clave normalizada 'tech' directamente
-                      const tech = String(c.tech || c['Asignado A'] || '').trim();
-                      
-                      // Sin término de búsqueda → mostrar todo (solo filtrar supervisor si está activo)
-                      const matchesSearch = !term || [
-                        tech,
-                        c.ticket,
-                        c.tech_id,
-                        c.sector,
-                        c.status,
-                        sup,
-                        c.cliente,
-                        c.work_name
-                      ].some(v => String(v || '').toLowerCase().includes(term));
-
-                      const matchesSupervisor = calidadSupervisorFilter === '' || sup === calidadSupervisorFilter;
-
-                      // Filtros por columna
-                      const matchesColumns = Object.entries(columnFilters).every(([key, val]) => {
-                        if (!val) return true;
-                        const cellVal = String(c[key] || '').toLowerCase();
-                        return cellVal.includes(val.toLowerCase());
-                      });
-                      
-                      return matchesSearch && matchesSupervisor && matchesColumns;
-                    })
-
-                    .map((row, idx) => {
+                  ) : currentPaginatedCalidad.map((row, idx) => {
                       // const techKey = Object.keys(row).find(k => ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico'].includes(k.toLowerCase().trim())) || 'Nombre';
                       // const technician = row[techKey];
                       
@@ -1163,6 +1214,7 @@ export default function AdminDashboard() {
                     })}
                 </tbody>
               </table>
+              <Pagination currentPage={calidadPage} totalPages={totalCalidadPages} onPageChange={setCalidadPage} />
             </div>
           </div>
         )}
@@ -1293,7 +1345,7 @@ export default function AdminDashboard() {
                   type="text" 
                   placeholder="Buscar por Ticket, Técnico o Motivo..." 
                   value={razonesSearch}
-                  onChange={(e) => setRazonesSearch(e.target.value)}
+                  onChange={(e) => { setRazonesSearch(e.target.value); setRazonesPage(1); }}
                 />
               </div>
               <button className="btn-secondary" onClick={loadRazones}>
@@ -1317,19 +1369,7 @@ export default function AdminDashboard() {
                 <tbody>
                   {_loadingRazones ? (
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}><Loader2 className="spinner" size={32} /></td></tr>
-                  ) : _razones
-                    .filter(row => {
-                      const term = razonesSearch.toLowerCase();
-                      const matchesSearch = !term || [
-                        row.ticket, row.id, row['ID TICKET'], row['TRABAJO'],
-                        row.tecnico, row.tech, row['Asignado A'],
-                        row.motivo, row.razon, row['Motivo'],
-                        row.supervisor, row['Nombre del Supervisor'],
-                        row.sector, row['Localidad']
-                      ].some(v => String(v || '').toLowerCase().includes(term));
-                      return matchesSearch;
-                    })
-                    .map((row, idx) => {
+                  ) : currentPaginatedRazones.map((row, idx) => {
                       const ticketId = row.ticket || row.id || row['ID TICKET'] || row['TRABAJO'];
                       const isAssigned = !!(row.inspector || row['Inspector']);
                       return (
@@ -1408,6 +1448,7 @@ export default function AdminDashboard() {
                     })}
                 </tbody>
               </table>
+              <Pagination currentPage={razonesPage} totalPages={totalRazonesPages} onPageChange={setRazonesPage} />
             </div>
           </div>
         )}

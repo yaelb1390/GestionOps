@@ -715,7 +715,7 @@ export default function InspectorApp() {
                   };
 
                    const tecnico   = getField(['tech', 'tecnico', 'nombre del técnico', 'nombre', 'técnico', 'nombre técnico', 'tecnico actual', 'tecnico_actual']);
-                   const techId    = getField(['tech_id', 'id técnico', 'id tecnico', 'tecnico id', 'tarjeta', 'ténico (id)', 'tecnico id', 'cedula']);
+                   // const techId    = getField(['tech_id', 'id técnico', 'id tecnico', 'tecnico id', 'tarjeta', 'ténico (id)', 'tecnico id', 'cedula']);
                    const trabajo   = getField(['ticket', 'trabajo', 'tickets', 'caso actual', 'id', 'caso_actual']);
                    const supervisor = getField(['supervisor', 'nombre del supervisor', 'supervisor actual', 'supervisor_actual']);
                    const workName  = getField(['work_name', 'work name actual', 'work_name_actual', 'work name', 'trabajo']);
