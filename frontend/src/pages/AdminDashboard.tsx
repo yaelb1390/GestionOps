@@ -622,18 +622,13 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td>
-                            {t._fecha ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                                  {String(t._fecha).split(' ')[0]}
-                                </span>
-                                <small style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                  {String(t._fecha).split(' ')[1] || ''}
-                                </small>
-                              </div>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
-                            )}
+                            {t._fecha ? (() => {
+                              const raw = String(t._fecha); // "dd/MM/yyyy HH:mm:ss"
+                              const parts = raw.split(' ');
+                              const datePart = (parts[0] || '').replace(/\//g, '-');
+                              const timePart = (parts[1] || '').split(':').slice(0, 2).join(':');
+                              return `${datePart} ${timePart}`.trim();
+                            })() : '—'}
                           </td>
                         </tr>
                       ));
