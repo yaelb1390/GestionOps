@@ -122,6 +122,32 @@ export default function AdminDashboard() {
     localStorage.setItem('theme', newTheme);
   };
 
+  // Convierte cualquier fecha (ISO o texto "dd/MM/yyyy HH:mm:ss") a formato "dd-MM-yyyy H:mm" en hora RD (GMT-4)
+  const formatRDDate = (raw: any): string => {
+    if (!raw || raw === 'N/A') return '—';
+    const s = String(raw);
+    // Formato ISO: 2026-05-17T01:30:32.000Z
+    if (s.includes('T') && (s.includes('Z') || s.includes('+'))) {
+      try {
+        const d = new Date(s);
+        const opts: Intl.DateTimeFormatOptions = {
+          timeZone: 'America/Santo_Domingo',
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: false
+        };
+        const parts = new Intl.DateTimeFormat('es-DO', opts).formatToParts(d);
+        const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+        return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`;
+      } catch { return s; }
+    }
+    // Formato texto "dd/MM/yyyy HH:mm:ss"
+    const sp = s.split(' ');
+    const datePart = (sp[0] || '').replace(/\//g, '-');
+    const timePart = (sp[1] || '').split(':').slice(0, 2).join(':');
+    const result = `${datePart} ${timePart}`.trim();
+    return result || s;
+  };
+
   const displayToast = (msg: string, type: 'success'|'error' = 'success') => {
     setToastMessage(msg);
     setToastType(type);
@@ -621,28 +647,7 @@ export default function AdminDashboard() {
                               {t.codigo_aplicado || t['Código Aplicado'] || 'Completado'}
                             </span>
                           </td>
-                          <td>
-                            {t._fecha ? (() => {
-                              const raw = String(t._fecha);
-                              // Si es ISO (ej: "2026-05-17T01:30:32.000Z"), convertir a GMT-4
-                              if (raw.includes('T') && raw.includes('Z')) {
-                                const d = new Date(raw);
-                                const rdOpts: Intl.DateTimeFormatOptions = {
-                                  timeZone: 'America/Santo_Domingo',
-                                  day: '2-digit', month: '2-digit', year: 'numeric',
-                                  hour: '2-digit', minute: '2-digit', hour12: false
-                                };
-                                const parts = new Intl.DateTimeFormat('es-DO', rdOpts).formatToParts(d);
-                                const get = (t: string) => parts.find(p => p.type === t)?.value || '';
-                                return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`;
-                              }
-                              // Si ya viene formateado "dd/MM/yyyy HH:mm:ss"
-                              const sp = raw.split(' ');
-                              const datePart = (sp[0] || '').replace(/\//g, '-');
-                              const timePart = (sp[1] || '').split(':').slice(0, 2).join(':');
-                              return `${datePart} ${timePart}`.trim();
-                            })() : '—'}
-                          </td>
+                          <td>{formatRDDate(t._fecha)}</td>
                         </tr>
                       ));
                     })()}
@@ -1583,11 +1588,7 @@ export default function AdminDashboard() {
                         <td>{item._tech}</td>
                         <td>{item._sup}</td>
                         <td>{item._sector}</td>
-                        <td>
-                          <span className={`badge ${item._date === 'Aprobado' || item._origin === 'Orden' ? 'success' : 'warning'}`}>
-                            {item._date}
-                          </span>
-                        </td>
+                        <td>{formatRDDate(item._date)}</td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontWeight: 700, color: '#10b981' }}>{item._code || '-'}</span>
