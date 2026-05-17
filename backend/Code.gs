@@ -248,15 +248,22 @@ function doGet(e) {
       var key = normalizedHeaders[j];
       if (!key) continue;
 
+      // Si el valor es un objeto Date de Sheets, convertirlo a texto en hora RD (GMT-4)
+      // para evitar que JSON.stringify lo serialice como ISO UTC y cause un desfase de 4h.
+      var cellVal = row[j];
+      if (cellVal instanceof Date) {
+        cellVal = Utilities.formatDate(cellVal, "GMT-4", "dd/MM/yyyy HH:mm");
+      }
+
       // La columna "TRABAJO" tiene prioridad absoluta para la clave "ticket"
       var rawH = normalizeString(headers[j]);
       if (rawH === 'trabajo') {
-        ticketValue = row[j];
-        obj['ticket'] = row[j];
+        ticketValue = cellVal;
+        obj['ticket'] = cellVal;
       } else if (key === 'ticket') {
-        if (ticketValue === null) obj['ticket'] = row[j];
+        if (ticketValue === null) obj['ticket'] = cellVal;
       } else {
-        obj[key] = row[j];
+        obj[key] = cellVal;
       }
     }
     results.push(obj);

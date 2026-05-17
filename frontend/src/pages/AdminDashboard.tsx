@@ -619,23 +619,31 @@ export default function AdminDashboard() {
                     {loading ? (
                       <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                     ) : (() => {
-                      const inspected: any[] = [];
-                      
-                      tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
-                        inspected.push({ ...t, _type: 'Ticket', _id: t.ticket, _gestor: t.inspector || t.inspector_id, _fecha: t.fecha_inspeccion || t['fecha_inspeccion'] || t['Fecha Inspección'] || '' });
-                      });
-                      
-                      ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
-                        inspected.push({ ...o, _type: 'Orden', _id: o.ticket || o.orden_servicio, _gestor: o.gestor || o.inspector, _fecha: (o as any).fecha_inspeccion || (o as any)['Fecha Inspección'] || '' });
-                      });
+                      // Helper: tomar los últimos N de cada tipo para que ningún tipo quede excluido
+                      const lastN = (arr: any[], n: number) => arr.slice(-n);
 
-                      calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
-                        inspected.push({ ...c, _type: 'Calidad', _id: c.ticket, _gestor: c.inspector || c.inspector_id, _fecha: c.fecha_inspeccion || c['fecha_inspeccion'] || c['Fecha Inspección'] || '' });
-                      });
+                      const mkTicket  = (t: any) => ({ ...t, _type: 'Ticket',  _id: t.ticket || '-',             _gestor: t.inspector || t.inspector_id || '',          _fecha: t.fecha_inspeccion || t['fecha_inspeccion'] || t['Fecha Inspección'] || '' });
+                      const mkOrden   = (o: any) => ({ ...o, _type: 'Orden',   _id: o.ticket || o.orden_servicio || '-', _gestor: (o as any).gestor || o.inspector || '',  _fecha: (o as any).fecha_inspeccion || (o as any)['Fecha Inspección'] || '' });
+                      const mkCalidad = (c: any) => ({ ...c, _type: 'Calidad', _id: c.ticket || '-',             _gestor: c.inspector || c.inspector_id || '',          _fecha: c.fecha_inspeccion || c['fecha_inspeccion'] || c['Fecha Inspección'] || '' });
 
-                      // Sort by recent (assuming newest are at the end of the lists, so we reverse or use slice)
-                      // If we have a timestamp, we should use it. For now, we take the last 5.
-                      const latest = inspected.slice(-5).reverse();
+                      const ticketItems  = lastN(tickets.filter(t  => t.status  === 'Inspeccionado' || t.status  === 'Aprobado' || t.status  === 'Rechazado' || !!t.codigo_aplicado  || !!t['Código Aplicado']),  3).map(mkTicket);
+                      const ordenItems   = lastN(ordenes.filter(o  => o.status  === 'Inspeccionado' || o.status  === 'Completado'|| o.status  === 'Aprobado'  || !!o.codigo_aplicado  || !!(o as any)['Código Aplicado']), 3).map(mkOrden);
+                      const calidadItems = lastN(calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']), 3).map(mkCalidad);
+
+                      // Combinar, ordenar por fecha descendente y tomar los 6 más recientes
+                      const parseRDDate = (s: string) => {
+                        if (!s) return 0;
+                        // "dd/MM/yyyy HH:mm" o "dd-MM-yyyy HH:mm"
+                        const m = s.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})\s+(\d{2}):(\d{2})/);
+                        if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00`).getTime();
+                        return new Date(s).getTime() || 0;
+                      };
+
+                      const combined = [...ticketItems, ...ordenItems, ...calidadItems]
+                        .sort((a, b) => parseRDDate(b._fecha) - parseRDDate(a._fecha))
+                        .slice(0, 6);
+
+                      const latest = combined;
 
                       if (latest.length === 0) return <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}>No se han realizado inspecciones aún</td></tr>;
 

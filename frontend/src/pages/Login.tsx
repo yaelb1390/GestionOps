@@ -73,7 +73,7 @@ export default function Login() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%)' }}>
+    <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%)', position: 'relative' }}>
       <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem', background: '#FFFFFF', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', color: '#1e293b' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
           <img src="/logo-gestores.png" alt="Gestores OPS Logo" style={{ width: '100%', maxWidth: '240px', height: 'auto', objectFit: 'contain', transform: 'scale(1.2)', filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.12))' }} />
@@ -151,6 +151,12 @@ export default function Login() {
           </div>
         </form>
       </div>
+      <p style={{ position: 'absolute', bottom: '1.2rem', width: '100%', textAlign: 'center', fontSize: '0.78rem', color: '#94a3b8', letterSpacing: '0.3px' }}>
+        Diseñado por{' '}
+        <span style={{ color: 'var(--primary-color)', fontWeight: 700, letterSpacing: '0.5px', fontStyle: 'italic' }}>
+          Joel Berroa
+        </span>
+      </p>
     </div>
   );
 }
