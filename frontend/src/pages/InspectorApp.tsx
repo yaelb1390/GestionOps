@@ -763,12 +763,12 @@ export default function InspectorApp() {
                             alignItems: 'center', 
                             justifyContent: 'center', 
                             fontWeight: 800, 
-                            fontSize: '0.75rem', 
+                            fontSize: '1.2rem', 
                             flexShrink: 0,
                             boxShadow: '0 4px 10px rgba(218, 41, 28, 0.3)',
                             border: '2px solid white'
                           }}>
-                            {techId}
+                            {idx + 1}
                           </div>
                           <div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>TÉCNICO ACTUAL</div>
