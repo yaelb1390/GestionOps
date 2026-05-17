@@ -409,7 +409,6 @@ export async function assignOrdenesIndividual(orden_id: string | number, tech_id
 
 export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<{success: boolean, message?: string}> {
   try {
-    console.log("Intentando guardar código:", { ticket, codigo });
     const response = await fetch(SCRIPT_URL, {
       method: "POST",
       mode: 'cors',

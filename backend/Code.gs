@@ -554,14 +554,20 @@ function doPost(e) {
         }
 
         var targetTicket = String(params.ticket).trim();
+        var targetNum = (!isNaN(targetTicket) && targetTicket !== "") ? Number(targetTicket) : null;
         for (var i = info.index + 1; i < data.length; i++) {
-          if (String(data[i][ticketCol]).trim() === targetTicket) {
+          var val = String(data[i][ticketCol] || "").trim();
+          var match = (val === targetTicket);
+          if (!match && targetNum !== null && !isNaN(val) && val !== "" && Number(val) === targetNum) {
+            match = true;
+          }
+          if (match) {
             if (action === "save_manual_code") {
               if (data[i][codigoCol] && String(data[i][codigoCol]).trim() !== "") {
                 return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Ya tiene un código aplicado" })).setMimeType(ContentService.MimeType.JSON);
               }
               sheet.getRange(i + 1, codigoCol + 1).setValue(params.codigo);
-              sheet.getRange(i + 1, estadoCol + 1).setValue(type === "tickets" ? "Inspeccionado" : "Completado");
+              sheet.getRange(i + 1, estadoCol + 1).setValue((type === "tickets" || type === "ordenes") ? "Inspeccionado" : "Completado");
               var rdDate = Utilities.formatDate(new Date(), "GMT-4", "dd/MM/yyyy HH:mm:ss");
               sheet.getRange(i + 1, fechaCol + 1).setValue(rdDate);
             } else {

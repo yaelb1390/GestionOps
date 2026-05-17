@@ -76,6 +76,7 @@ export default function InspectorApp() {
   const [showManualInput, setShowManualInput] = useState(false);
   const [razones, setRazones] = useState<any[]>([]);
   const [selectedRazon, setSelectedRazon] = useState<any | null>(null);
+  const [misTicketsSearch, setMisTicketsSearch] = useState('');
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -120,6 +121,18 @@ export default function InspectorApp() {
     loadTickets();
     loadRazones();
   };
+
+  const handleConfirmForm = async (type: string, id: string) => {
+    setIsSubmittingCode(true);
+    const { success, message } = await saveManualCodigo(id, 'Forms', type);
+    setIsSubmittingCode(false);
+    if (success) {
+      handleFormReturn();
+    } else {
+      displayToast(message || 'Error al confirmar el registro', 'error');
+    }
+  };
+
 
   const handleSaveManualCode = async (type: string, id: string) => {
     if (!manualCode.trim()) return;
@@ -371,7 +384,13 @@ export default function InspectorApp() {
             <div>
               <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Órdenes</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                {ordenes.filter(o => isMyTicket(o)).length} pendientes
+                {ordenes.filter(o => {
+                  const isMine = isMyTicket(o);
+                  const status = clean(o.status || getFlexVal(o, ['estado', 'status', 'estado_inspeccion', 'estado inspeccion']));
+                  const isInspected = status === 'completado' || status === 'inspeccionado' || status === 'aprobado' || status === 'cerrado' || status === 'finalizado' ||
+                                      !!o.codigo_aplicado || !!(o as any)['Código Aplicado'] || !!(o as any)['codigo aplicado'] || !!(o as any)['codigo'] || !!(o as any)['código aplicado'];
+                  return isMine && !isInspected;
+                }).length} pendientes
               </div>
             </div>
           </button>
@@ -399,7 +418,12 @@ export default function InspectorApp() {
             <div>
               <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Averías Repetidas</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                {calidadAssignments.filter(c => isMyTicket(c)).length} pendientes
+                {calidadAssignments.filter(c => {
+                  const isMine = isMyTicket(c);
+                  const s = clean(c.status || getFlexVal(c, ['estado', 'status', 'estado_inspeccion', 'estado inspeccion']));
+                  const isPending = s === 'asignado' || s === 'pendiente' || s === '' || s === 'en proceso' || s === '-';
+                  return isMine && isPending;
+                }).length} pendientes
               </div>
             </div>
           </button>
@@ -648,6 +672,45 @@ export default function InspectorApp() {
               animation: 'fadeInUp 0.3s ease',
               gridColumn: '1 / -1' 
             }}>
+              {/* ── Buscador de Inspecciones ── */}
+              <div style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                background: 'var(--glass-bg)',
+                border: '1.5px solid var(--glass-border)',
+                borderRadius: '14px',
+                padding: '0.65rem 1rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Buscar por ID, orden o descripción..."
+                  value={misTicketsSearch}
+                  onChange={(e) => setMisTicketsSearch(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--text-main)',
+                    fontSize: '0.95rem',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                {misTicketsSearch && (
+                  <button
+                    onClick={() => setMisTicketsSearch('')}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
               {(() => {
                 const completedTickets = tickets.filter(t => {
                   const isMine = isMyTicket(t);
@@ -658,7 +721,7 @@ export default function InspectorApp() {
                 }).map(t => ({ 
                   id: t.ticket, 
                   desc: t.descripcion_orden || getFlexVal(t, ['descripcion_orden', 'descripcion', 'tipo_trabajo', 'trabajo']),
-                  fecha: t.fecha || (t as any).Fecha || '-', 
+                  fecha: (t as any).fecha_inspeccion || getFlexVal(t, ['fecha_inspeccion', 'fecha_registro', 'Fecha Inspección', 'Fecha Registro']) || t.fecha || (t as any).Fecha || '-', 
                   type: 'TICKET' 
                 }));
 
@@ -669,7 +732,7 @@ export default function InspectorApp() {
                 }).map(o => ({ 
                   id: o.orden_servicio || o.orden_externa_id || o.ticket || (o as any).TRABAJO || '-', 
                   desc: o.descripcion_orden || getFlexVal(o, ['descripcion_orden', 'descripcion', 'tipo_trabajo', 'trabajo']),
-                  fecha: o.fecha || (o as any).Fecha || '-', 
+                  fecha: (o as any).fecha_inspeccion || getFlexVal(o, ['fecha_inspeccion', 'fecha_registro', 'Fecha Inspección', 'Fecha Registro']) || o.fecha || (o as any).Fecha || '-', 
                   type: 'ORDEN' 
                 }));
 
@@ -698,10 +761,20 @@ export default function InspectorApp() {
                   type: 'RAZON' 
                 }));
 
-                const allCompleted = [...completedTickets, ...completedOrdenes, ...completedCalidad, ...completedRazones].sort((a, b) => {
-                  if (a.fecha === '-' || b.fecha === '-') return 0;
-                  return b.fecha.localeCompare(a.fecha);
-                });
+                const allCompleted = [...completedTickets, ...completedOrdenes, ...completedCalidad, ...completedRazones]
+                  .sort((a, b) => {
+                    if (a.fecha === '-' || b.fecha === '-') return 0;
+                    return b.fecha.localeCompare(a.fecha);
+                  })
+                  .filter(item => {
+                    if (!misTicketsSearch.trim()) return true;
+                    const q = misTicketsSearch.toLowerCase().trim();
+                    return (
+                      String(item.id).toLowerCase().includes(q) ||
+                      String(item.desc || '').toLowerCase().includes(q) ||
+                      String(item.type || '').toLowerCase().includes(q)
+                    );
+                  });
 
                 if (allCompleted.length === 0) {
                   return (
@@ -767,6 +840,7 @@ export default function InspectorApp() {
                           fontWeight: 500 
                         }}>
                           <Calendar size={13} style={{ opacity: 0.7 }} />
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.03em', marginRight: '2px' }}>Insp.</span>
                           <span>{formatDisplayDate(item.fecha)}</span>
                         </div>
                       </div>
@@ -974,6 +1048,10 @@ export default function InspectorApp() {
               {(() => {
                 const filtered = (razones || []).filter(r => {
                   if (!r) return false;
+                  // Excluir razones ya inspeccionadas
+                  const isInspected = !!(r.codigo_aplicado || r['Código Aplicado'] || r['codigo aplicado'] || r['codigo'] || r['código aplicado']);
+                  if (isInspected) return false;
+
                   const inspName = String(r.inspector || getFlexVal(r, ['inspector', 'nombre inspector', 'gestor asignado']) || '').toLowerCase().trim();
                   const inspId = String(r.inspector_id || getFlexVal(r, ['inspector id', 'id inspector', 'tarjeta inspector']) || '').toLowerCase().trim();
                   const myName = inspectorName.toLowerCase().trim();
@@ -1089,6 +1167,12 @@ export default function InspectorApp() {
                       if (!o) return false;
                       const isMine = isMyTicket(o);
                       
+                      const status = clean(o.status || getFlexVal(o, ['estado', 'status', 'estado_inspeccion', 'estado inspeccion']));
+                      const isInspected = status === 'completado' || status === 'inspeccionado' || status === 'aprobado' || status === 'cerrado' || status === 'finalizado' ||
+                                          !!o.codigo_aplicado || !!(o as any)['Código Aplicado'] || !!(o as any)['codigo aplicado'] || !!(o as any)['codigo'] || !!(o as any)['código aplicado'];
+                      
+                      if (isInspected) return false;
+
                       const matchesTerm = !term || [
                         o.orden_servicio,
                         o.orden_externa_id,
@@ -1287,13 +1371,25 @@ export default function InspectorApp() {
                 </div>
               )}
 
-              {!isFormActive && !showManualInput && (
+              {!showManualInput ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
-                  <button onClick={() => { setIsFormActive(true); window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank'); }} className="btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}><ExternalLink size={20} /> Registrar Hallazgos (Forms)</button>
-                  <button onClick={() => setShowManualInput(true)} className="btn-secondary" style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}><ClipboardList size={20} /> Código Aplicado (Manual)</button>
+                  {!isFormActive ? (
+                    <>
+                      <button onClick={() => { setIsFormActive(true); window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank'); }} className="btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}><ExternalLink size={20} /> Registrar Hallazgos (Forms)</button>
+                      <button onClick={() => setShowManualInput(true)} className="btn-secondary" style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}><ClipboardList size={20} /> Código Aplicado (Manual)</button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>Formulario abierto en otra pestaña. Por favor completa el registro.</div>
+                      <button onClick={() => handleConfirmForm('calidad', String(selectedCalidadTicket.ticket || selectedCalidadTicket['CASO ACTUAL'] || selectedCalidadTicket['TRABAJO'] || ''))} disabled={isSubmittingCode} className="btn-primary" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', width: '100%', padding: '1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        {isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Confirmar Registro Completado'}
+                      </button>
+                      <button onClick={() => { setShowManualInput(true); setIsFormActive(false); }} className="btn-secondary" style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}><ClipboardList size={20} /> Código Aplicado (Manual)</button>
+                      <button onClick={() => setIsFormActive(false)} className="btn-secondary" style={{ width: '100%', padding: '0.75rem', borderRadius: '16px' }}>Volver</button>
+                    </>
+                  )}
                 </div>
-              )}
-              {showManualInput ? (
+              ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                   <div className="input-group">
                     <label>Código Aplicado</label>
@@ -1304,12 +1400,7 @@ export default function InspectorApp() {
                     <button onClick={() => handleSaveManualCode('calidad', String(selectedCalidadTicket.ticket || selectedCalidadTicket['CASO ACTUAL'] || selectedCalidadTicket['TRABAJO'] || ''))} disabled={isSubmittingCode || !manualCode.trim()} className="btn-primary" style={{ flex: 2 }}>{isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}</button>
                   </div>
                 </div>
-              ) : isFormActive ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>Formulario abierto en otra pestaña. Por favor completa el registro.</div>
-                  <button onClick={handleFormReturn} className="btn-primary" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', width: '100%', padding: '1rem', borderRadius: '16px' }}>Confirmar Registro Completado</button>
-                </div>
-              ) : null}
+              )}
             </div>
           </div>
         </div>
@@ -1401,29 +1492,20 @@ export default function InspectorApp() {
                   {selectedOrden.oe_vence || selectedOrden.fecha || (selectedOrden as any).oe_vencimiento || '-'}
                 </div>
               </div>
-              {!isFormActive && !showManualInput && (
+              {!isFormActive && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
                   <button onClick={() => { setIsFormActive(true); window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', '_blank'); }} className="btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '16px' }}><ExternalLink size={20} /> Registrar Hallazgos (Forms)</button>
-                  <button onClick={() => setShowManualInput(true)} className="btn-secondary" style={{ width: '100%', padding: '1rem', borderRadius: '16px', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}><ClipboardList size={20} /> Código Aplicado (Manual)</button>
                 </div>
               )}
-              {showManualInput ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-                  <div className="input-group">
-                    <label>Código Aplicado</label>
-                    <input type="text" className="input-control" placeholder="Ingrese el código aquí..." value={manualCode} onChange={(e) => setManualCode(e.target.value)} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => setShowManualInput(false)} className="btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                    <button onClick={() => handleSaveManualCode('ordenes', String(selectedOrden.orden_servicio || selectedOrden.orden_externa_id))} disabled={isSubmittingCode || !manualCode.trim()} className="btn-primary" style={{ flex: 2 }}>{isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}</button>
-                  </div>
-                </div>
-              ) : isFormActive ? (
+              {isFormActive && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#065f46', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem', textAlign: 'center', fontWeight: 500 }}>Formulario abierto en otra pestaña. Por favor completa el registro.</div>
-                  <button onClick={handleFormReturn} className="btn-primary" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', width: '100%', padding: '1rem', borderRadius: '16px' }}>Confirmar Registro Completado</button>
+                  <button onClick={() => handleConfirmForm('ordenes', String(selectedOrden.orden_externa_id || selectedOrden.orden_servicio || selectedOrden.ticket || ''))} disabled={isSubmittingCode} className="btn-primary" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', width: '100%', padding: '1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    {isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Confirmar Registro Completado'}
+                  </button>
+                  <button onClick={() => setIsFormActive(false)} className="btn-secondary" style={{ width: '100%', padding: '0.75rem', borderRadius: '16px' }}>Volver</button>
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
         </div>

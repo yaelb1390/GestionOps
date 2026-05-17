@@ -50,6 +50,8 @@ export default function AdminDashboard() {
   const [ordenesSearch, setOrdenesSearch] = useState('');
   const [ordenesColumnFilters, setOrdenesColumnFilters] = useState<Record<string, string>>({});
   const [inspeccionesSearch, setInspeccionesSearch] = useState('');
+  const [inspeccionesPage, setInspeccionesPage] = useState(1);
+  const [inspeccionesTypeFilter, setInspeccionesTypeFilter] = useState('Todos');
   const [ordenesSupervisorFilter, setOrdenesSupervisorFilter] = useState('');
   const [bulkAssignOrdenesInspector, setBulkAssignOrdenesInspector] = useState('');
 
@@ -172,23 +174,7 @@ export default function AdminDashboard() {
     loadRazones();
   }, []);
 
-  useEffect(() => {
-    if (tickets.length > 0) {
-      console.log("DEBUG - Primer Ticket Recibido:", tickets[0]);
-      console.log("DEBUG - Keys Disponibles:", Object.keys(tickets[0]));
-      const sampleSup = getSupervisor(tickets[0]);
-      console.log("DEBUG - Resultado getSupervisor:", sampleSup);
-    }
-  }, [tickets]);
 
-  useEffect(() => {
-    if (calidadData.length > 0) {
-      console.log("DEBUG - Primer Calidad Recibido:", calidadData[0]);
-      console.log("DEBUG - Keys Disponibles en Calidad:", Object.keys(calidadData[0]));
-      const sampleSup = getSupervisor(calidadData[0]);
-      console.log("DEBUG - Resultado getSupervisor en Calidad:", sampleSup);
-    }
-  }, [calidadData]);
 
 
   const loadAdminConfig = async () => {
@@ -213,6 +199,8 @@ export default function AdminDashboard() {
     if (activeTab === 'calidad') loadCalidad();
     if (activeTab === 'personal') loadInspectors();
     if (activeTab === 'razones') loadRazones();
+    if (activeTab === 'tickets') loadTickets();
+    if (activeTab === 'inspecciones') { loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
 
     return () => {
       if (interval) clearInterval(interval);
@@ -1496,165 +1484,179 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'inspecciones' && (
-          <div className="glass-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                <CheckCircle2 size={20} color="var(--primary-color)" /> Panel de Inspecciones Unificado
-              </h3>
-              <div className="search-bar" style={{ width: 'auto', minWidth: '400px' }}>
-                <Search size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Buscar por Ticket, Orden, Técnico o Supervisor..." 
-                  value={inspeccionesSearch}
-                  onChange={(e) => setInspeccionesSearch(e.target.value)}
-                />
+        {activeTab === 'inspecciones' && (() => {
+          // ── Construir lista mixta ──────────────────────────────────────────────
+          const mixed: any[] = [];
+
+          tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
+            mixed.push({ _origin: 'Ticket', _color: '#3b82f6', _id: t.ticket, _tech: t.tech || t.tech_id || '-', _gestor: t.inspector || t.inspector_id || '-', _sup: getSupervisor(t) || '-', _sector: t.sector || '-', _date: t.fecha_inspeccion || t['Fecha Inspección'] || t.fecha || '', _code: t.codigo_aplicado || t['Código Aplicado'] || '', ...t });
+          });
+          ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
+            mixed.push({ _origin: 'Orden', _color: '#ef4444', _id: (o as any).orden_externa_id || o.orden_servicio || o.ticket || '-', _tech: o.tech || o.tech_id || '-', _gestor: (o as any).inspector || (o as any).gestor || '-', _sup: o.supervisor || '-', _sector: o.sector || (o as any).ciudad || '-', _date: (o as any).fecha_inspeccion || o.fecha || (o as any).oe_vence || '', _code: o.codigo_aplicado || (o as any)['Código Aplicado'] || '', ...o });
+          });
+          calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
+            mixed.push({ _origin: 'Repetida', _color: '#f59e0b', _id: c.ticket || '-', _tech: c.tech || c.tech_id || '-', _gestor: c.inspector || c.inspector_id || '-', _sup: c.supervisor || getSupervisor(c) || '-', _sector: c.sector || '-', _date: c.fecha_inspeccion || c['Fecha Inspección'] || c.fecha || '', _code: c.codigo_aplicado || c['Código Aplicado'] || '', ...c });
+          });
+          _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).forEach(r => {
+            mixed.push({ _origin: 'Razon', _color: '#ec4899', _id: r.ticket || r.id || r['ID TICKET'] || r['TRABAJO'] || '-', _tech: r.tecnico || r.tech || r['Asignado A'] || '-', _gestor: r.inspector || r.inspector_id || '-', _sup: r.supervisor || getSupervisor(r) || '-', _sector: r.sector || '-', _date: r.fecha_inspeccion || r.fecha || '', _code: r.codigo_aplicado || r['Código Aplicado'] || '', ...r });
+          });
+
+          // Ordenar fecha desc (más recientes primero)
+          const parseAny = (s: string) => { if (!s) return 0; const m = s.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})\s*(\d{2}):(\d{2})/); if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}`).getTime(); return new Date(s).getTime() || 0; };
+          mixed.sort((a, b) => parseAny(b._date) - parseAny(a._date));
+
+          // ── Filtros ───────────────────────────────────────────────────────────
+          const term = inspeccionesSearch.toLowerCase().trim();
+          const filtered = mixed.filter(item => {
+            if (inspeccionesTypeFilter !== 'Todos' && item._origin !== inspeccionesTypeFilter) return false;
+            if (!term) return true;
+            return [item._id, item._tech, item._gestor, item._sup, item._sector, item._origin, item._code].some(v => String(v || '').toLowerCase().includes(term));
+          });
+
+          // ── Paginación ────────────────────────────────────────────────────────
+          const INSP_PER_PAGE = 25;
+          const totalInspPages = Math.ceil(filtered.length / INSP_PER_PAGE);
+          const paginated = filtered.slice((inspeccionesPage - 1) * INSP_PER_PAGE, inspeccionesPage * INSP_PER_PAGE);
+
+          // ── CSV Export ────────────────────────────────────────────────────────
+          const exportCSV = () => {
+            const headers = ['Origen','ID/Ticket','Técnico','Gestor','Supervisor','Sector','Fecha Inspección','Código Aplicado'];
+            const rows = filtered.map(i => [i._origin, i._id, i._tech, i._gestor, i._sup, i._sector, i._date, i._code].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
+            const csv = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `inspecciones_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+            URL.revokeObjectURL(url);
+          };
+
+          // ── Contadores por tipo ───────────────────────────────────────────────
+          const counts = { Ticket: mixed.filter(i => i._origin === 'Ticket').length, Orden: mixed.filter(i => i._origin === 'Orden').length, Repetida: mixed.filter(i => i._origin === 'Repetida').length, Razon: mixed.filter(i => i._origin === 'Razon').length };
+          const types: { label: string; key: string; color: string }[] = [
+            { label: 'Todos', key: 'Todos', color: 'var(--primary-color)' },
+            { label: `Tickets (${counts.Ticket})`, key: 'Ticket', color: '#3b82f6' },
+            { label: `Órdenes (${counts.Orden})`, key: 'Orden', color: '#ef4444' },
+            { label: `Repetidas (${counts.Repetida})`, key: 'Repetida', color: '#f59e0b' },
+            { label: `Razones (${counts.Razon})`, key: 'Razon', color: '#ec4899' },
+          ];
+
+          return (
+            <div className="glass-panel">
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                  <CheckCircle2 size={20} color="var(--primary-color)" /> Panel de Inspecciones Unificado
+                  <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>{filtered.length} registros</span>
+                </h3>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div className="search-bar" style={{ width: 'auto', minWidth: '320px' }}>
+                    <Search size={18} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por ID, Técnico, Gestor, Supervisor..."
+                      value={inspeccionesSearch}
+                      onChange={(e) => { setInspeccionesSearch(e.target.value); setInspeccionesPage(1); }}
+                    />
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', fontSize: '0.8rem', height: '42px', whiteSpace: 'nowrap' }}
+                    onClick={exportCSV}
+                  >
+                    <Filter size={14} /> Exportar CSV
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Origen</th>
-                    <th>ORDEN / TICKET</th>
-                    <th>Técnico</th>
-                    <th>Supervisor</th>
-                    <th>Sector</th>
-                    <th>Estado / Fecha</th>
-                    <th>Código Aplicado</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const mixed: any[] = [];
-                    
-                    // 1. Tickets Inspeccionados
-                    tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
-                      mixed.push({ ...t, _origin: 'Ticket', _id: t.ticket, _tech: t.tech || t.tech_id, _sup: getSupervisor(t), _sector: t.sector, _date: t.fecha_inspeccion || t.fecha || t.oe_vencimiento || 'N/A', _color: '#3b82f6', _code: t.codigo_aplicado || t['Código Aplicado'] });
-                    });
-                    
-                    // 2. Órdenes Inspeccionadas
-                    ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
-                      mixed.push({ ...o, _origin: 'Orden', _id: o.ticket || o.orden_servicio, _tech: o.tech || (o as any).tech_id, _sup: o.supervisor, _sector: o.sector, _date: (o as any).fecha_inspeccion || o.fecha || (o as any).oe_vencimiento || 'N/A', _color: '#ef4444', _code: o.codigo_aplicado || (o as any)['Código Aplicado'] });
-                    });
+              {/* Type filter chips */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                {types.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => { setInspeccionesTypeFilter(t.key); setInspeccionesPage(1); }}
+                    style={{
+                      padding: '0.35rem 0.9rem',
+                      borderRadius: '999px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: `2px solid ${inspeccionesTypeFilter === t.key ? t.color : 'var(--glass-border)'}`,
+                      background: inspeccionesTypeFilter === t.key ? t.color + '20' : 'transparent',
+                      color: inspeccionesTypeFilter === t.key ? t.color : 'var(--text-muted)',
+                      transition: 'all 0.2s'
+                    }}
+                  >{t.label}</button>
+                ))}
+              </div>
 
-                    // 3. Calidad Inspeccionada (Repetidas)
-                    calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
-                      mixed.push({ ...c, _origin: 'Repetida', _id: c.ticket, _tech: c.tech || c.tech_id, _sup: c.supervisor || getSupervisor(c), _sector: c.sector, _date: c.fecha_inspeccion || c.fecha || (c as any).oe_vencimiento || 'N/A', _color: '#f59e0b', _code: c.codigo_aplicado || c['Código Aplicado'] });
-                    });
-
-                    // 4. Razones Inspeccionadas
-                    _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).forEach(r => {
-                      const rId = r.ticket || r.id || r['ID TICKET'] || r['TRABAJO'];
-                      mixed.push({ ...r, _origin: 'Razon', _id: rId, _tech: r.tecnico || r.tech || r['Asignado A'], _sup: r.supervisor || getSupervisor(r), _sector: r.sector, _date: r.fecha || 'N/A', _color: '#ec4899', _code: r.codigo_aplicado || r['Código Aplicado'] });
-                    });
-
-                    const term = inspeccionesSearch.toLowerCase().trim();
-                    const terms = term.split(' ').filter(Boolean);
-                    const filtered = mixed.filter(item => {
-                      if (!term) return true;
-                      return terms.some(t => 
-                        String(item._id).toLowerCase().includes(t) ||
-                        String(item._tech).toLowerCase().includes(t) ||
-                        String(item._sup).toLowerCase().includes(t) ||
-                        String(item._sector).toLowerCase().includes(t) ||
-                        String(item._origin).toLowerCase().includes(t)
-                      );
-                    });
-
-                    if (filtered.length === 0) return <tr><td colSpan={7} style={{textAlign: 'center', padding: '2rem'}}>No se encontraron resultados</td></tr>;
-
-                    return filtered.map((item, idx) => (
+              {/* Table */}
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Origen</th>
+                      <th>ORDEN / TICKET</th>
+                      <th>Técnico</th>
+                      <th>Gestor</th>
+                      <th>Supervisor</th>
+                      <th>Sector</th>
+                      <th>Fecha Inspección</th>
+                      <th>Código Aplicado</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.length === 0 ? (
+                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No se encontraron resultados</td></tr>
+                    ) : paginated.map((item, idx) => (
                       <tr key={idx}>
                         <td>
-                          <span style={{ 
-                            background: item._color + '20', 
-                            color: item._color, 
-                            padding: '0.25rem 0.6rem', 
-                            borderRadius: '6px', 
-                            fontSize: '0.7rem', 
-                            fontWeight: 800,
-                            textTransform: 'uppercase'
-                          }}>
+                          <span style={{ background: item._color + '20', color: item._color, padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                             {item._origin}
                           </span>
                         </td>
                         <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item._id}</td>
-                        <td>{item._tech}</td>
-                        <td>{item._sup}</td>
-                        <td>{item._sector}</td>
-                        <td>{formatRDDate(item._date)}</td>
+                        <td style={{ fontSize: '0.85rem' }}>{item._tech}</td>
+                        <td style={{ fontSize: '0.85rem', color: 'var(--primary-color)', fontWeight: 600 }}>{item._gestor !== '-' ? item._gestor : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
+                        <td style={{ fontSize: '0.85rem' }}>{item._sup}</td>
+                        <td style={{ fontSize: '0.85rem' }}>{item._sector}</td>
+                        <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{item._date ? formatRDDate(item._date) : '—'}</td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontWeight: 700, color: '#10b981' }}>{item._code || '-'}</span>
-                            {item._code && (
-                              <button 
-                                className="btn-danger" 
-                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem' }}
-                                onClick={() => {
-                                  setConfirmModal({
-                                    isOpen: true,
-                                    message: `¿Cancelar código para ${item._id}? Volverá al gestor.`,
-                                    onConfirm: async () => {
-                                      const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : 'calidad';
-                                      const { success } = await cancelManualCodigo(String(item._id), type);
-                                      if (success) { 
-                                        displayToast('Código cancelado'); 
-                                        loadTickets(); loadOrdenes(); loadCalidad();
-                                      }
-                                      setConfirmModal(null);
-                                    }
-                                  });
-                                }}
-                              >
-                                X
-                              </button>
-                            )}
-                          </div>
+                          {item._code
+                            ? <span style={{ fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ background: 'rgba(16,185,129,0.12)', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.8rem' }}>{item._code}</span>
+                              </span>
+                            : <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          }
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="btn-secondary" style={{ padding: '0.4rem 1.2rem', fontSize: '0.75rem', height: '32px' }} onClick={() => {
-                              if (item._origin === 'Ticket') setActiveTab('tickets');
-                              else if (item._origin === 'Orden') setActiveTab('ordenes');
-                              else setActiveTab('calidad');
-                            }}>
-                              Ver Detalle
-                            </button>
-                            <button 
-                              className="btn-danger" 
-                              style={{ padding: '0.4rem 1.2rem', fontSize: '0.75rem', height: '32px' }}
-                              onClick={() => {
-                                setConfirmModal({
-                                  isOpen: true,
-                                  message: `¿Eliminar inspección para ${item._id}? El registro volverá a estar pendiente.`,
-                                  onConfirm: async () => {
-                                    const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : 'calidad';
-                                    const { success } = await cancelManualCodigo(String(item._id), type);
-                                    if (success) { 
-                                      displayToast('Inspección eliminada'); 
-                                      loadTickets(); loadOrdenes(); loadCalidad();
-                                    }
-                                    setConfirmModal(null);
-                                  }
-                                });
-                              }}
-                            >
-                              Eliminar
-                            </button>
-                          </div>
+                          <button
+                            className="btn-danger"
+                            style={{ padding: '0.3rem 0.8rem', fontSize: '0.72rem', height: '30px' }}
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                message: `¿Cancelar inspección de ${item._origin} ${item._id}? El registro volverá a estar pendiente.`,
+                                onConfirm: async () => {
+                                  const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : item._origin === 'Razon' ? 'razones' : 'calidad';
+                                  const { success } = await cancelManualCodigo(String(item._id), type);
+                                  if (success) { displayToast('Inspección cancelada'); loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
+                                  setConfirmModal(null);
+                                }
+                              });
+                            }}
+                          >Cancelar</button>
                         </td>
                       </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <Pagination currentPage={inspeccionesPage} totalPages={totalInspPages} onPageChange={setInspeccionesPage} />
             </div>
-          </div>
-        )}
+          );
+        })()}
       </main>
 
 
