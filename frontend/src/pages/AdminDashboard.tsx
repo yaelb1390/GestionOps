@@ -301,7 +301,21 @@ export default function AdminDashboard() {
       String(o.supervisor || '').toLowerCase() === ordenesSupervisorFilter.toLowerCase();
     const matchesColumns = Object.entries(ordenesColumnFilters).every(([key, val]) => {
       if (!val) return true;
-      return String((o as any)[key] || '').toLowerCase().includes(val.toLowerCase());
+      const term = val.toLowerCase();
+      switch (key) {
+        case 'Trabajo': return String(o.ticket || (o as any).trabajo || '').toLowerCase().includes(term);
+        case 'Orden Externa': return String(o.descripcion_orden || (o as any)['orden externa'] || '').toLowerCase().includes(term);
+        case 'Cliente': return String(o.cliente || '').toLowerCase().includes(term);
+        case 'OE Vencimiento': return String(o.fecha || (o as any)['oe vencimiento'] || '').toLowerCase().includes(term);
+        case 'Prioridad': return String(o.priority || (o as any).prioridad || '').toLowerCase().includes(term);
+        case 'Asignado A': return String(o.tech || (o as any).tech_name || '').toLowerCase().includes(term);
+        case 'Supervisor': return String(o.supervisor || '').toLowerCase().includes(term);
+        case 'Estado': return String(o.status || '').toLowerCase().includes(term);
+        case 'Tecnología': return String(o.tecnologia || (o as any)['tipo red'] || '').toLowerCase().includes(term);
+        case 'Sector': return String(o.sector || (o as any).ciudad || '').toLowerCase().includes(term);
+        case 'Terminal': return String(o.terminal || '').toLowerCase().includes(term);
+        default: return String((o as any)[key] || '').toLowerCase().includes(term);
+      }
     });
     return matchesGlobal && matchesSupervisor && matchesColumns;
   });
