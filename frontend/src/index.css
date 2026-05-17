@@ -891,6 +891,12 @@ tbody tr:hover {
   margin-bottom: 1rem;
 }
 
+.bulk-assign-panel.blue {
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px dashed #3b82f6;
+}
+
+
 .bulk-assign-controls {
   display: flex;
   gap: 0.5rem;

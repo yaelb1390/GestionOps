@@ -695,9 +695,9 @@ export default function AdminDashboard() {
               </div>
 
               {/* Panel Asignación Masiva - misma arquitectura que Calidad */}
-              <div className="bulk-assign-panel">
+              <div className="bulk-assign-panel blue">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={18} color="var(--primary-color)" />
+                  <Users size={18} color="#3b82f6" />
                   <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>Asignación Masiva:</span>
                 </div>
                 
@@ -706,7 +706,7 @@ export default function AdminDashboard() {
                     className="input-control" 
                     value={ordenesSupervisorFilter} 
                     onChange={(e) => { setOrdenesSupervisorFilter(e.target.value); setOrdenesPage(1); }}
-                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid var(--primary-color)' }}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
                   >
                     <option value="">1. Seleccionar Supervisor...</option>
                     {Array.from(new Set(ordenes.map(o => String(o.supervisor || '')).filter(s => s && s !== '-'))).map(sup => (
@@ -714,13 +714,13 @@ export default function AdminDashboard() {
                     ))}
                   </select>
 
-                  <span className="bulk-assign-arrow">→</span>
+                  <span className="bulk-assign-arrow" style={{ color: '#3b82f6' }}>→</span>
 
                   <select 
                     className="assign-select" 
                     value={bulkAssignOrdenesInspector}
                     onChange={(e) => setBulkAssignOrdenesInspector(e.target.value)}
-                    style={{ flex: 1, minWidth: '200px', height: '42px' }}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
                   >
                     <option value="">2. Seleccionar Gestor...</option>
                     {inspectors.map(insp => (
@@ -730,17 +730,17 @@ export default function AdminDashboard() {
                   
                   <button 
                     className="btn-primary" 
-                    style={{ padding: '0 1.5rem', height: '42px' }}
+                    style={{ padding: '0 1.5rem', height: '42px', background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', boxShadow: '0 4px 14px 0 rgba(59, 130, 246, 0.3)', border: 'none' }}
                     disabled={!bulkAssignOrdenesInspector || !ordenesSupervisorFilter}
                     onClick={async () => {
                       const inspector = inspectors.find(i => String(i.id) === String(bulkAssignOrdenesInspector));
                       if (inspector && ordenesSupervisorFilter) {
                         try {
-                          const updated = await assignOrdenesBySupervisor(ordenesSupervisorFilter, inspector.id, inspector.nombre);
-                          displayToast(`Se asignaron ${updated} órdenes a ${inspector.nombre}`, 'success');
-                          loadOrdenes();
+                           const updated = await assignOrdenesBySupervisor(ordenesSupervisorFilter, inspector.id, inspector.nombre);
+                           displayToast(`Se asignaron ${updated} órdenes a ${inspector.nombre}`, 'success');
+                           loadOrdenes();
                         } catch (error: any) {
-                          displayToast(error.message || 'Error en la asignación masiva', 'error');
+                           displayToast(error.message || 'Error en la asignación masiva', 'error');
                         }
                       }
                     }}
@@ -749,7 +749,7 @@ export default function AdminDashboard() {
                   </button>
                 </div>
                 {!ordenesSupervisorFilter && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--primary-color)', fontStyle: 'italic' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontStyle: 'italic' }}>
                     * Selecciona un supervisor primero para habilitar la asignación masiva.
                   </span>
                 )}
@@ -1313,9 +1313,9 @@ export default function AdminDashboard() {
                 <AlertCircle size={20} color="var(--primary-color)" /> Gestión de Código Razón Cliente
               </h3>
               
-              <div className="bulk-assign-panel">
+              <div className="bulk-assign-panel blue">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={18} color="var(--primary-color)" />
+                  <Users size={18} color="#3b82f6" />
                   <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>Asignación Masiva:</span>
                 </div>
                 
@@ -1324,7 +1324,7 @@ export default function AdminDashboard() {
                     className="input-control" 
                     value={razonesSupervisorFilter}
                     onChange={(e) => setRazonesSupervisorFilter(e.target.value)}
-                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid var(--primary-color)' }}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
                   >
                     <option value="">1. Seleccionar Supervisor...</option>
                     {Array.from(new Set(_razones.map(r => r.supervisor || r['Nombre del Supervisor']).filter(Boolean))).sort().map(sup => (
@@ -1332,13 +1332,13 @@ export default function AdminDashboard() {
                     ))}
                   </select>
 
-                  <span className="bulk-assign-arrow">→</span>
+                  <span className="bulk-assign-arrow" style={{ color: '#3b82f6' }}>→</span>
 
                   <select 
                     className="assign-select" 
                     value={bulkAssignRazonesInspector}
                     onChange={(e) => setBulkAssignRazonesInspector(e.target.value)}
-                    style={{ flex: 1, minWidth: '200px', height: '42px' }}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
                   >
                     <option value="">2. Seleccionar Gestor...</option>
                     {inspectors.map(insp => (
@@ -1348,7 +1348,7 @@ export default function AdminDashboard() {
                   
                   <button 
                     className="btn-primary" 
-                    style={{ padding: '0 1.5rem', height: '42px' }}
+                    style={{ padding: '0 1.5rem', height: '42px', background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', boxShadow: '0 4px 14px 0 rgba(59, 130, 246, 0.3)', border: 'none' }}
                     disabled={!razonesSupervisorFilter || !bulkAssignRazonesInspector}
                     onClick={() => {
                       const inspName = inspectors.find(i => i.id === bulkAssignRazonesInspector)?.nombre || bulkAssignRazonesInspector;
