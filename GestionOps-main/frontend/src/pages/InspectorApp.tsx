@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink, AlertCircle, Activity, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones } from '../services/api';
+import { fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones, assignTicket } from '../services/api';
 
 export default function InspectorApp() {
   
@@ -77,6 +77,8 @@ export default function InspectorApp() {
   const [razones, setRazones] = useState<any[]>([]);
   const [selectedRazon, setSelectedRazon] = useState<any | null>(null);
   const [misTicketsSearch, setMisTicketsSearch] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -162,12 +164,82 @@ export default function InspectorApp() {
     }, 3000);
   };
 
+  const refreshAllBackground = async () => {
+    setIsSyncing(true);
+    let activeRequests = 4;
+    const checkDone = () => {
+      activeRequests--;
+      if (activeRequests === 0) {
+        setLastSyncTime(new Date());
+        setIsSyncing(false);
+        setLoading(false);
+      }
+    };
+
+    fetchTickets('inspector').then(data => {
+      setTickets(data ? [...data] : []);
+      checkDone();
+    }).catch(err => {
+      console.error("Tickets sync failed:", err);
+      checkDone();
+    });
+
+    fetchCalidad('inspector').then(data => {
+      setCalidadAssignments(data || []);
+      checkDone();
+    }).catch(err => {
+      console.error("Calidad sync failed:", err);
+      checkDone();
+    });
+
+    fetchOrdenes('inspector').then(data => {
+      setOrdenes(data || []);
+      checkDone();
+    }).catch(err => {
+      console.error("Ordenes sync failed:", err);
+      checkDone();
+    });
+
+    fetchRazones('inspector').then(data => {
+      setRazones(data || []);
+      checkDone();
+    }).catch(err => {
+      console.error("Razones sync failed:", err);
+      checkDone();
+    });
+  };
+
   useEffect(() => {
-    loadTickets();
-    loadCalidadAssignments();
-    loadOrdenes();
-    loadRazones();
+    // Carga inicial paralela para máxima velocidad
+    refreshAllBackground();
   }, []);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        refreshAllBackground();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Polling agresivo cada 3 segundos para recibir tickets más rápido
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshAllBackground();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'pendientes' || activeTab === 'completadas' || activeTab === 'mis_tickets') {
+      refreshAllBackground();
+    }
+  }, [activeTab]);
 
   const loadCalidadAssignments = async () => {
     const data = await fetchCalidad('inspector');
@@ -276,7 +348,67 @@ export default function InspectorApp() {
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Gestor Claro</div>
                 <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>{inspectorName}</h2>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>ID: {inspectorId}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {inspectorId}</div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--border-color)', margin: '0 0.1rem' }}>•</span>
+                  {/* Premium Glassmorphic Sync Status Badge */}
+                  <div 
+                    onClick={refreshAllBackground}
+                    title="Hacer clic para sincronizar ahora"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '12px',
+                      background: 'rgba(16, 185, 129, 0.06)',
+                      border: isSyncing ? '1px solid rgba(218, 41, 28, 0.2)' : '1px solid rgba(16, 185, 129, 0.15)',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-0.5px)';
+                      e.currentTarget.style.background = isSyncing ? 'rgba(218, 41, 28, 0.08)' : 'rgba(16, 185, 129, 0.1)';
+                      e.currentTarget.style.borderColor = isSyncing ? 'rgba(218, 41, 28, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.background = 'rgba(16, 185, 129, 0.06)';
+                      e.currentTarget.style.borderColor = isSyncing ? 'rgba(218, 41, 28, 0.2)' : 'rgba(16, 185, 129, 0.15)';
+                    }}
+                  >
+                    <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '8px', height: '8px' }}>
+                      {isSyncing ? (
+                        <Loader2 size={8} className="spinner" style={{ color: 'var(--primary-color)' }} />
+                      ) : (
+                        <>
+                          <span className="pulse-green" style={{
+                            position: 'absolute',
+                            display: 'inline-flex',
+                            height: '6px',
+                            width: '6px',
+                            borderRadius: '50%',
+                            backgroundColor: '#10b981',
+                            opacity: 0.75,
+                          }} />
+                          <span style={{
+                            position: 'relative',
+                            display: 'inline-flex',
+                            borderRadius: '50%',
+                            height: '6px',
+                            width: '6px',
+                            backgroundColor: '#10b981',
+                          }} />
+                        </>
+                      )}
+                    </span>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 600, color: isSyncing ? 'var(--primary-color)' : '#059669', fontFamily: 'inherit' }}>
+                      {isSyncing ? 'Sincronizando...' : `Sincronizado ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -314,6 +446,10 @@ export default function InspectorApp() {
           <><Package size={20} color="var(--primary-color)" /> Mis Órdenes</>
         ) : activeTab === 'menu' ? (
           <><LayoutGrid size={20} color="var(--primary-color)" /> Menú Principal</>
+        ) : activeTab === 'pendientes' ? (
+          <><ClipboardList size={20} color="var(--primary-color)" /> Tickets</>
+        ) : activeTab === 'completadas' ? (
+          <><ClipboardList size={20} color="var(--primary-color)" /> Tickets Completados</>
         ) : activeTab === 'mis_tickets' ? (
           <><CheckCircle2 size={20} color="var(--primary-color)" /> Inspecciones Realizadas</>
         ) : (
@@ -618,12 +754,28 @@ export default function InspectorApp() {
                     });
 
                     if (filtered.length === 0) {
+                      // Debug: ver claves del primer ticket para detectar el problema
+                      const firstTicket = tickets[0];
+                      const inspectorKeys = firstTicket 
+                        ? Object.keys(firstTicket).filter(k => 
+                            k.toLowerCase().includes('inspector') || 
+                            k.toLowerCase().includes('gestor') || 
+                            k.toLowerCase().includes('asignad')
+                          )
+                        : [];
                       return (
                         <div style={{ textAlign: 'center', marginTop: '2rem', gridColumn: '1 / -1' }}>
                           <p style={{ color: 'var(--text-muted)' }}>No hay tickets en esta sección</p>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.5, marginTop: '1rem' }}>
-                            Depuración: {tickets.length} total | ID: {clean(inspectorId)} | Nombre: {clean(inspectorName)}
-                          </p>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', opacity: 0.7, marginTop: '1rem', background: 'var(--glass-bg)', padding: '0.75rem', borderRadius: '8px', textAlign: 'left' }}>
+                            <div><b>Total tickets recibidos:</b> {tickets.length}</div>
+                            <div><b>Mi ID:</b> {clean(inspectorId)} | <b>Mi Nombre:</b> {clean(inspectorName)}</div>
+                            {inspectorKeys.length > 0 && (
+                              <div><b>Columnas de asignación en el ticket:</b> {inspectorKeys.map(k => `"${k}"="${firstTicket[k]}"`).join(' | ')}</div>
+                            )}
+                            {inspectorKeys.length === 0 && firstTicket && (
+                              <div><b>⚠ No encontré columnas de inspector/gestor. Claves del ticket:</b> {Object.keys(firstTicket).join(', ')}</div>
+                            )}
+                          </div>
                         </div>
                       );
                     }
@@ -635,7 +787,7 @@ export default function InspectorApp() {
                             <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
                               ID TICKET
                             </div>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{t.ticket}</div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{getFlexVal(t, ['ticket', 'trabajo', 'work_name', 'work name', 'orden_externa_id', 'orden_servicio', 'orden externa', 'order_external', 'orden'])}</div>
                           </div>
                           <ChevronRight color="var(--text-muted)" size={20} />
                         </div>
@@ -656,6 +808,41 @@ export default function InspectorApp() {
                             <span className={`badge ${t.priority === 'Alta' ? 'danger' : 'warning'}`}>{t.priority}</span>
                           </div>
                         </div>
+                      
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem', gap: '0.5rem' }}>
+                          {(!(t as any).inspector && !(t as any).inspector_id) && (
+                            <button
+                              className="btn-primary"
+                              style={{ padding: '0.4rem 0.8rem' }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const myId = localStorage.getItem('inspectorId') || '';
+                                const myName = localStorage.getItem('inspectorName') || '';
+                                if (!myId) return displayToast('No tienes ID de gestor en sesión', 'error');
+                                try {
+                                  const idValue = getFlexVal(t, ['id', 'ID', 'Id', 'orden_externa_id', 'orden_servicio', 'orden externa', 'order_external']);
+                                  const ticketValue = getFlexVal(t, ['ticket', 'trabajo', 'work_name', 'work name', 'orden_externa_id', 'orden_servicio', 'orden externa', 'order_external', 'orden']);
+                                  const ticketKey = idValue && idValue !== '-' ? idValue : (ticketValue && ticketValue !== '-' ? ticketValue : '');
+                                  if (!ticketKey) {
+                                    return displayToast('No se encontró el identificador del ticket', 'error');
+                                  }
+                                  const res = await assignTicket(ticketKey, myId, myName, ticketValue && ticketValue !== ticketKey ? ticketValue : undefined);
+                                  if (res.status) {
+                                    displayToast('Ticket asignado a ti', 'success');
+                                    loadTickets();
+                                  } else {
+                                    displayToast(res.message || 'No se pudo asignar', 'error');
+                                  }
+                                } catch (err: any) {
+                                  displayToast(err?.message || 'Error al asignar', 'error');
+                                }
+                              }}
+                            >
+                              Tomar
+                            </button>
+                          )}
+                        </div>
+
                       </div>
                     ));
                   })()}

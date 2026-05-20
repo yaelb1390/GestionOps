@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual } from '../services/api';
+import TicketsPanel from './Tickets';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -183,16 +184,11 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    let interval: any;
     if (activeTab === 'dashboard') {
-      const refresh = () => {
-        loadTickets();
-        loadCalidad();
-        loadOrdenes();
-        loadRazones();
-      };
-      refresh();
-      interval = setInterval(refresh, 30000); // 30 seconds
+      loadTickets();
+      loadCalidad();
+      loadOrdenes();
+      loadRazones();
     }
 
     if (activeTab === 'ordenes') loadOrdenes();
@@ -203,7 +199,7 @@ export default function AdminDashboard() {
     if (activeTab === 'inspecciones') { loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
 
     return () => {
-      if (interval) clearInterval(interval);
+      // No interval needed; cleanup placeholder kept for future use
     };
   }, [activeTab]);
 
@@ -392,6 +388,9 @@ export default function AdminDashboard() {
           <button className={`nav-item ${activeTab === 'ordenes' ? 'active' : ''}`} onClick={() => setActiveTab('ordenes')}>
             <Package size={20} /> Ordenes <span className="nav-badge">{ordenes.length}</span>
           </button>
+          <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
+            <FileText size={20} /> Tickets <span className="nav-badge">{tickets.length}</span>
+          </button>
           <button className={`nav-item ${activeTab === 'calidad' ? 'active' : ''}`} onClick={() => setActiveTab('calidad')}>
             <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{calidadData.length}</span>
           </button>
@@ -420,13 +419,14 @@ export default function AdminDashboard() {
         <div className="header-actions">
           <div>
             <h1 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
-               activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
-               activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
-               activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
-               activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
-               activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
-               <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
+                {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
+                activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
+                activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Tickets</> :
+                activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
+                activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
+                activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
+                activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
+                <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
           </div>
@@ -833,6 +833,10 @@ export default function AdminDashboard() {
               <Pagination currentPage={ordenesPage} totalPages={totalOrdenesPages} onPageChange={setOrdenesPage} />
             </div>
           </div>
+        )}
+
+        {activeTab === 'tickets' && (
+          <TicketsPanel />
         )}
 
 

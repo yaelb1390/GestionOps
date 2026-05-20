@@ -41,7 +41,9 @@ export async function fetchTickets(role: string = 'admin'): Promise<Ticket[]> {
       ];
     }
 
-    const response = await fetch(`${SCRIPT_URL}?type=tickets&role=${role}&_t=${Date.now()}`);
+    const response = await fetch(`${SCRIPT_URL}?type=tickets&role=${role}&_t=${Date.now()}`, {
+      cache: 'no-store'
+    });
     const data = await response.json();
     return data as Ticket[];
   } catch (error) {
@@ -83,26 +85,31 @@ export async function updateTicketStatus(id: number | string, newStatus: string,
   }
 }
 
-export async function assignTicket(id: number | string, tech_id: string, tech_name: string): Promise<boolean> {
+export async function assignTicket(id: number | string, tech_id: string, tech_name: string, ticket?: string): Promise<{status: boolean, message?: string, raw?: any}> {
   try {
     const response = await fetch(SCRIPT_URL, {
       method: "POST",
       body: JSON.stringify({
         action: "assign_ticket",
-        id: id,
-        tech_id: tech_id, // inspector id
-        tech_name: tech_name // inspector name
+        id: String(id),
+        ticket: ticket ? String(ticket) : undefined,
+        tech_id: String(tech_id), // inspector id
+        tech_name: String(tech_name) // inspector name
       }),
       headers: {
-        "Content-Type": "text/plain;charset=utf-8",
+        "Content-Type": "application/json",
       }
     });
 
     const result = await response.json();
-    return result.status === "success";
-  } catch (error) {
+    if (!result || result.status !== "success") {
+      console.error("assignTicket API response:", result);
+      return { status: false, message: result?.message || 'API returned failure', raw: result };
+    }
+    return { status: true, message: result?.message, raw: result };
+  } catch (error: any) {
     console.error("Error assigning ticket:", error);
-    return false;
+    return { status: false, message: error?.message || String(error) };
   }
 }
 
@@ -112,12 +119,12 @@ export async function assignTicketsBySupervisor(supervisor: string, tech_id: str
       method: "POST",
       body: JSON.stringify({
         action: "assign_tickets_by_supervisor",
-        supervisor: supervisor,
-        tech_id: tech_id, // inspector id
-        tech_name: tech_name // inspector name
+        supervisor: String(supervisor),
+        tech_id: String(tech_id), // inspector id
+        tech_name: String(tech_name) // inspector name
       }),
       headers: {
-        "Content-Type": "text/plain;charset=utf-8",
+        "Content-Type": "application/json",
       }
     });
 
@@ -238,7 +245,7 @@ export const updateAdminProfile = async (username: string, password: string, rec
 
 export const fetchCalidad = async (role: string = 'admin'): Promise<any[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=calidad&role=${role}&_t=${Date.now()}`);
+    const res = await fetch(`${SCRIPT_URL}?type=calidad&role=${role}&_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -249,7 +256,7 @@ export const fetchCalidad = async (role: string = 'admin'): Promise<any[]> => {
 
 export const fetchRazones = async (role: string = 'admin'): Promise<any[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=razones&role=${role}&_t=${Date.now()}`);
+    const res = await fetch(`${SCRIPT_URL}?type=razones&role=${role}&_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -260,7 +267,7 @@ export const fetchRazones = async (role: string = 'admin'): Promise<any[]> => {
 
 export const fetchOrdenes = async (role: string = 'admin'): Promise<Orden[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=ordenes&role=${role}&_t=${Date.now()}`);
+    const res = await fetch(`${SCRIPT_URL}?type=ordenes&role=${role}&_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
