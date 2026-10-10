@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2,
   Sun, Moon, Settings, RotateCcw, AlertCircle,
-  LayoutDashboard, FileText, Users, Package
+  LayoutDashboard, FileText, Users, Package, Upload
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import ImportExcel from './ImportExcel';
 import { subscribeTables } from '../services/realtime';
 import { logout, fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
 
@@ -445,6 +446,9 @@ export default function AdminDashboard() {
           <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
             <Users size={20} /> Personal <span className="nav-badge">{inspectors.length}</span>
           </button>
+          <button className={`nav-item ${activeTab === 'importar' ? 'active' : ''}`} onClick={() => setActiveTab('importar')}>
+            <Upload size={20} /> Importar Excel
+          </button>
           <button className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
             <Settings size={20} /> Mi Perfil
           </button>
@@ -471,6 +475,7 @@ export default function AdminDashboard() {
                activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
                activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
                activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
+               activeTab === 'importar' ? <><Upload size={28} color="var(--primary-color)" /> Importar desde Excel</> :
                <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
@@ -1505,6 +1510,19 @@ export default function AdminDashboard() {
               <Pagination currentPage={calidadPage} totalPages={totalCalidadPages} onPageChange={setCalidadPage} />
             </div>
           </div>
+        )}
+
+        {activeTab === 'importar' && (
+          <ImportExcel
+            notify={displayToast}
+            onImported={(m) => {
+              if (m === 'tickets') loadTickets();
+              if (m === 'ordenes') loadOrdenes();
+              if (m === 'calidad') loadCalidad();
+              if (m === 'razones') loadRazones();
+            }}
+            onOpenModule={(m) => setActiveTab(m)}
+          />
         )}
 
         {activeTab === 'config' && (

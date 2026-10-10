@@ -320,3 +320,25 @@ export async function updateTicketStatus(id: number | string, newStatus: string,
   if (error) console.error('Error updating ticket:', error);
   return !error;
 }
+
+// ── Importación de Excel (solo admin) ────────────────────────────────────────
+
+export interface ImportTotals { inserted: number; updated: number; skipped: number }
+
+// Envía las filas ya normalizadas (ver excelImport.ts) en lotes. El servidor actualiza lo existente sin pisar
+// asignación, estado ni códigos, y crea lo nuevo como Pendiente. Lanza Error si algún lote falla.
+export async function importRows(
+  tabla: Tabla, rows: Record<string, any>[], onProgress?: (done: number, total: number) => void,
+): Promise<ImportTotals> {
+  const BATCH = 500;
+  const totals: ImportTotals = { inserted: 0, updated: 0, skipped: 0 };
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { data, error } = await supabase.rpc('import_rows', { p_table: tabla, p_rows: rows.slice(i, i + BATCH) });
+    if (error) throw new Error(`Falló el lote ${Math.floor(i / BATCH) + 1}: ${error.message}`);
+    totals.inserted += data?.inserted ?? 0;
+    totals.updated += data?.updated ?? 0;
+    totals.skipped += data?.skipped ?? 0;
+    onProgress?.(Math.min(i + BATCH, rows.length), rows.length);
+  }
+  return totals;
+}

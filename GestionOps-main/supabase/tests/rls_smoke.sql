@@ -81,7 +81,55 @@ set local role authenticated;
 select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
 select pg_temp.expect('inspeccionado >24h oculto', (select count(*) = 1 from public.tickets));
 
+-- 6b) import_rows: nuevos, idempotencia y "actualizar sin pisar el trabajo"
+reset role;
+set local role authenticated;
+select pg_temp.claims('admin', current_setting('test.root')::uuid);
+select set_config('test.imp', public.import_rows('tickets', '[
+  {"ticket":"IMP-1","supervisor":"Sup A","sector":"Norte","fecha":"2026-10-05T14:30:00-04:00","extra":{"col_rara":"x"}},
+  {"ticket":"IMP-2","supervisor":"Sup A","sector":"Sur"},
+  {"ticket":"IMP-2","supervisor":"Sup A","sector":"Sur"},
+  {"ticket":"","supervisor":"sin clave"}
+]'::jsonb)::text, true);
+select pg_temp.expect('import: 2 nuevos, 2 omitidos (duplicado + sin clave)',
+  (current_setting('test.imp')::jsonb ->> 'inserted') = '2' and (current_setting('test.imp')::jsonb ->> 'skipped') = '2');
+select pg_temp.expect('import: entran Pendiente', (select count(*) = 2 from public.tickets where ticket in ('IMP-1','IMP-2') and status = 'Pendiente'));
+
+-- el gestor trabaja IMP-1 (asignado + código) y luego se reimporta el Excel con datos nuevos
+select public.assign_item('tickets', 'IMP-1', current_setting('test.ana')::uuid);
+select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
+select public.save_codigo('tickets', 'IMP-1', 'COD-IMP');
+select pg_temp.claims('admin', current_setting('test.root')::uuid);
+select set_config('test.imp2', public.import_rows('tickets', '[
+  {"ticket":"IMP-1","supervisor":"Sup NUEVO","sector":null,"status":"Pendiente","inspector_id":null,"codigo_aplicado":"HACK","extra":{"otra":"y"}},
+  {"ticket":"IMP-2","supervisor":"Sup A","sector":"Sur"},
+  {"ticket":"IMP-3","supervisor":"Sup B"}
+]'::jsonb)::text, true);
+select pg_temp.expect('reimport: 1 nuevo, 2 actualizados',
+  (current_setting('test.imp2')::jsonb ->> 'inserted') = '1' and (current_setting('test.imp2')::jsonb ->> 'updated') = '2');
+select pg_temp.expect('reimport: actualiza datos pero conserva el trabajo',
+  (select supervisor = 'Sup NUEVO' and sector = 'Norte'                       -- celda vacía no borra
+      and status = 'Inspeccionado' and codigo_aplicado = 'COD-IMP'             -- estado y código intactos
+      and inspector_id = current_setting('test.ana')::uuid                     -- asignación intacta
+      and extra = '{"col_rara":"x","otra":"y"}'::jsonb                         -- extra se fusiona
+   from public.tickets where ticket = 'IMP-1'));
+select pg_temp.expect('reimport: total sin duplicados', (select count(*) = 3 from public.tickets where ticket like 'IMP-%'));
+
+-- órdenes: la clave es la orden externa (1234567.0 == 1234567)
+select public.import_rows('ordenes', '[{"orden_externa_id":"1234567","ticket":"Instalacion"}]'::jsonb);
+select pg_temp.expect('órdenes: clave numérica normalizada',
+  (public.import_rows('ordenes', '[{"orden_externa_id":"1234567.0","cliente":"ACME"}]'::jsonb) ->> 'updated') = '1');
+
+-- un gestor no puede importar
+select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
+do $$ begin
+  begin perform public.import_rows('tickets', '[{"ticket":"HACK-1"}]'::jsonb); raise exception 'FALLO: gestor importó';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: gestor no puede importar';
+end $$;
+
 -- 7) Anónimo no ve nada
+reset role;
 reset role;
 set local role anon;
 do $$ begin

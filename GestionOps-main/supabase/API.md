@@ -35,10 +35,14 @@ Cambios de forma de los datos: `inspector_id` es ahora el **uuid** de `personal.
 | `update_status` | `update_ticket_status(p_key, p_status, p_remarks, p_root_cause, p_evidence text[])` | admin / gestor dueño |
 | `add_inspector` / `update_inspector` | `admin_save_personal(p jsonb)` (sin `id` = alta; `password` solo si se cambia) → uuid | admin |
 | `delete_inspector` | `admin_delete_personal(p_id uuid)` | admin |
+| (nuevo) importar Excel desde el panel | `import_rows(p_table, p_rows jsonb)` → `{inserted, updated, skipped}` (máx. 2000 filas por llamada; el frontend envía lotes de 500) | admin |
 | `update_admin_profile` | `admin_update_profile(p_username, p_password, p_recovery_email)` | super admin |
 
 Los errores llegan como `error.message` (ej. `Ya tiene un código aplicado`, `Registro no encontrado: X`), en lugar de `{status:"error"}`.
 Las imágenes (`images[]` en base64) pasan a **Supabase Storage** (bucket privado `evidencias`, pendiente de crear junto al frontend); `evidence` guarda las rutas.
+
+### Importación de Excel (`import_rows`)
+Clave de negocio por módulo: tickets/razones = `ticket`; órdenes = `orden_externa_id` › `orden_servicio` › `ticket`; calidad = `ticket|caso_repetido`. Si la clave ya existe se **actualizan** los datos del Excel (una celda vacía no borra lo que había; `extra` se fusiona) pero **nunca** `status`, `inspector(_id)`, `codigo_aplicado` ni `fecha_inspeccion`. Los nuevos entran como `Pendiente`. La lectura y detección del módulo ocurre en el navegador (`frontend/src/services/excelImport.ts`).
 
 ## Diferencias deliberadas respecto al Apps Script
 - `assign_item/by_supervisor` en **órdenes y calidad** ya no pisan el estado de registros `Inspeccionado/Completado` (antes los reabrían a "Asignado").
