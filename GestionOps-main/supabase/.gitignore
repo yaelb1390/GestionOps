@@ -1,0 +1,5 @@
+.env
+seed/csv/
+seed/node_modules/
+.branches
+.temp

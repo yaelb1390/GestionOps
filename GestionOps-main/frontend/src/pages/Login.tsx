@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, ShieldCheck, Loader2 } from 'lucide-react';
-import { fetchInspectors, SCRIPT_URL } from '../services/api';
+import { login, getRecoveryEmail } from '../services/api';
 
 export default function Login() {
   const [role, setRole] = useState<'admin' | 'inspector'>('admin');
@@ -15,61 +15,23 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
-    if (role === 'admin') {
-      try {
-        // 1. Verificar contra el Súper Admin (Config)
-        const config = await (await fetch(`${SCRIPT_URL}?type=config`)).json();
-        
-        if (username === config.admin_username && password === config.admin_password) {
-          localStorage.setItem('userRole', 'admin');
-          navigate('/admin');
-          setLoading(false);
-          return;
-        }
-
-        // 2. Si no es el súper admin, buscar en la lista de Personal con rol 'Admin'
-        const inspectors = await fetchInspectors();
-        const adminUser = inspectors.find(i => 
-          String(i.usuario).toLowerCase() === String(username).toLowerCase() && 
-          String(i.password) === String(password) && 
-          i.rol === 'Admin'
-        );
-
-        if (adminUser) {
-          localStorage.setItem('userRole', 'admin');
-          localStorage.setItem('inspectorName', adminUser.nombre);
-          navigate('/admin');
-        } else {
-          setError('Usuario o contraseña de administrador incorrectos');
-        }
-      } catch (err) {
-        setError('Error al validar credenciales');
+    try {
+      // La validación (bcrypt, estado activo, rol y bloqueo por intentos) ocurre en el servidor
+      const user = await login(username.trim(), password, role);
+      localStorage.setItem('userRole', role);
+      localStorage.setItem('inspectorName', user.nombre);
+      if (role === 'admin') {
+        navigate('/admin');
+      } else {
+        localStorage.setItem('inspectorId', user.id); // uuid: coincide con inspector_id de las filas
+        localStorage.setItem('username', user.usuario);
+        localStorage.setItem('inspectorRole', user.rol || 'Inspector'); // menú QAOR / gestor
+        navigate('/inspector');
       }
-      setLoading(false);
-    } else {
-      try {
-        const inspectors = await fetchInspectors();
-        const inspector = inspectors.find(i => 
-          String(i.usuario).toLowerCase() === String(username).toLowerCase() && 
-          String(i.password) === String(password) && 
-          i.estado === 'Activo'
-        );
-        
-        if (inspector) {
-          localStorage.setItem('userRole', 'inspector');
-          localStorage.setItem('inspectorName', inspector.nombre); // Para filtrar tickets
-          localStorage.setItem('inspectorId', String(inspector.id));
-          localStorage.setItem('username', String(inspector.usuario));
-          navigate('/inspector');
-        } else {
-          setError('Credenciales incorrectas o gestor inactivo');
-        }
-      } catch (err) {
-        setError('Error de conexión con el servidor');
-      }
-      setLoading(false);
+    } catch (err: any) {
+      setError(err?.message || 'Error de conexión con el servidor');
     }
+    setLoading(false);
   };
 
   return (
@@ -137,9 +99,8 @@ export default function Login() {
               type="button" 
               onClick={async () => {
                 try {
-                  const res = await fetch(`${SCRIPT_URL}?type=config`);
-                  const config = await res.json();
-                  alert(`Si olvidaste tu contraseña, contacta al administrador en: ${config.admin_recovery_email || 'No configurado'}`);
+                  const email = await getRecoveryEmail();
+                  alert(`Si olvidaste tu contraseña, contacta al administrador en: ${email || 'No configurado'}`);
                 } catch (e) {
                   alert('Error al obtener información de recuperación');
                 }

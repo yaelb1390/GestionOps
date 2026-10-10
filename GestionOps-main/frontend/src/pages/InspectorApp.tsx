@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink, AlertCircle, Activity, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones, assignTicket } from '../services/api';
+import { subscribeTables } from '../services/realtime';
+import { logout, fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones } from '../services/api';
 
 export default function InspectorApp() {
   
@@ -40,6 +41,33 @@ export default function InspectorApp() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setShowInstallBtn(false);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`PWA install prompt choice: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBtn(false);
+  };
+
   const handleTabChange = (newTab: string) => {
     if (newTab !== activeTab) {
       window.history.pushState({ tab: newTab }, '');
@@ -62,6 +90,8 @@ export default function InspectorApp() {
   const navigate = useNavigate();
   const inspectorName = localStorage.getItem('inspectorName') || '';
   const inspectorId = localStorage.getItem('inspectorId') || '';
+  const inspectorRole = localStorage.getItem('inspectorRole') || 'Inspector';
+  const isQAOR = inspectorRole === 'QAOR';
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [loadingOrdenes, setLoadingOrdenes] = useState(false);
   const [selectedOrden, setSelectedOrden] = useState<Orden | null>(null);
@@ -77,8 +107,15 @@ export default function InspectorApp() {
   const [razones, setRazones] = useState<any[]>([]);
   const [selectedRazon, setSelectedRazon] = useState<any | null>(null);
   const [misTicketsSearch, setMisTicketsSearch] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  
+  const [activeMenuForm, setActiveMenuForm] = useState<{ url: string; title: string } | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
+
+  const openForm = (url: string, title: string) => {
+    window.open(url, '_blank');
+    setActiveMenuForm({ url, title });
+  };
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -87,11 +124,8 @@ export default function InspectorApp() {
     localStorage.setItem('theme', newTheme);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('inspectorName');
-    localStorage.removeItem('inspectorId');
-    localStorage.removeItem('username');
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -164,82 +198,29 @@ export default function InspectorApp() {
     }, 3000);
   };
 
-  const refreshAllBackground = async () => {
-    setIsSyncing(true);
-    let activeRequests = 4;
-    const checkDone = () => {
-      activeRequests--;
-      if (activeRequests === 0) {
-        setLastSyncTime(new Date());
-        setIsSyncing(false);
-        setLoading(false);
-      }
-    };
-
-    fetchTickets('inspector').then(data => {
-      setTickets(data ? [...data] : []);
-      checkDone();
-    }).catch(err => {
-      console.error("Tickets sync failed:", err);
-      checkDone();
-    });
-
-    fetchCalidad('inspector').then(data => {
-      setCalidadAssignments(data || []);
-      checkDone();
-    }).catch(err => {
-      console.error("Calidad sync failed:", err);
-      checkDone();
-    });
-
-    fetchOrdenes('inspector').then(data => {
-      setOrdenes(data || []);
-      checkDone();
-    }).catch(err => {
-      console.error("Ordenes sync failed:", err);
-      checkDone();
-    });
-
-    fetchRazones('inspector').then(data => {
-      setRazones(data || []);
-      checkDone();
-    }).catch(err => {
-      console.error("Razones sync failed:", err);
-      checkDone();
-    });
-  };
-
   useEffect(() => {
-    // Carga inicial paralela para máxima velocidad
-    refreshAllBackground();
+    loadTickets();
+    loadCalidadAssignments();
+    loadOrdenes();
+    loadRazones();
   }, []);
 
+  // Tiempo real: al asignarle o cambiarle algo, la lista se actualiza sola (sin spinner).
+  // Además se refresca al volver a la app (móvil) y cada 2 min por si se cayó la conexión.
   useEffect(() => {
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        refreshAllBackground();
-      }
+    const refresh = (tabla: string) => {
+      if (tabla === 'tickets') fetchTickets('inspector').then(setTickets);
+      if (tabla === 'calidad') fetchCalidad('inspector').then(setCalidadAssignments);
+      if (tabla === 'ordenes') fetchOrdenes('inspector').then(setOrdenes);
+      if (tabla === 'razones') fetchRazones('inspector').then(setRazones);
     };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
+    const refreshAll = () => ['tickets', 'calidad', 'ordenes', 'razones'].forEach(refresh);
+    const unsubscribe = subscribeTables(refresh);
+    const onVisible = () => { if (!document.hidden) refreshAll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(refreshAll, 120000);
+    return () => { unsubscribe(); document.removeEventListener('visibilitychange', onVisible); clearInterval(timer); };
   }, []);
-
-  // Polling agresivo cada 3 segundos para recibir tickets más rápido
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshAllBackground();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'pendientes' || activeTab === 'completadas' || activeTab === 'mis_tickets') {
-      refreshAllBackground();
-    }
-  }, [activeTab]);
 
   const loadCalidadAssignments = async () => {
     const data = await fetchCalidad('inspector');
@@ -348,67 +329,7 @@ export default function InspectorApp() {
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Gestor Claro</div>
                 <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>{inspectorName}</h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {inspectorId}</div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--border-color)', margin: '0 0.1rem' }}>•</span>
-                  {/* Premium Glassmorphic Sync Status Badge */}
-                  <div 
-                    onClick={refreshAllBackground}
-                    title="Hacer clic para sincronizar ahora"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '12px',
-                      background: 'rgba(16, 185, 129, 0.06)',
-                      border: isSyncing ? '1px solid rgba(218, 41, 28, 0.2)' : '1px solid rgba(16, 185, 129, 0.15)',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-0.5px)';
-                      e.currentTarget.style.background = isSyncing ? 'rgba(218, 41, 28, 0.08)' : 'rgba(16, 185, 129, 0.1)';
-                      e.currentTarget.style.borderColor = isSyncing ? 'rgba(218, 41, 28, 0.3)' : 'rgba(16, 185, 129, 0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.background = 'rgba(16, 185, 129, 0.06)';
-                      e.currentTarget.style.borderColor = isSyncing ? 'rgba(218, 41, 28, 0.2)' : 'rgba(16, 185, 129, 0.15)';
-                    }}
-                  >
-                    <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '8px', height: '8px' }}>
-                      {isSyncing ? (
-                        <Loader2 size={8} className="spinner" style={{ color: 'var(--primary-color)' }} />
-                      ) : (
-                        <>
-                          <span className="pulse-green" style={{
-                            position: 'absolute',
-                            display: 'inline-flex',
-                            height: '6px',
-                            width: '6px',
-                            borderRadius: '50%',
-                            backgroundColor: '#10b981',
-                            opacity: 0.75,
-                          }} />
-                          <span style={{
-                            position: 'relative',
-                            display: 'inline-flex',
-                            borderRadius: '50%',
-                            height: '6px',
-                            width: '6px',
-                            backgroundColor: '#10b981',
-                          }} />
-                        </>
-                      )}
-                    </span>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 600, color: isSyncing ? 'var(--primary-color)' : '#059669', fontFamily: 'inherit' }}>
-                      {isSyncing ? 'Sincronizando...' : `Sincronizado ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-                    </span>
-                  </div>
-                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>ID: {inspectorId}</div>
               </div>
             </div>
           </div>
@@ -446,10 +367,6 @@ export default function InspectorApp() {
           <><Package size={20} color="var(--primary-color)" /> Mis Órdenes</>
         ) : activeTab === 'menu' ? (
           <><LayoutGrid size={20} color="var(--primary-color)" /> Menú Principal</>
-        ) : activeTab === 'pendientes' ? (
-          <><ClipboardList size={20} color="var(--primary-color)" /> Tickets</>
-        ) : activeTab === 'completadas' ? (
-          <><ClipboardList size={20} color="var(--primary-color)" /> Tickets Completados</>
         ) : activeTab === 'mis_tickets' ? (
           <><CheckCircle2 size={20} color="var(--primary-color)" /> Inspecciones Realizadas</>
         ) : (
@@ -458,13 +375,328 @@ export default function InspectorApp() {
       </h3>
 
       {activeTab === 'menu' && (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
-          gap: '1.25rem', 
-          marginTop: '0.5rem',
-          animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}>
+        <>
+          {activeMenuForm ? (
+            <div className="glass-panel" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2.5rem 1.5rem',
+              textAlign: 'center',
+              background: 'var(--glass-bg)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '24px',
+              animation: 'fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxWidth: '450px',
+              margin: '2rem auto',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'rgba(16, 185, 129, 0.1)',
+                color: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '1.25rem'
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+              </div>
+              <h3 style={{ color: 'var(--text-main)', margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 800 }}>
+                Llenando {activeMenuForm.title}
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '2rem' }}>
+                El formulario se ha abierto en una pestaña aparte de su navegador. Por favor complete los datos solicitados allí y, al finalizar, regrese aquí para confirmar.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
+                <button 
+                  onClick={() => {
+                    setActiveMenuForm(null);
+                    setShowSuccessToast(true);
+                    setTimeout(() => setShowSuccessToast(false), 4000);
+                  }}
+                  className="btn-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderColor: '#10b981',
+                    padding: '1rem',
+                    borderRadius: '16px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 8px 20px rgba(16, 185, 129, 0.25)'
+                  }}
+                >
+                  <Check size={20} /> Confirmar Envío Completado
+                </button>
+                <button 
+                  onClick={() => setActiveMenuForm(null)}
+                  className="btn-secondary"
+                  style={{ padding: '0.85rem', borderRadius: '16px' }}
+                >
+                  Cancelar y Volver
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {showInstallBtn && (
+            <div className="glass-panel" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1rem 1.25rem',
+              borderRadius: '16px',
+              borderLeft: '4px solid var(--primary-color)',
+              marginBottom: '1.25rem',
+              background: 'var(--glass-bg)',
+              animation: 'fadeInDown 0.4s ease-out',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ background: 'rgba(218, 41, 28, 0.1)', color: 'var(--primary-color)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Package size={20} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700 }}>Instalar Aplicación</h4>
+                  <p style={{ margin: '0.1rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>Descarga esta app en tu pantalla de inicio para acceso directo rápido.</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleInstallClick}
+                className="btn-primary"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', borderRadius: '8px', boxShadow: '0 4px 10px rgba(218, 41, 28, 0.2)' }}
+              >
+                Instalar App
+              </button>
+            </div>
+          )}
+
+          {/* iOS Install Guide (if iOS and not standalone) */}
+          {(() => {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            if (isIOS && !isStandalone) {
+              return (
+                <div className="glass-panel" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '1rem 1.25rem',
+                  borderRadius: '16px',
+                  borderLeft: '4px solid #3b82f6',
+                  marginBottom: '1.25rem',
+                  background: 'var(--glass-bg)',
+                  animation: 'fadeInDown 0.4s ease-out'
+                }}>
+                  <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ExternalLink size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700 }}>Descargar en iPhone / iPad</h4>
+                    <p style={{ margin: '0.1rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>Toca el botón <strong>Compartir</strong> <span style={{fontSize: '1rem'}}>⎋</span> en Safari y luego selecciona <strong>"Agregar a inicio"</strong>.</p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+            gap: '1.25rem', 
+            marginTop: '0.5rem',
+            animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+
+          {/* ═══════════ MENÚ EXCLUSIVO QAOR-GESTORES ═══════════ */}
+          {isQAOR ? (
+            <>
+              {/* Etiqueta de sección */}
+              <div style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginBottom: '0.25rem'
+              }}>
+                <div style={{
+                  height: '2px',
+                  flex: 1,
+                  background: 'linear-gradient(90deg, var(--primary-color), transparent)'
+                }} />
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 800,
+                  color: 'var(--primary-color)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
+                  whiteSpace: 'nowrap'
+                }}>QAOR — Formularios de Gestión</span>
+                <div style={{
+                  height: '2px',
+                  flex: 1,
+                  background: 'linear-gradient(90deg, transparent, var(--primary-color))'
+                }} />
+              </div>
+
+              {/* 1. QAOR-Gestores */}
+              <button 
+                onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', 'QAOR-Gestores')}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.75rem 1rem', textAlign: 'center', justifyContent: 'center',
+                  border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: '24px', transition: 'all 0.3s ease', cursor: 'pointer'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)' }}>
+                  <ClipboardList size={28} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>QAOR-Gestores</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Formulario de Gestión</div>
+                </div>
+              </button>
+
+              {/* 2. Regsitro Actividades Gestores */}
+              <button 
+                onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUODJaQjBTNENIWEwxSThONVFIMllDN1AyQi4u&origin=lprLink&route=shorturl', 'Regsitro Actividades Gestores')}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.75rem 1rem', textAlign: 'center', justifyContent: 'center',
+                  border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: '24px', transition: 'all 0.3s ease', cursor: 'pointer'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(139, 92, 246, 0.3)' }}>
+                  <CheckCircle2 size={28} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>Registro Actividades</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Gestores</div>
+                </div>
+              </button>
+
+              {/* 3. ACOMPA- DE ACTITUDES Y COMPETENCIAS */}
+              <button 
+                onClick={() => openForm('https://forms.office.com/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUN0xNQTZTQkwwMDhUTERONkZOT1lGUlg0SS4u&origin=lprLink&route=shorturl', 'Acompañamiento Actitudes y Competencias')}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.75rem 1rem', textAlign: 'center', justifyContent: 'center',
+                  border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: '24px', transition: 'all 0.3s ease', cursor: 'pointer'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(245, 158, 11, 0.3)' }}>
+                  <Package size={28} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>Acompañamiento</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Actitudes y Competencias</div>
+                </div>
+              </button>
+
+              {/* 4. Mantenimiento Preventivo Operaciones Planta Externa */}
+              <button 
+                onClick={() => openForm('https://forms.office.com/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLeA_FdVVHP5LqcRyGigaEvZUNENRRU0wMTVVMENSTDE2OTM1OFZaVkMwMi4u&route=shorturl', 'Mantenimiento Preventivo')}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.75rem 1rem', textAlign: 'center', justifyContent: 'center',
+                  border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: '24px', transition: 'all 0.3s ease', cursor: 'pointer'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.3)' }}>
+                  <CheckCircle2 size={28} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>Mant. Preventivo</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Operaciones Planta Externa</div>
+                </div>
+              </button>
+
+              {/* 5. Inspecciones */}
+              <button 
+                onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VURE5KUzVIWTUzV1ZNSVpVWjZOU1pRMzg0RC4u&route=shorturl', 'Inspecciones')}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.75rem 1rem', textAlign: 'center', justifyContent: 'center',
+                  border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: '24px', transition: 'all 0.3s ease', cursor: 'pointer'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)' }}>
+                  <ExternalLink size={28} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>Inspecciones</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Formulario de Registro</div>
+                </div>
+              </button>
+
+              {/* 6. SACS Móvil */}
+              <button 
+                onClick={() => window.open('http://200.88.24.50/SACSMovil/?#/auth/login', '_blank')}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  padding: '1.75rem 1rem', 
+                  textAlign: 'center', 
+                  justifyContent: 'center',
+                  border: '1px solid var(--glass-border)',
+                  background: 'var(--glass-bg)',
+                  borderRadius: '24px',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(239, 68, 68, 0.3)' }}>
+                  <Activity size={28} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>SACS Móvil</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Acceso a Sistema</div>
+                </div>
+              </button>
+
+              {/* Botón de cambio de tema */}
+              <button 
+                onClick={toggleTheme}
+                className="mobile-card" 
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  padding: '1.75rem 1rem', 
+                  textAlign: 'center', 
+                  justifyContent: 'center',
+                  border: '1px solid var(--glass-border)',
+                  background: 'var(--glass-bg)',
+                  borderRadius: '24px',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <div style={{ background: 'linear-gradient(135deg, #64748b 0%, #334155 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(100, 116, 139, 0.2)' }}>
+                  {theme === 'light' ? <Moon size={28} /> : <Sun size={28} />}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>Interfaz</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}</div>
+                </div>
+              </button>
+            </>
+          ) : (
+            /* ═══════════ MENÚ ESTÁNDAR INSPECTORES ═══════════ */
+            <>
           <button 
             onClick={() => handleTabChange('pendientes')}
             className="mobile-card" 
@@ -490,8 +722,8 @@ export default function InspectorApp() {
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                 {tickets.filter(t => {
                   const s = clean(t.status || getFlexVal(t, ['estado', 'status', 'estado_inspeccion', 'estado inspeccion']));
-                  const isPending = s === 'pendiente' || s === 'asignado' || s === '' || s === 'asignada' || s === 'en proceso' || s === '-';
-                  return isPending && isMyTicket(t);
+                  const isInspected = s === 'inspeccionado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado'];
+                  return !isInspected && isMyTicket(t);
                 }).length} asignados
               </div>
             </div>
@@ -581,7 +813,7 @@ export default function InspectorApp() {
               transition: 'all 0.3s ease'
             }}
           >
-            <div style={{ background: 'linear-gradient(135deg, var(--primary-color) 0%, #b91c1c 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(218, 41, 28, 0.2)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(239, 68, 68, 0.3)' }}>
               <Activity size={28} />
             </div>
             <div>
@@ -591,7 +823,7 @@ export default function InspectorApp() {
           </button>
 
           <button 
-            onClick={() => window.open('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUODJaQjBTNENIWEwxSThONVFIMllDN1AyQi4u&origin=lprLink&route=shorturl', '_blank')}
+            onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', 'Registro Actividades')}
             className="mobile-card" 
             style={{ 
               display: 'flex', 
@@ -670,8 +902,11 @@ export default function InspectorApp() {
           </button>
 
 
+        </>
+          )}
         </div>
-      )}
+      </>)}
+    </>)}
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: 'var(--primary-color)' }}>
@@ -743,8 +978,8 @@ export default function InspectorApp() {
                       ].some(v => clean(v).includes(clean(ticketsSearch)));
                       
                       if (activeTab === 'pendientes') {
-                        const isPending = s === 'pendiente' || s === 'asignado' || s === 'asignada' || s === 'en proceso' || s === '' || s === '-';
-                        return isPending && isMine && matchesSearch;
+                        const isInspected = s === 'inspeccionado' || !!t.codigo_aplicado || !!(t as any)['Código Aplicado'] || !!(t as any)['codigo aplicado'] || !!(t as any)['codigo'] || !!(t as any)['código aplicado'];
+                        return !isInspected && isMine && matchesSearch;
                       }
                       if (activeTab === 'completadas') {
                         const isDone = s === 'completado' || s === 'inspeccionado' || s === 'cerrado' || s === 'corregido' || s === 'aprobado' || s === 'rechazado' || s === 'finalizado' || s === 'cerrada';
@@ -754,28 +989,12 @@ export default function InspectorApp() {
                     });
 
                     if (filtered.length === 0) {
-                      // Debug: ver claves del primer ticket para detectar el problema
-                      const firstTicket = tickets[0];
-                      const inspectorKeys = firstTicket 
-                        ? Object.keys(firstTicket).filter(k => 
-                            k.toLowerCase().includes('inspector') || 
-                            k.toLowerCase().includes('gestor') || 
-                            k.toLowerCase().includes('asignad')
-                          )
-                        : [];
                       return (
                         <div style={{ textAlign: 'center', marginTop: '2rem', gridColumn: '1 / -1' }}>
                           <p style={{ color: 'var(--text-muted)' }}>No hay tickets en esta sección</p>
-                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', opacity: 0.7, marginTop: '1rem', background: 'var(--glass-bg)', padding: '0.75rem', borderRadius: '8px', textAlign: 'left' }}>
-                            <div><b>Total tickets recibidos:</b> {tickets.length}</div>
-                            <div><b>Mi ID:</b> {clean(inspectorId)} | <b>Mi Nombre:</b> {clean(inspectorName)}</div>
-                            {inspectorKeys.length > 0 && (
-                              <div><b>Columnas de asignación en el ticket:</b> {inspectorKeys.map(k => `"${k}"="${firstTicket[k]}"`).join(' | ')}</div>
-                            )}
-                            {inspectorKeys.length === 0 && firstTicket && (
-                              <div><b>⚠ No encontré columnas de inspector/gestor. Claves del ticket:</b> {Object.keys(firstTicket).join(', ')}</div>
-                            )}
-                          </div>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.5, marginTop: '1rem' }}>
+                            Depuración: {tickets.length} total | ID: {clean(inspectorId)} | Nombre: {clean(inspectorName)}
+                          </p>
                         </div>
                       );
                     }
@@ -787,7 +1006,7 @@ export default function InspectorApp() {
                             <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
                               ID TICKET
                             </div>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{getFlexVal(t, ['ticket', 'trabajo', 'work_name', 'work name', 'orden_externa_id', 'orden_servicio', 'orden externa', 'order_external', 'orden'])}</div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '1.15rem' }}>{t.ticket || t.orden_externa_id || getFlexVal(t, ['orden_externa_id', 'orden externa'])}</div>
                           </div>
                           <ChevronRight color="var(--text-muted)" size={20} />
                         </div>
@@ -808,41 +1027,6 @@ export default function InspectorApp() {
                             <span className={`badge ${t.priority === 'Alta' ? 'danger' : 'warning'}`}>{t.priority}</span>
                           </div>
                         </div>
-                      
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem', gap: '0.5rem' }}>
-                          {(!(t as any).inspector && !(t as any).inspector_id) && (
-                            <button
-                              className="btn-primary"
-                              style={{ padding: '0.4rem 0.8rem' }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const myId = localStorage.getItem('inspectorId') || '';
-                                const myName = localStorage.getItem('inspectorName') || '';
-                                if (!myId) return displayToast('No tienes ID de gestor en sesión', 'error');
-                                try {
-                                  const idValue = getFlexVal(t, ['id', 'ID', 'Id', 'orden_externa_id', 'orden_servicio', 'orden externa', 'order_external']);
-                                  const ticketValue = getFlexVal(t, ['ticket', 'trabajo', 'work_name', 'work name', 'orden_externa_id', 'orden_servicio', 'orden externa', 'order_external', 'orden']);
-                                  const ticketKey = idValue && idValue !== '-' ? idValue : (ticketValue && ticketValue !== '-' ? ticketValue : '');
-                                  if (!ticketKey) {
-                                    return displayToast('No se encontró el identificador del ticket', 'error');
-                                  }
-                                  const res = await assignTicket(ticketKey, myId, myName, ticketValue && ticketValue !== ticketKey ? ticketValue : undefined);
-                                  if (res.status) {
-                                    displayToast('Ticket asignado a ti', 'success');
-                                    loadTickets();
-                                  } else {
-                                    displayToast(res.message || 'No se pudo asignar', 'error');
-                                  }
-                                } catch (err: any) {
-                                  displayToast(err?.message || 'Error al asignar', 'error');
-                                }
-                              }}
-                            >
-                              Tomar
-                            </button>
-                          )}
-                        </div>
-
                       </div>
                     ));
                   })()}
@@ -1605,7 +1789,7 @@ export default function InspectorApp() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div className="glass-panel" style={{ padding: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>ID TICKET</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{selectedTicket.ticket}</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>{selectedTicket.ticket || selectedTicket.orden_externa_id || getFlexVal(selectedTicket, ['orden_externa_id', 'orden externa'])}</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
@@ -1625,7 +1809,7 @@ export default function InspectorApp() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setShowManualInput(false)} className="btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                    <button onClick={() => handleSaveManualCode('tickets', String(selectedTicket.ticket || selectedTicket.id || selectedTicket['TRABAJO'] || ''))} disabled={isSubmittingCode || !manualCode.trim()} className="btn-primary" style={{ flex: 2 }}>{isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}</button>
+                    <button onClick={() => handleSaveManualCode('tickets', String(selectedTicket.ticket || selectedTicket.orden_externa_id || getFlexVal(selectedTicket, ['orden_externa_id', 'orden externa']) || selectedTicket.id || selectedTicket['TRABAJO'] || ''))} disabled={isSubmittingCode || !manualCode.trim()} className="btn-primary" style={{ flex: 2 }}>{isSubmittingCode ? <Loader2 className="spinner" size={18} /> : 'Guardar Código'}</button>
                   </div>
                 </div>
               ) : (
@@ -1737,18 +1921,7 @@ export default function InspectorApp() {
         </div>
       )}
 
-      {/* — Toast de Éxito — */}
-      {showSuccessToast && (
-        <div className="toast-notification success" style={{ bottom: '6rem' }}>
-          <div style={{ background: '#10b981', color: 'white', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Check size={16} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700 }}>¡Registro Completado!</div>
-            <div style={{ fontSize: '0.75rem' }}>La incidencia ha sido registrada correctamente.</div>
-          </div>
-        </div>
-      )}
+
 
       <style>{`
         @keyframes slideUp {

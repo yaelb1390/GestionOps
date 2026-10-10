@@ -405,67 +405,6 @@ tbody tr:hover {
   box-shadow: 0 0 0 3px rgba(218, 41, 28, 0.15);
 }
 
-.bulk-assign-panel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px dashed rgba(30, 112, 244, 0.35);
-  border-radius: 18px;
-  background: rgba(56, 135, 255, 0.06);
-  margin-bottom: 1.5rem;
-}
-
-.bulk-assign-description {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  min-width: 260px;
-  flex: 1 1 300px;
-}
-
-.bulk-assign-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: rgba(56, 135, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(56, 135, 255, 0.15);
-}
-
-.bulk-assign-title {
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.bulk-assign-note {
-  font-size: 0.85rem;
-  color: var(--primary-color);
-}
-
-.bulk-assign-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  width: min(100%, 740px);
-}
-
-.bulk-assign-controls select {
-  min-width: 220px;
-  height: 44px;
-  border-radius: 18px;
-}
-
-.bulk-assign-controls button {
-  min-width: 160px;
-  height: 44px;
-}
-
 /* Form inputs */
 .input-group {
   display: flex;
@@ -999,19 +938,4 @@ tbody tr:hover {
     min-width: 0 !important;
     margin: 0 !important;
   }
-}
-
-@keyframes ping {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  75%, 100% {
-    transform: scale(2.2);
-    opacity: 0;
-  }
-}
-
-.pulse-green {
-  animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
 }

@@ -1,0 +1,13 @@
+{
+  "name": "gestionops-seed",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dry-run": "node import.mjs --dir ./csv --dry-run",
+    "import": "node --env-file=.env import.mjs --dir ./csv"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "csv-parse": "^5.5.6"
+  }
+}

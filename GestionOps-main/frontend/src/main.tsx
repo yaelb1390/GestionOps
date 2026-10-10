@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
@@ -6,6 +6,7 @@ import './index.css'
 import AdminDashboard from './pages/AdminDashboard.tsx'
 import InspectorApp from './pages/InspectorApp.tsx'
 import Login from './pages/Login.tsx'
+import { getSessionRole } from './services/api'
 
 // Hook que bloquea el botón "Atrás" del navegador/celular en rutas protegidas
 function usePreventBackNavigation() {
@@ -23,11 +24,17 @@ function usePreventBackNavigation() {
   }, []);
 }
 
+// La sesión real es el JWT de Supabase (su rol lo aplica RLS en el servidor); aquí solo se decide la pantalla.
 const ProtectedRoute = ({ children, role }: { children: React.ReactNode, role: 'admin' | 'inspector' }) => {
-  const userRole = localStorage.getItem('userRole');
+  const [state, setState] = useState<'loading' | 'ok' | 'no'>('loading');
   usePreventBackNavigation();
-  if (!userRole) return <Navigate to="/login" replace />;
-  if (userRole !== role) return <Navigate to="/login" replace />;
+  useEffect(() => {
+    let alive = true;
+    getSessionRole().then(r => { if (alive) setState(r === role ? 'ok' : 'no'); });
+    return () => { alive = false; };
+  }, [role]);
+  if (state === 'loading') return null;
+  if (state === 'no') return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
 

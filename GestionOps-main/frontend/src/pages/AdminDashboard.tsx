@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2,
   Sun, Moon, Settings, RotateCcw, AlertCircle,
@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual } from '../services/api';
-import TicketsPanel from './Tickets';
+import { subscribeTables } from '../services/realtime';
+import { logout, fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -56,6 +56,11 @@ export default function AdminDashboard() {
   const [ordenesSupervisorFilter, setOrdenesSupervisorFilter] = useState('');
   const [bulkAssignOrdenesInspector, setBulkAssignOrdenesInspector] = useState('');
 
+  const [ticketsSearch, setTicketsSearch] = useState('');
+  const [ticketsColumnFilters, setTicketsColumnFilters] = useState<Record<string, string>>({});
+  const [ticketsSupervisorFilter, setTicketsSupervisorFilter] = useState('');
+  const [bulkAssignTicketsInspector, setBulkAssignTicketsInspector] = useState('');
+
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [showToast, setShowToast] = useState(false);
@@ -69,6 +74,7 @@ export default function AdminDashboard() {
   const [ordenesPage, setOrdenesPage] = useState(1);
   const [calidadPage, setCalidadPage] = useState(1);
   const [razonesPage, setRazonesPage] = useState(1);
+  const [ticketsPage, setTicketsPage] = useState(1);
   const itemsPerPage = 20;
 
   const Pagination = ({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (p: number) => void }) => {
@@ -183,6 +189,23 @@ export default function AdminDashboard() {
     setAdminConfig(config);
   };
 
+  // Tiempo real: recarga solo lo que se está viendo cuando cambia una tabla (reemplaza el sondeo de 30 s)
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  useEffect(() => {
+    return subscribeTables((tabla) => {
+      const tab = activeTabRef.current;
+      const watching = tab === 'dashboard' || tab === 'inspecciones' ||
+        (tab === 'tickets' && tabla === 'tickets') || (tab === 'ordenes' && tabla === 'ordenes') ||
+        (tab === 'calidad' && tabla === 'calidad') || (tab === 'razones' && tabla === 'razones');
+      if (!watching) return;
+      if (tabla === 'tickets') loadTickets();
+      if (tabla === 'ordenes') loadOrdenes();
+      if (tabla === 'calidad') loadCalidad();
+      if (tabla === 'razones') loadRazones();
+    }, 800);
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'dashboard') {
       loadTickets();
@@ -198,9 +221,6 @@ export default function AdminDashboard() {
     if (activeTab === 'tickets') loadTickets();
     if (activeTab === 'inspecciones') { loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
 
-    return () => {
-      // No interval needed; cleanup placeholder kept for future use
-    };
   }, [activeTab]);
 
   const ensureKeys = (item: any, type: 'ticket' | 'orden' | 'calidad') => {
@@ -213,7 +233,7 @@ export default function AdminDashboard() {
       return foundKey ? item[foundKey] : undefined;
     };
 
-    if (!normalized.ticket) normalized.ticket = getVal(['trabajo', 'ticket', 'idd', 'nro trabajo', 'work name']);
+    if (!normalized.ticket) normalized.ticket = getVal(['trabajo', 'ticket', 'idd', 'nro trabajo', 'work name', 'orden externa', 'orden_externa', 'orden_externa_id']);
     if (!normalized.tech) normalized.tech = getVal(['asignado a', 'nombre tecnico', 'nombre_tecnico', 'tech_name']);
     if (!normalized.tech_id) normalized.tech_id = getVal(['tech_id', 'tecnico', 'cedula', 'id tecnico', 'tarjeta', 'cedula tecnico']);
     if (!normalized.supervisor) normalized.supervisor = getVal(['supervisor', 'nombre supervisor']);
@@ -234,7 +254,7 @@ export default function AdminDashboard() {
       if (!normalized.fecha_repetido) normalized.fecha_repetido = getVal(['fecha cierre repetido', 'fecha_repetido', 'fecha repetido']);
     }
     
-    if (type === 'orden') {
+    if (type === 'orden' || type === 'ticket') {
        // El ID real suele estar en 'orden_externa_id' o 'orden_servicio'
        const realId = getVal(['orden_externa_id', 'orden externa', 'orden_servicio', 'orden servicio', 'os', 'id orden']);
        
@@ -290,9 +310,8 @@ export default function AdminDashboard() {
     setLoading(false);
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('inspectorName');
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -372,6 +391,31 @@ export default function AdminDashboard() {
   const totalRazonesPages = Math.ceil(filteredRazones.length / itemsPerPage);
   const currentPaginatedRazones = filteredRazones.slice((razonesPage - 1) * itemsPerPage, razonesPage * itemsPerPage);
 
+  const filteredTickets = tickets.filter(t => {
+    const term = ticketsSearch.toLowerCase();
+    const matchesGlobal = !term || [
+      t.ticket, t.tech, t.tech_id, t.supervisor, t.sector, t.status, t.inspector, t.codigo_aplicado
+    ].some(v => String(v || '').toLowerCase().includes(term));
+    const matchesSupervisor = ticketsSupervisorFilter === '' || 
+      String(getSupervisor(t)).toLowerCase() === ticketsSupervisorFilter.toLowerCase();
+    const matchesColumns = Object.entries(ticketsColumnFilters).every(([key, val]) => {
+      if (!val) return true;
+      const term = val.toLowerCase();
+      switch (key) {
+        case 'Ticket': return String(t.ticket || '').toLowerCase().includes(term);
+        case 'Técnico': return String(t.tech || '').toLowerCase().includes(term);
+        case 'Supervisor': return String(t.supervisor || '').toLowerCase().includes(term);
+        case 'Sector': return String(t.sector || '').toLowerCase().includes(term);
+        case 'Prioridad': return String(t.priority || '').toLowerCase().includes(term);
+        case 'Estado': return String(t.status || '').toLowerCase().includes(term);
+        default: return String((t as any)[key] || '').toLowerCase().includes(term);
+      }
+    });
+    return matchesGlobal && matchesSupervisor && matchesColumns;
+  });
+  const totalTicketsPages = Math.ceil(filteredTickets.length / itemsPerPage);
+  const currentPaginatedTickets = filteredTickets.slice((ticketsPage - 1) * itemsPerPage, ticketsPage * itemsPerPage);
+
   return (
     <div className="app-container">
       {/* Sidebar */}
@@ -384,12 +428,13 @@ export default function AdminDashboard() {
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             <LayoutDashboard size={20} /> Dashboard
           </button>
+          
+          <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
+            <FileText size={20} /> Tickets <span className="nav-badge">{tickets.length}</span>
+          </button>
 
           <button className={`nav-item ${activeTab === 'ordenes' ? 'active' : ''}`} onClick={() => setActiveTab('ordenes')}>
             <Package size={20} /> Ordenes <span className="nav-badge">{ordenes.length}</span>
-          </button>
-          <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
-            <FileText size={20} /> Tickets <span className="nav-badge">{tickets.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'calidad' ? 'active' : ''}`} onClick={() => setActiveTab('calidad')}>
             <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{calidadData.length}</span>
@@ -419,14 +464,14 @@ export default function AdminDashboard() {
         <div className="header-actions">
           <div>
             <h1 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
-                activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
-                activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Tickets</> :
-                activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
-                activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
-                activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
-                activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
-                <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
+              {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
+               activeTab === 'tickets' ? <><FileText size={28} color="var(--primary-color)" /> Gestión de Tickets</> : 
+               activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
+               activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
+               activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
+               activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
+               activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
+               <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
           </div>
@@ -662,6 +707,219 @@ export default function AdminDashboard() {
           </>
         )}
 
+        {activeTab === 'tickets' && (
+          <div className="glass-panel">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                  <FileText size={20} color="var(--primary-color)" /> Gestión de Tickets
+                </h3>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div className="search-bar" style={{ width: 'auto', minWidth: '300px' }}>
+                    <Search size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar por Ticket, Técnico, Sector..." 
+                      value={ticketsSearch}
+                      onChange={(e) => { setTicketsSearch(e.target.value); setTicketsPage(1); }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel Asignación Masiva */}
+              <div className="bulk-assign-panel blue">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={18} color="#3b82f6" />
+                  <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>Asignación Masiva:</span>
+                </div>
+                
+                <div className="bulk-assign-controls">
+                  <select 
+                    className="input-control" 
+                    value={ticketsSupervisorFilter} 
+                    onChange={(e) => { setTicketsSupervisorFilter(e.target.value); setTicketsPage(1); }}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
+                  >
+                    <option value="">1. Seleccionar Supervisor...</option>
+                    {Array.from(new Set(tickets.map(t => String(getSupervisor(t) || '')).filter(s => s && s !== '-'))).map(sup => (
+                      <option key={sup} value={sup}>{sup}</option>
+                    ))}
+                  </select>
+
+                  <span className="bulk-assign-arrow" style={{ color: '#3b82f6' }}>→</span>
+
+                  <select 
+                    className="assign-select" 
+                    value={bulkAssignTicketsInspector}
+                    onChange={(e) => setBulkAssignTicketsInspector(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
+                  >
+                    <option value="">2. Seleccionar Gestor...</option>
+                    {inspectors.map(insp => (
+                      <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                    ))}
+                  </select>
+                  
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0 1.5rem', height: '42px', background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', boxShadow: '0 4px 14px 0 rgba(59, 130, 246, 0.3)', border: 'none' }}
+                    disabled={!bulkAssignTicketsInspector || !ticketsSupervisorFilter}
+                    onClick={async () => {
+                      const inspector = inspectors.find(i => String(i.id) === String(bulkAssignTicketsInspector));
+                      if (inspector && ticketsSupervisorFilter) {
+                        try {
+                           const updated = await assignTicketsBySupervisor(ticketsSupervisorFilter, inspector.id, inspector.nombre);
+                           displayToast(`Se asignaron ${updated} tickets a ${inspector.nombre}`, 'success');
+                           loadTickets();
+                        } catch (error: any) {
+                           displayToast(error.message || 'Error en la asignación masiva', 'error');
+                        }
+                      }
+                    }}
+                  >
+                    Asignar Masivo
+                  </button>
+                </div>
+                {!ticketsSupervisorFilter && (
+                  <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontStyle: 'italic' }}>
+                    * Selecciona un supervisor primero para habilitar la asignación masiva.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    {[
+                      'Ticket', 'Técnico', 'Supervisor', 'Sector', 'Prioridad', 'Estado'
+                    ].map(header => (
+                      <th key={header}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{header}</span>
+                          {header !== 'Prioridad' && header !== 'Estado' && (
+                            <div className="search-bar" style={{ margin: 0, padding: '0.25rem 0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', height: '28px' }}>
+                              <Search size={12} />
+                              <input 
+                                type="text" 
+                                placeholder="Filtrar..." 
+                                value={ticketsColumnFilters[header] || ''} 
+                                onChange={(e) => { setTicketsColumnFilters(prev => ({ ...prev, [header]: e.target.value })); setTicketsPage(1); }}
+                                style={{ fontSize: '0.75rem' }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                    ))}
+                    <th>Gestor Asignado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={8} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                  ) : currentPaginatedTickets.length === 0 ? (
+                    <tr><td colSpan={8} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No hay tickets que coincidan con la búsqueda.</td></tr>
+                  ) : currentPaginatedTickets.map((t, idx) => {
+                    const ticketId = t.ticket || t.id;
+                    return (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{t.ticket || '-'}</td>
+                        <td>{t.tech || t.tech_id || '-'}</td>
+                        <td>{getSupervisor(t)}</td>
+                        <td>{t.sector || '-'}</td>
+                        <td>
+                          <span className={`badge ${String(t.priority).toLowerCase() === 'alta' ? 'danger' : String(t.priority).toLowerCase() === 'media' ? 'warning' : 'info'}`}>
+                            {t.priority || '-'}
+                          </span>
+                        </td>
+                        <td>
+                          {t.codigo_aplicado || t['Código Aplicado'] ? (
+                            <span className="badge success">Finalizado: {t.codigo_aplicado || t['Código Aplicado']}</span>
+                          ) : (
+                            <span className={`badge ${t.status === 'Inspeccionado' || t.status === 'Aprobado' ? 'success' : t.status === 'Rechazado' ? 'danger' : t.status === 'En Proceso' ? 'info' : 'warning'}`}>
+                              {t.status || 'Pendiente'}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {t.inspector || t.inspector_id ? (
+                            <span className="badge info">{t.inspector || t.inspector_id}</span>
+                          ) : (
+                            <span className="badge danger">Sin Asignar</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <select
+                              className="assign-select"
+                              style={{ padding: '0.25rem 1.5rem 0.25rem 0.5rem', fontSize: '0.7rem' }}
+                              value=""
+                              onChange={async (e) => {
+                                const inspectorId = e.target.value;
+                                const inspector = inspectors.find(i => String(i.id) === String(inspectorId));
+                                if (inspector && ticketId) {
+                                  try {
+                                    const success = await assignTicket(String(ticketId), inspector.id, inspector.nombre);
+                                    if (success) {
+                                      displayToast(`Ticket ${ticketId} asignado a ${inspector.nombre}`, 'success');
+                                      loadTickets();
+                                    }
+                                  } catch (error: any) {
+                                    displayToast(error.message || 'Error al asignar ticket', 'error');
+                                  }
+                                }
+                              }}
+                            >
+                              <option value="">Asignar...</option>
+                              {inspectors.map(insp => (
+                                <option key={insp.id} value={insp.id}>{insp.nombre}</option>
+                              ))}
+                            </select>
+
+                            {(t.codigo_aplicado || t['Código Aplicado']) && (
+                              <button 
+                                className="btn-danger" 
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', width: '100%' }}
+                                onClick={() => {
+                                  setConfirmModal({
+                                    isOpen: true,
+                                    message: `¿Estás seguro de cancelar el código para el ticket ${ticketId}? Esto lo devolverá al gestor.`,
+                                    onConfirm: async () => {
+                                      try {
+                                        const { success, message } = await cancelManualCodigo(String(ticketId), 'tickets');
+                                        if (success) {
+                                          displayToast('Código cancelado correctamente', 'success');
+                                          loadTickets();
+                                        } else {
+                                          displayToast(message || 'Error al cancelar el código', 'error');
+                                        }
+                                      } catch (error) {
+                                        displayToast('Error de conexión', 'error');
+                                      }
+                                      setConfirmModal(null);
+                                    }
+                                  });
+                                }}
+                              >
+                                Cancelar Código
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <Pagination currentPage={ticketsPage} totalPages={totalTicketsPages} onPageChange={setTicketsPage} />
+            </div>
+          </div>
+        )}
+
         {activeTab === 'ordenes' && (
           <div className="glass-panel">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -835,10 +1093,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'tickets' && (
-          <TicketsPanel />
-        )}
-
 
 
 
@@ -881,7 +1135,7 @@ export default function AdminDashboard() {
                 
                 let success;
                 if (editingInspector) {
-                  success = await updateInspector(editingInspector.id, { new_id: id_inspector, nombre, rol: rol as 'Admin' | 'Inspector', sector, usuario, password, correo_recuperacion } as any);
+                  success = await updateInspector(editingInspector.id, { new_id: id_inspector, nombre, rol: rol as 'Admin' | 'Inspector' | 'QAOR', sector, usuario, password, correo_recuperacion } as any);
                 } else {
                   success = await createInspector(id_inspector, nombre, sector, usuario, password, rol, correo_recuperacion);
                 }
@@ -907,8 +1161,9 @@ export default function AdminDashboard() {
                   <div className="input-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
                     <label>Rol</label>
                     <select name="rol" className="input-control" defaultValue={editingInspector?.rol || 'Inspector'}>
-                      <option value="Inspector">Gestor</option>
+                      <option value="Inspector">Gestor Standard</option>
                       <option value="Admin">Administrador</option>
+                      <option value="QAOR">QAOR</option>
                     </select>
                   </div>
                   <div className="input-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
@@ -921,7 +1176,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="input-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
                     <label>Contraseña</label>
-                    <input type="text" name="password" required className="input-control" placeholder="Contraseña..." defaultValue={editingInspector?.password || ''} />
+                    <input type="text" name="password" required={!editingInspector} className="input-control" placeholder={editingInspector ? 'Dejar vacío para no cambiar' : 'Contraseña...'} />
                   </div>
                   <div className="input-group" style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}>
                     <label>Correo de Recuperación</label>
@@ -990,7 +1245,7 @@ export default function AdminDashboard() {
                       <td>
                         <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{insp.nombre}</div>
                       </td>
-                      <td><span className={`badge ${insp.rol === 'Admin' ? 'danger' : 'info'}`}>{insp.rol === 'Inspector' ? 'Gestor' : insp.rol}</span></td>
+                      <td><span className={`badge ${insp.rol === 'Admin' ? 'danger' : insp.rol === 'QAOR' ? 'success' : 'info'}`}>{insp.rol === 'Inspector' ? 'Gestor' : insp.rol}</span></td>
                       <td>
                         <div>ID: {insp.id}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{insp.usuario || 'Sin usuario'}</div>
@@ -1284,7 +1539,7 @@ export default function AdminDashboard() {
               </div>
               <div className="input-group">
                 <label>Nueva Contraseña</label>
-                <input type="text" name="password" required className="input-control" defaultValue={adminConfig.admin_password} />
+                <input type="password" name="password" className="input-control" placeholder="Dejar vacío para no cambiar" autoComplete="new-password" />
               </div>
               <div className="input-group">
                 <label>Correo de Recuperación</label>

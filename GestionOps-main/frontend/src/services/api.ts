@@ -1,4 +1,7 @@
-export const SCRIPT_URL: string = "https://script.google.com/macros/s/AKfycbwAkYRYJnsXWZYurVKLgR4jrdfFf1tCfPyHawXMJPrpdGpSHhKuSTf1HhATCCbKQz6_Hg/exec"; // Reemplazar con la URL del Web App de Google
+// Capa de datos sobre Supabase (reemplaza al Google Apps Script).
+// Mantiene los nombres y formas de respuesta anteriores para no tocar las páginas.
+// Contrato completo: supabase/API.md
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 
 export interface Ticket {
   id: number | string;
@@ -30,458 +33,290 @@ export interface Orden {
   [key: string]: any;
 }
 
-export async function fetchTickets(role: string = 'admin'): Promise<Ticket[]> {
-  try {
-    if (SCRIPT_URL === "URL_DE_TU_GOOGLE_APPS_SCRIPT_AQUI") {
-      console.warn("Usando datos de prueba. Configura la URL del script de Google.");
-      return [
-        { id: 1, ticket: 'TRB-8921', tech_id: '601228', tech: 'Juan Perez', supervisor: 'Carlos M.', sector: 'Norte', priority: 'Alta', status: 'Pendiente' },
-        { id: 2, ticket: 'TRB-8922', tech_id: '601229', tech: 'Ana Gomez', supervisor: 'Carlos M.', sector: 'Sur', priority: 'Media', status: 'Inspeccionado' },
-        { id: 3, ticket: 'TRB-8923', tech_id: '601230', tech: 'Luis Silva', supervisor: 'Maria R.', sector: 'Este', priority: 'Baja', status: 'Requiere corrección' },
-      ];
-    }
-
-    const response = await fetch(`${SCRIPT_URL}?type=tickets&role=${role}&_t=${Date.now()}`, {
-      cache: 'no-store'
-    });
-    const data = await response.json();
-    return data as Ticket[];
-  } catch (error) {
-    console.error("Error fetching tickets from Google Sheets:", error);
-    return [];
-  }
-}
-
-export async function updateTicketStatus(id: number | string, newStatus: string, remarks?: string, rootCause?: string, images: string[] = []): Promise<boolean> {
-  try {
-    if (SCRIPT_URL === "URL_DE_TU_GOOGLE_APPS_SCRIPT_AQUI") {
-      console.log(`[MOCK] Ticket ${id} actualizado a ${newStatus}. Imágenes: ${images.length}`);
-      return true;
-    }
-
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "update_status",
-        id: id,
-        status: newStatus,
-        remarks: remarks || "",
-        rootCause: rootCause || "",
-        images: images
-      }),
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      }
-    });
-
-    const result = await response.json();
-    if (result.status !== "success") {
-      console.error("API Error updating status:", result.message);
-    }
-    return result.status === "success";
-  } catch (error) {
-    console.error("Error updating ticket in Google Sheets:", error);
-    return false;
-  }
-}
-
-export async function assignTicket(id: number | string, tech_id: string, tech_name: string, ticket?: string): Promise<{status: boolean, message?: string, raw?: any}> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_ticket",
-        id: String(id),
-        ticket: ticket ? String(ticket) : undefined,
-        tech_id: String(tech_id), // inspector id
-        tech_name: String(tech_name) // inspector name
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      }
-    });
-
-    const result = await response.json();
-    if (!result || result.status !== "success") {
-      console.error("assignTicket API response:", result);
-      return { status: false, message: result?.message || 'API returned failure', raw: result };
-    }
-    return { status: true, message: result?.message, raw: result };
-  } catch (error: any) {
-    console.error("Error assigning ticket:", error);
-    return { status: false, message: error?.message || String(error) };
-  }
-}
-
-export async function assignTicketsBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_tickets_by_supervisor",
-        supervisor: String(supervisor),
-        tech_id: String(tech_id), // inspector id
-        tech_name: String(tech_name) // inspector name
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      }
-    });
-
-    const result = await response.json();
-    return result.status === "success" ? result.updated : 0;
-  } catch (error) {
-    console.error("Error bulk assigning tickets:", error);
-    return 0;
-  }
-}
-
 export interface Inspector {
-  id: string;
+  id: string;            // id "tarjeta" (personal.id_externo); es lo que las pantallas usan como id
+  uuid?: string;         // personal.id real
   nombre: string;
   sector: string;
   estado: string;
   usuario?: string;
-  password?: string;
-  rol?: 'Admin' | 'Inspector';
+  password?: string;     // nunca viene del servidor; solo se envía al crear/cambiar
+  rol?: 'Admin' | 'Inspector' | 'QAOR';
   correo_recuperacion?: string;
 }
 
+type Tabla = 'tickets' | 'ordenes' | 'calidad' | 'razones';
+
+// ── Utilidades ───────────────────────────────────────────────────────────────
+
+const rdFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/Santo_Domingo', day: '2-digit', month: '2-digit', year: 'numeric',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+// timestamptz -> "dd/MM/yyyy HH:mm" en hora de RD (el formato que las pantallas ya parsean)
+function fmtRD(ts: unknown): string {
+  if (!ts) return '';
+  const d = new Date(String(ts));
+  if (isNaN(d.getTime())) return String(ts);
+  const p = Object.fromEntries(rdFormatter.formatToParts(d).map(x => [x.type, x.value]));
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+}
+
+const DATE_FIELDS = ['fecha', 'oe_vence', 'fecha_inspeccion', 'fecha_repetido'];
+
+// Fila de BD -> objeto con la forma que producía el Apps Script (extra aplanado, fechas RD, evidence en texto)
+function mapRow(r: any): any {
+  const { extra, import_hash, ...rest } = r;
+  const out: any = { ...(extra || {}), ...rest };
+  for (const k of DATE_FIELDS) if (k in out) out[k] = fmtRD(out[k]);
+  if (Array.isArray(out.evidence)) out.evidence = out.evidence.join(', ');
+  for (const k of Object.keys(out)) if (out[k] === null) out[k] = '';
+  return out;
+}
+
+// PostgREST devuelve máx. 1000 filas por petición: se pagina
+async function fetchAll(tabla: Tabla): Promise<any[]> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from(tabla).select('*')
+      .order('created_at', { ascending: true }).order('id').range(from, from + 999);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return out.map(mapRow);
+}
+
+// Lecturas: devuelven [] ante error (como antes), pero ya no se confunde con "sin datos" en consola
+async function safeFetch(tabla: Tabla): Promise<any[]> {
+  try {
+    return await fetchAll(tabla);
+  } catch (error) {
+    console.error(`Error cargando ${tabla}:`, error);
+    return [];
+  }
+}
+
+const errMsg = (e: any) => e?.message || String(e);
+
+// ── Sesión ───────────────────────────────────────────────────────────────────
+
+export interface SessionUser {
+  id: string;
+  id_externo: string | null;
+  nombre: string;
+  usuario: string;
+  rol: 'Admin' | 'Inspector' | 'QAOR';
+  es_super: boolean;
+}
+
+// Valida contra la Edge Function auth-login y abre la sesión de Supabase Auth
+export async function login(usuario: string, password: string, rol: 'admin' | 'inspector'): Promise<SessionUser> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ usuario, password, rol }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'No se pudo iniciar sesión');
+  const { error } = await supabase.auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token });
+  if (error) throw error;
+  return body.user as SessionUser;
+}
+
+export async function logout(): Promise<void> {
+  try { await supabase.auth.signOut(); } catch (e) { console.error(e); }
+  ['userRole', 'inspectorName', 'inspectorId', 'username', 'inspectorRole'].forEach(k => localStorage.removeItem(k));
+}
+
+// Rol del JWT ('admin' | 'inspector') o null si no hay sesión válida. Es lo que aplica RLS en el servidor.
+export async function getSessionRole(): Promise<'admin' | 'inspector' | null> {
+  const { data } = await supabase.auth.getSession();
+  const r = data.session?.user?.app_metadata?.app_role;
+  return r === 'admin' || r === 'inspector' ? r : null;
+}
+
+export async function getRecoveryEmail(): Promise<string> {
+  const { data } = await supabase.rpc('get_recovery_email');
+  return (data as string) || '';
+}
+
+// ── Lecturas ─────────────────────────────────────────────────────────────────
+// El parámetro `role` se conserva por compatibilidad: ahora lo decide RLS según la sesión.
+
+export async function fetchTickets(_role: string = 'admin'): Promise<Ticket[]> { return safeFetch('tickets'); }
+export const fetchOrdenes = async (_role: string = 'admin'): Promise<Orden[]> => safeFetch('ordenes');
+export const fetchCalidad = async (_role: string = 'admin'): Promise<any[]> => safeFetch('calidad');
+export const fetchRazones = async (_role: string = 'admin'): Promise<any[]> => safeFetch('razones');
+
+// ── Personal ─────────────────────────────────────────────────────────────────
+
+let inspectorCache: Inspector[] = [];
+
 export const fetchInspectors = async (): Promise<Inspector[]> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=inspectors`);
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const { data, error } = await supabase.from('personal_publico').select('*').order('nombre');
+    if (error) throw error;
+    inspectorCache = (data || []).map((p: any) => ({
+      id: p.id_externo || p.id,
+      uuid: p.id,
+      nombre: p.nombre,
+      sector: p.sector || '',
+      estado: p.estado,
+      usuario: p.usuario,
+      rol: p.rol,
+      correo_recuperacion: p.correo_recuperacion || '',
+    }));
+    return inspectorCache;
   } catch (error) {
-    console.error("Error fetching inspectors:", error);
+    console.error('Error fetching inspectors:', error);
     return [];
   }
 };
 
+// Las pantallas identifican al gestor por su id "tarjeta"; la BD usa el uuid
+async function resolveUuid(idOrUuid: string): Promise<string> {
+  const find = () => inspectorCache.find(i => i.id === String(idOrUuid) || i.uuid === String(idOrUuid));
+  let hit = find();
+  if (!hit) { await fetchInspectors(); hit = find(); }
+  if (!hit?.uuid) throw new Error('Gestor no encontrado: ' + idOrUuid);
+  return hit.uuid;
+}
+
 export const createInspector = async (id: string, nombre: string, sector: string, usuario: string, password: string, rol: string = 'Inspector', correo_recuperacion: string = ''): Promise<boolean> => {
-  try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'add_inspector', id, nombre, sector, usuario, password, rol, correo_recuperacion }),
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    const data = await res.json();
-    return data.status === 'success';
-  } catch (error) {
-    console.error("Error creating inspector:", error);
-    return false;
-  }
+  const { error } = await supabase.rpc('admin_save_personal', {
+    p: { id_externo: id, nombre, sector, usuario, password, rol, correo_recuperacion },
+  });
+  if (error) console.error('Error creating inspector:', error);
+  return !error;
 };
 
-export const updateInspector = async (id: string, updates: Partial<Inspector>): Promise<boolean> => {
+export const updateInspector = async (id: string, updates: Partial<Inspector> & { new_id?: string }): Promise<boolean> => {
   try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'update_inspector', id, ...updates }),
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    const uuid = await resolveUuid(id);
+    const { new_id, id: _ignore, uuid: _u, ...rest } = updates as any;
+    const { error } = await supabase.rpc('admin_save_personal', {
+      p: { ...rest, id: uuid, id_externo: new_id || undefined },
     });
-    const data = await res.json();
-    return data.status === 'success';
+    if (error) throw error;
+    return true;
   } catch (error) {
-    console.error("Error updating inspector:", error);
+    console.error('Error updating inspector:', error);
     return false;
   }
 };
 
 export const deleteInspector = async (id: string): Promise<boolean> => {
   try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'delete_inspector', id }),
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    const data = await res.json();
-    return data.status === 'success';
+    const { error } = await supabase.rpc('admin_delete_personal', { p_id: await resolveUuid(id) });
+    if (error) throw error;
+    return true;
   } catch (error) {
-    console.error("Error deleting inspector:", error);
+    console.error('Error deleting inspector:', error);
     return false;
   }
 };
 
-export const autoAssignTickets = async (): Promise<{success: boolean, updated: number}> => {
-  try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'auto_assign' }),
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    const data = await res.json();
-    return { success: data.status === 'success', updated: data.updated || 0 };
-  } catch (error) {
-    console.error("Error auto assigning tickets:", error);
-    return { success: false, updated: 0 };
-  }
-};
-
+// Antes: hoja Config. Ahora: el super admin. La contraseña nunca se devuelve.
 export const fetchConfig = async (): Promise<any> => {
   try {
-    const res = await fetch(`${SCRIPT_URL}?type=config`);
-    return await res.json();
+    const { data } = await supabase.from('personal_publico').select('usuario, correo_recuperacion').eq('es_super', true).maybeSingle();
+    return { admin_username: data?.usuario || '', admin_password: '', admin_recovery_email: data?.correo_recuperacion || '' };
   } catch (error) {
-    console.error("Error fetching config:", error);
+    console.error('Error fetching config:', error);
     return {};
   }
 };
 
 export const updateAdminProfile = async (username: string, password: string, recovery_email: string): Promise<boolean> => {
-  try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'update_admin_profile', username, password, recovery_email }),
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    const data = await res.json();
-    return data.status === 'success';
-  } catch (error) {
-    console.error("Error updating admin profile:", error);
-    return false;
-  }
+  const { error } = await supabase.rpc('admin_update_profile', {
+    p_username: username, p_password: password || '', p_recovery_email: recovery_email,
+  });
+  if (error) console.error('Error updating admin profile:', error);
+  return !error;
 };
 
-export const fetchCalidad = async (role: string = 'admin'): Promise<any[]> => {
-  try {
-    const res = await fetch(`${SCRIPT_URL}?type=calidad&role=${role}&_t=${Date.now()}`, { cache: 'no-store' });
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Error fetching calidad data:", error);
-    return [];
-  }
+// ── Asignación ───────────────────────────────────────────────────────────────
+
+async function assignItem(tabla: Tabla, key: string, tech_id: string): Promise<number> {
+  const { data, error } = await supabase.rpc('assign_item', {
+    p_table: tabla, p_key: String(key), p_inspector: await resolveUuid(tech_id),
+  });
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
+async function assignBySupervisor(tabla: Tabla, supervisor: string, tech_id: string): Promise<number> {
+  const { data, error } = await supabase.rpc('assign_by_supervisor', {
+    p_table: tabla, p_supervisor: supervisor, p_inspector: await resolveUuid(tech_id),
+  });
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
+// Tickets: antes devolvían false/0 ante error
+export async function assignTicket(id: number | string, tech_id: string, _tech_name?: string): Promise<boolean> {
+  try { await assignItem('tickets', String(id), tech_id); return true; }
+  catch (error) { console.error('Error assigning ticket:', error); return false; }
+}
+
+export async function assignTicketsBySupervisor(supervisor: string, tech_id: string, _tech_name?: string): Promise<number> {
+  try { return await assignBySupervisor('tickets', supervisor, tech_id); }
+  catch (error) { console.error('Error bulk assigning tickets:', error); return 0; }
+}
+
+export const autoAssignTickets = async (): Promise<{ success: boolean; updated: number }> => {
+  const { data, error } = await supabase.rpc('auto_assign');
+  if (error) { console.error('Error auto assigning tickets:', error); return { success: false, updated: 0 }; }
+  return { success: true, updated: (data as number) || 0 };
 };
 
-export const fetchRazones = async (role: string = 'admin'): Promise<any[]> => {
-  try {
-    const res = await fetch(`${SCRIPT_URL}?type=razones&role=${role}&_t=${Date.now()}`, { cache: 'no-store' });
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Error fetching razones data:", error);
-    return [];
-  }
-};
-
-export const fetchOrdenes = async (role: string = 'admin'): Promise<Orden[]> => {
-  try {
-    const res = await fetch(`${SCRIPT_URL}?type=ordenes&role=${role}&_t=${Date.now()}`, { cache: 'no-store' });
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Error fetching ordenes:", error);
-    return [];
-  }
-};
-
-export async function assignCalidadBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_calidad_by_supervisor",
-        supervisor: supervisor,
-        tech_id: tech_id, // inspector id
-        tech_name: tech_name // inspector name
-      })
-    });
-
-    const result = await response.json();
-    if (result.status !== "success") {
-      throw new Error(result.message || "Error desconocido en la asignación masiva");
-    }
-    return result.updated;
-  } catch (error: any) {
-    console.error("Error bulk assigning calidad:", error);
-    throw error;
-  }
+// Calidad / Razones / Órdenes: antes lanzaban Error ante fallo (las pantallas lo capturan)
+export async function assignCalidadBySupervisor(supervisor: string, tech_id: string, _tech_name?: string): Promise<number> {
+  return assignBySupervisor('calidad', supervisor, tech_id);
+}
+export async function assignCalidadIndividual(technician: string, tech_id: string, _tech_name?: string): Promise<boolean> {
+  await assignItem('calidad', technician, tech_id);
+  return true;
+}
+export async function assignRazonesBySupervisor(supervisor: string, tech_id: string, _tech_name?: string): Promise<number> {
+  return assignBySupervisor('razones', supervisor, tech_id);
+}
+export async function assignRazonesIndividual(ticket: string, tech_id: string, _tech_name?: string): Promise<boolean> {
+  await assignItem('razones', ticket, tech_id);
+  return true;
+}
+export async function assignOrdenesBySupervisor(supervisor: string, tech_id: string, _tech_name?: string): Promise<number> {
+  return assignBySupervisor('ordenes', supervisor, tech_id);
+}
+export async function assignOrdenesIndividual(orden_id: string | number, tech_id: string, _tech_name?: string): Promise<boolean> {
+  await assignItem('ordenes', String(orden_id), tech_id);
+  return true;
 }
 
-export async function assignCalidadIndividual(technician: string, tech_id: string, tech_name: string): Promise<boolean> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_calidad_individual",
-        technician: technician,
-        tech_id: tech_id, // inspector id
-        tech_name: tech_name // inspector name
-      })
-    });
+// ── Códigos y estado ─────────────────────────────────────────────────────────
 
-    const result = await response.json();
-    if (result.status !== "success") {
-      throw new Error(result.message || "Error al asignar técnico individual");
-    }
-    return true;
-  } catch (error: any) {
-    console.error("Error assigning individual calidad:", error);
-    throw error;
-  }
+export async function saveManualCodigo(ticket: string, codigo: string, type: string): Promise<{ success: boolean; message?: string }> {
+  const { error } = await supabase.rpc('save_codigo', { p_table: type || 'calidad', p_key: String(ticket), p_codigo: codigo });
+  return error ? { success: false, message: errMsg(error) } : { success: true };
 }
 
-// ── Asignación de Razones ────────────────────────────────────────────────────
-
-export async function assignRazonesBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_razones_by_supervisor",
-        supervisor: supervisor,
-        tech_id: tech_id,
-        tech_name: tech_name
-      })
-    });
-    const result = await response.json();
-    if (result.status !== "success") {
-      throw new Error(result.message || "Error en la asignación masiva de razones");
-    }
-    return result.updated;
-  } catch (error: any) {
-    console.error("Error bulk assigning razones:", error);
-    throw error;
-  }
+export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<{ success: boolean; message?: string }> {
+  return saveManualCodigo(ticket, codigo, 'calidad');
 }
 
-export async function assignRazonesIndividual(ticket: string, tech_id: string, tech_name: string): Promise<boolean> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_razones_individual",
-        ticket: ticket,
-        tech_id: tech_id,
-        tech_name: tech_name
-      })
-    });
-    const result = await response.json();
-    if (result.status !== "success") {
-      throw new Error(result.message || "Error al asignar razón individual");
-    }
-    return true;
-  } catch (error: any) {
-    console.error("Error assigning individual razon:", error);
-    throw error;
-  }
+export async function cancelManualCodigo(ticket: string, type: string): Promise<{ success: boolean; message?: string }> {
+  const { error } = await supabase.rpc('cancel_codigo', { p_table: type || 'calidad', p_key: String(ticket) });
+  return error ? { success: false, message: errMsg(error) } : { success: true };
 }
 
-// ── Asignación de Órdenes ────────────────────────────────────────────────────
-
-export async function assignOrdenesBySupervisor(supervisor: string, tech_id: string, tech_name: string): Promise<number> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_ordenes_by_supervisor",
-        supervisor: supervisor,
-        tech_id: tech_id,
-        tech_name: tech_name
-      })
-    });
-    const result = await response.json();
-    if (result.status !== "success") {
-      throw new Error(result.message || "Error en la asignación masiva de órdenes");
-    }
-    return result.updated;
-  } catch (error: any) {
-    console.error("Error bulk assigning ordenes:", error);
-    throw error;
-  }
-}
-
-export async function assignOrdenesIndividual(orden_id: string | number, tech_id: string, tech_name: string): Promise<boolean> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "assign_ordenes_individual",
-        orden_id: String(orden_id),
-        tech_id: tech_id,
-        tech_name: tech_name
-      })
-    });
-    const result = await response.json();
-    if (result.status !== "success") {
-      throw new Error(result.message || "Error al asignar orden individual");
-    }
-    return true;
-  } catch (error: any) {
-    console.error("Error assigning individual orden:", error);
-    throw error;
-  }
-}
-
-export async function saveCalidadCodigo(ticket: string, codigo: string): Promise<{success: boolean, message?: string}> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      mode: 'cors',
-      body: JSON.stringify({
-        action: "save_calidad_codigo",
-        ticket: ticket,
-        codigo: codigo
-      }),
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      }
-    });
-
-    if (!response.ok) {
-      return { success: false, message: `Error del servidor: ${response.status}` };
-    }
-
-    const result = await response.json();
-    return { success: result.status === "success", message: result.message };
-  } catch (error: any) {
-    console.error("Error detallado en saveCalidadCodigo:", error);
-    return { success: false, message: "Error de conexión: " + (error.message === "Failed to fetch" ? "No se pudo conectar con el servidor (CORS/Network)" : error.message) };
-  }
-}
-
-export async function saveManualCodigo(ticket: string, codigo: string, type: string): Promise<{success: boolean, message?: string}> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      mode: 'cors',
-      body: JSON.stringify({
-        action: "save_manual_code",
-        ticket: ticket,
-        codigo: codigo,
-        type: type
-      }),
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      }
-    });
-    const result = await response.json();
-    return { success: result.status === "success", message: result.message };
-  } catch (error: any) {
-    console.error("Error in saveManualCodigo:", error);
-    return { success: false, message: "Error de conexión" };
-  }
-}
-
-export async function cancelManualCodigo(ticket: string, type: string): Promise<{success: boolean, message?: string}> {
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: "POST",
-      mode: 'cors',
-      body: JSON.stringify({
-        action: "cancel_manual_code",
-        ticket: ticket,
-        type: type
-      }),
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      }
-    });
-    const result = await response.json();
-    return { success: result.status === "success", message: result.message };
-  } catch (error: any) {
-    console.error("Error in cancelManualCodigo:", error);
-    return { success: false, message: "Error de conexión" };
-  }
+// No lo usa ninguna pantalla hoy. Las imágenes (base64) irán a Supabase Storage cuando se necesiten.
+export async function updateTicketStatus(id: number | string, newStatus: string, remarks?: string, rootCause?: string, images: string[] = []): Promise<boolean> {
+  if (images.length) console.warn('updateTicketStatus: subida de imágenes pendiente de migrar a Storage; se omiten.');
+  const { error } = await supabase.rpc('update_ticket_status', {
+    p_key: String(id), p_status: newStatus, p_remarks: remarks ?? null, p_root_cause: rootCause ?? null, p_evidence: [],
+  });
+  if (error) console.error('Error updating ticket:', error);
+  return !error;
 }
