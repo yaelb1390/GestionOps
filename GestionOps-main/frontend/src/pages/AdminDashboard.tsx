@@ -376,7 +376,7 @@ export default function AdminDashboard() {
       const term = val.toLowerCase();
       switch (key) {
         case 'Trabajo': return String(o.descripcion_orden || o.ticket || (o as any).trabajo || o.orden_servicio || '').toLowerCase().includes(term);
-        case 'Orden Externa': return String(o.descripcion_orden || (o as any)['orden externa'] || '').toLowerCase().includes(term);
+        case 'Orden externa': return String(o.orden_externa_id || o.orden_servicio || (o as any)['orden externa'] || '').toLowerCase().includes(term);
         case 'Cliente': return String(o.cliente || '').toLowerCase().includes(term);
         case 'OE Vencimiento': return String(o.fecha || (o as any)['oe vencimiento'] || '').toLowerCase().includes(term);
         case 'Prioridad': return String(o.priority || (o as any).prioridad || '').toLowerCase().includes(term);
@@ -1047,7 +1047,7 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     {[
-                      'Trabajo', 'Cliente', 'Asignado A', 'Supervisor', 'Tecnología', 'Sector', 'Terminal'
+                      'Trabajo', 'Orden externa', 'Cliente', 'Asignado A', 'Supervisor', 'Tecnología', 'Sector', 'Terminal'
                     ].map(header => (
                       <th key={header}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -1071,19 +1071,20 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {loadingOrdenes ? (
-                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    <tr><td colSpan={10} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                   ) : ordenes.length === 0 ? (
-                    <tr><td colSpan={9} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
+                    <tr><td colSpan={10} style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>No se encontraron órdenes.</td></tr>
                   ) : currentPaginatedOrdenes.map((o, idx) => {
                     const ordenId = o.orden_servicio || o.ticket;
                     return (
                       <tr key={idx}>
                         <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                          {/* Trabajo = descripción del Excel; debajo, el número de orden (clave) */}
+                          {/* Trabajo = descripción del Excel */}
                           {o.descripcion_orden || o.ticket || (o as any).trabajo || '-'}
-                          {ordenId && String(ordenId) !== String(o.descripcion_orden || o.ticket || '') && (
-                            <div style={{ fontWeight: 500, fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>Orden {ordenId}</div>
-                          )}
+                        </td>
+                        <td style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {/* Orden externa = número de la orden (la clave con la que se asigna y se aplica el código) */}
+                          {o.orden_externa_id || o.orden_servicio || '-'}
                         </td>
                         <td style={{ fontSize: '0.8rem' }}>{o.cliente || '-'}</td>
                         <td>{o.tech || (o as any).tech_name || '-'}</td>
