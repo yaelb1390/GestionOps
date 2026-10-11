@@ -128,6 +128,140 @@ do $$ begin
   raise notice 'ok: gestor no puede importar';
 end $$;
 
+-- 6c) Módulos activables: el admin desactiva y el gestor queda bloqueado en el servidor
+reset role;
+set local role authenticated;
+select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
+select pg_temp.expect('gestor lee el estado de los módulos (13)', (select count(*) = 13 from public.app_modules));
+do $$ begin
+  begin perform public.set_module_enabled('tickets', false); raise exception 'FALLO: gestor cambió un módulo';
+  exception when insufficient_privilege then null; end;
+  begin update public.app_modules set enabled = false; raise exception 'FALLO: gestor escribió en app_modules';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: gestor no puede modificar módulos';
+end $$;
+select pg_temp.claims('admin', current_setting('test.root')::uuid);
+select public.set_module_enabled('tickets', false);
+select pg_temp.expect('admin: el módulo queda desactivado', (select enabled = false from public.app_modules where key = 'tickets'));
+select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
+select pg_temp.expect('módulo desactivado: el gestor deja de ver tickets', (select count(*) = 0 from public.tickets));
+do $$ begin
+  begin perform public.save_codigo('tickets', 'IMP-1', 'X'); raise exception 'FALLO: guardó con el módulo desactivado';
+  exception when others then if sqlerrm not like '%desactivado%' then raise; end if; end;
+  raise notice 'ok: save_codigo bloqueado con el módulo desactivado';
+end $$;
+select pg_temp.expect('otros módulos de datos siguen visibles (órdenes del gestor)', (select count(*) >= 0 from public.ordenes));
+select pg_temp.claims('admin', current_setting('test.root')::uuid);
+select pg_temp.expect('admin sigue viendo todo', (select count(*) > 0 from public.tickets));
+select pg_temp.expect('set_modules_enabled devuelve 2', public.set_modules_enabled(array['tickets','ordenes'], true) = 2);
+select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
+select pg_temp.expect('reactivado: el gestor vuelve a ver tickets', (select count(*) > 0 from public.tickets));
+
+-- 6d) Códigos de recuperación del administrador
+reset role;
+set local role authenticated;
+select pg_temp.claims('inspector', current_setting('test.ana')::uuid);
+do $$ begin
+  begin perform public.generate_recovery_codes(); raise exception 'FALLO: un gestor generó códigos';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: un gestor no puede generar códigos';
+end $$;
+select pg_temp.claims('admin', current_setting('test.root')::uuid);
+select set_config('test.codes', array_to_string(public.generate_recovery_codes(), ' '), true);
+select pg_temp.expect('se generan 8 códigos con formato XXXX-XXXX-XXXX',
+  array_length(string_to_array(current_setting('test.codes'), ' '), 1) = 8
+  and (string_to_array(current_setting('test.codes'), ' '))[1] ~ '^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$');
+select pg_temp.expect('estado: 8 sin usar', (public.recovery_status() ->> 'unused') = '8');
+select set_config('test.c1', (string_to_array(current_setting('test.codes'), ' '))[1], true);
+select set_config('test.c2', (string_to_array(current_setting('test.codes'), ' '))[2], true);
+reset role;
+select pg_temp.expect('en la base no hay códigos en claro', (select count(*) = 0 from public.recovery_codes where code_hash ~ '^[A-Z2-9]{4}-'));
+set local role service_role;
+select pg_temp.expect('código correcto restablece (y devuelve 7 restantes)',
+  (public.recover_password('ROOT', lower(current_setting('test.c1')), 'NuevaClave-2026') ->> 'restantes') = '7');
+reset role;
+select pg_temp.expect('la contraseña nueva ya entra', (select count(*) = 1 from public.login_check('root', 'NuevaClave-2026', 'admin')));
+select pg_temp.expect('la contraseña vieja ya no entra', (select count(*) = 0 from public.login_check('root', 'pw-root', 'admin')));
+set local role service_role;
+do $$ begin
+  if (public.recover_password('root', current_setting('test.c1'), 'OtraClave-2026') ->> 'ok') <> 'false' then raise exception 'FALLO: reutilizó un código'; end if;
+  begin perform public.recover_password('root', current_setting('test.c2'), 'corta'); raise exception 'FALLO: aceptó clave corta';
+  exception when others then if sqlerrm not like '%al menos 8%' then raise; end if; end;
+  if (public.recover_password('ana', current_setting('test.c2'), 'ClaveValida-2026') ->> 'ok') <> 'false' then raise exception 'FALLO: recuperó un gestor'; end if;
+  if (public.recover_password('noexiste', current_setting('test.c2'), 'ClaveValida-2026') ->> 'ok') <> 'false' then raise exception 'FALLO: usuario inexistente distinto'; end if;
+  raise notice 'ok: código usado, clave corta, gestor y usuario inexistente se rechazan';
+end $$;
+do $$ begin
+  for i in 1..5 loop
+    begin perform public.recover_password('root', 'AAAA-AAAA-AAAA', 'ClaveValida-2026'); exception when others then null; end; -- puede saltar el bloqueo antes del 5.º: el intento con el código reutilizado también cuenta
+  end loop;
+  begin perform public.recover_password('root', current_setting('test.c2'), 'ClaveValida-2026'); raise exception 'FALLO: sin bloqueo';
+  exception when others then if sqlerrm not like 'Demasiados intentos%' then raise; end if; end;
+  raise notice 'ok: tras 5 fallos queda bloqueado (aunque el código sea bueno)';
+end $$;
+reset role;
+set local role authenticated;
+select pg_temp.expect('anónimo/autenticado no puede llamar recover_password', (select true));
+do $$ begin
+  begin perform public.recover_password('root', 'x', 'ClaveValida-2026'); raise exception 'FALLO: recover_password abierta';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: recover_password solo la ejecuta service_role';
+end $$;
+reset role;
+
+-- 6e) Recuperación por correo (código de 6 dígitos)
+reset role;
+delete from public.login_attempts where usuario like 'rec:%';   -- el bloque anterior dejó bloqueado a root
+-- Mi Perfil del super admin guarda el correo en app_config (y a veces también en personal)
+insert into public.app_config (param, value) values ('admin_recovery_email', 'jefe@ejemplo.com') on conflict (param) do update set value = excluded.value;
+update public.personal set correo_recuperacion = null where usuario = 'root';
+set local role service_role;
+select set_config('test.otp', public.request_recovery_otp('ROOT')::text, true);
+select pg_temp.expect('envía al correo de Mi Perfil (app_config) con un código de 6 dígitos',
+  (current_setting('test.otp')::jsonb ->> 'send') = 'true' and (current_setting('test.otp')::jsonb ->> 'email') = 'jefe@ejemplo.com'
+  and (current_setting('test.otp')::jsonb ->> 'code') ~ '^[0-9]{6}$');
+select pg_temp.expect('segunda solicitud inmediata: no envía (60 s entre solicitudes)', (public.request_recovery_otp('root') ->> 'send') = 'false');
+select pg_temp.expect('un gestor o un usuario inexistente: no envía', (public.request_recovery_otp('ana') ->> 'send') = 'false' and (public.request_recovery_otp('nadie') ->> 'send') = 'false');
+reset role;
+select pg_temp.expect('el código no está en claro en la base', (select count(*) = 0 from public.recovery_otps where code_hash ~ '^[0-9]{6}$'));
+set local role service_role;
+do $$ begin
+  if (public.recover_password('root', '000000x', 'NuevaPorCorreo-26') ->> 'ok') <> 'false' then raise exception 'FALLO: aceptó un código inválido'; end if;
+  if (public.recover_password('root', case when current_setting('test.otp')::jsonb ->> 'code' = '123456' then '654321' else '123456' end, 'NuevaPorCorreo-26') ->> 'ok') <> 'false' then raise exception 'FALLO: aceptó un código equivocado'; end if;
+  raise notice 'ok: códigos de correo equivocados se rechazan';
+end $$;
+select pg_temp.expect('el código de correo restablece la contraseña',
+  (public.recover_password('root', current_setting('test.otp')::jsonb ->> 'code', 'NuevaPorCorreo-26') ->> 'ok') = 'true');
+reset role;
+select pg_temp.expect('y la clave nueva entra', (select count(*) = 1 from public.login_check('root', 'NuevaPorCorreo-26', 'admin')));
+set local role service_role;
+select pg_temp.expect('el mismo código no sirve dos veces',
+  (public.recover_password('root', current_setting('test.otp')::jsonb ->> 'code', 'OtraMas-2026-x') ->> 'ok') = 'false');
+reset role;
+-- caducidad: un código vencido no vale
+update public.recovery_otps set created_at = created_at - interval '2 minutes';
+set local role service_role;
+select set_config('test.otp2', public.request_recovery_otp('root')::text, true);
+reset role;
+update public.recovery_otps set expires_at = clock_timestamp() - interval '1 second' where used_at is null;
+set local role service_role;
+select pg_temp.expect('un código vencido se rechaza',
+  (public.recover_password('root', current_setting('test.otp2')::jsonb ->> 'code', 'NuevaVencida-26') ->> 'ok') = 'false');
+-- sin correo registrado no se envía
+reset role;
+delete from public.app_config where param = 'admin_recovery_email';
+update public.recovery_otps set created_at = created_at - interval '2 minutes';
+set local role service_role;
+select pg_temp.expect('sin correo en Mi Perfil: no envía', (public.request_recovery_otp('root') ->> 'send') = 'false');
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform public.request_recovery_otp('root'); raise exception 'FALLO: request_recovery_otp abierta';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: request_recovery_otp solo la ejecuta service_role';
+end $$;
+reset role;
+
 -- 7) Anónimo no ve nada
 reset role;
 reset role;

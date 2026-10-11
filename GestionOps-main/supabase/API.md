@@ -56,3 +56,12 @@ Clave de negocio por módulo: tickets/razones = `ticket`; órdenes = `orden_exte
 3. Exportar cada hoja a CSV en `supabase/seed/csv/` (`inspectores.csv`, `config.csv`, `tickets.csv`, `ordenes.csv`, `calidad.csv`, `razones.csv`), `cp .env.example .env`, `npm i`, `npm run dry-run`, revisar el informe y luego `npm run import`.
 4. `psql "$DB_URL" -f tests/rls_smoke.sql` contra el proyecto (en una transacción con rollback).
 5. Tras migrar el frontend y validar: rotar/retirar la URL del Apps Script (está expuesta en el repo).
+
+## Recuperación de la contraseña de administrador (códigos de un solo uso)
+| Qué | Cómo | Quién |
+|---|---|---|
+| Generar 8 códigos (anula el lote anterior; se devuelven una sola vez) | `rpc('generate_recovery_codes')` → `text[]` | admin con sesión |
+| Ver cuántos quedan | `rpc('recovery_status')` → `{total, unused, generated_at}` | admin con sesión |
+| Restablecer sin sesión | `POST /functions/v1/auth-recover` `{usuario, codigo, nueva}` → `{ok, restantes}` | cualquiera (limitado) |
+
+Los códigos son `XXXX-XXXX-XXXX` (60 bits), se guardan con bcrypt y no se pueden volver a ver. `recover_password` (solo `service_role`) bloquea 15 min tras 5 fallos por usuario, responde igual si el usuario no existe o no es admin, exige ≥ 8 caracteres, cierra las sesiones abiertas de la cuenta y desbloquea el login. Un fallo se **devuelve** (`{ok:false}`) en vez de lanzar error: un `RAISE` deshace el `INSERT` del intento fallido y el bloqueo no contaría. Camino de emergencia sin códigos: `herramientas/RECUPERAR_ADMIN.md`.

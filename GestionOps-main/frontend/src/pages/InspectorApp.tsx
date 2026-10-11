@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { LogOut, ClipboardList, CheckCircle2, Loader2, RotateCcw, ChevronRight, X, AlertTriangle, Sun, Moon, Package, LayoutGrid, Check, ExternalLink, AlertCircle, Activity, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { subscribeTables } from '../services/realtime';
-import { logout, fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones } from '../services/api';
+import { subscribeTables, subscribeModules } from '../services/realtime';
+import { fetchModulos, logout, fetchTickets, type Ticket, fetchCalidad, fetchOrdenes, type Orden, saveManualCodigo, fetchRazones } from '../services/api';
+
+const kq = ['qaor_gestores', 'qaor_actividades', 'qaor_acompanamiento', 'qaor_preventivo', 'qaor_inspecciones', 'qaor_sacs', 'interfaz'];
+const ks = ['tickets', 'ordenes', 'repetidas', 'diagnostico', 'actividades', 'inspecciones', 'interfaz'];
 
 export default function InspectorApp() {
   
@@ -116,6 +119,29 @@ export default function InspectorApp() {
     window.open(url, '_blank');
     setActiveMenuForm({ url, title });
   };
+
+  // Módulos activados por el administrador (Configuración). null = cargando; si falla la carga no se bloquea nada.
+  const [modulos, setModulosAct] = useState<Record<string, boolean> | null>(null);
+  const mod = (key: string) => modulos !== null && modulos[key] !== false;
+  useEffect(() => {
+    let vivo = true;
+    const cargar = () => fetchModulos().then(ms => { if (vivo) setModulosAct(ms ? Object.fromEntries(ms.map(m => [m.key, m.enabled])) : {}); });
+    cargar();
+    const unsubscribe = subscribeModules(cargar); // el menú cambia solo cuando el admin mueve un interruptor
+    const onVisible = () => { if (!document.hidden) cargar(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { vivo = false; unsubscribe(); document.removeEventListener('visibilitychange', onVisible); };
+  }, []);
+  // Si el administrador desactiva el módulo que el gestor tiene abierto, vuelve al menú
+  useEffect(() => {
+    if (!modulos) return;
+    const claveDeTab: Record<string, string> = { pendientes: 'tickets', ordenes: 'ordenes', repetidas: 'repetidas', mis_tickets: 'inspecciones' };
+    const k = claveDeTab[activeTab];
+    if (k && modulos[k] === false) {
+      handleTabChange('menu');
+      displayToast('Este módulo fue desactivado por el administrador', 'error');
+    }
+  }, [modulos, activeTab]);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -518,6 +544,13 @@ export default function InspectorApp() {
             animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
 
+          {modulos !== null && (isQAOR ? kq : ks).every(k => !mod(k)) && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>No hay módulos disponibles</div>
+              <div style={{ fontSize: '0.85rem' }}>El administrador desactivó todos los módulos por ahora.</div>
+            </div>
+          )}
+
           {/* ═══════════ MENÚ EXCLUSIVO QAOR-GESTORES ═══════════ */}
           {isQAOR ? (
             <>
@@ -550,6 +583,7 @@ export default function InspectorApp() {
               </div>
 
               {/* 1. QAOR-Gestores */}
+              {mod('qaor_gestores') && (
               <button 
                 onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', 'QAOR-Gestores')}
                 className="mobile-card" 
@@ -566,8 +600,10 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Formulario de Gestión</div>
                 </div>
               </button>
+              )}
 
               {/* 2. Regsitro Actividades Gestores */}
+              {mod('qaor_actividades') && (
               <button 
                 onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUODJaQjBTNENIWEwxSThONVFIMllDN1AyQi4u&origin=lprLink&route=shorturl', 'Regsitro Actividades Gestores')}
                 className="mobile-card" 
@@ -584,8 +620,10 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Gestores</div>
                 </div>
               </button>
+              )}
 
               {/* 3. ACOMPA- DE ACTITUDES Y COMPETENCIAS */}
+              {mod('qaor_acompanamiento') && (
               <button 
                 onClick={() => openForm('https://forms.office.com/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUN0xNQTZTQkwwMDhUTERONkZOT1lGUlg0SS4u&origin=lprLink&route=shorturl', 'Acompañamiento Actitudes y Competencias')}
                 className="mobile-card" 
@@ -602,8 +640,10 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Actitudes y Competencias</div>
                 </div>
               </button>
+              )}
 
               {/* 4. Mantenimiento Preventivo Operaciones Planta Externa */}
+              {mod('qaor_preventivo') && (
               <button 
                 onClick={() => openForm('https://forms.office.com/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLeA_FdVVHP5LqcRyGigaEvZUNENRRU0wMTVVMENSTDE2OTM1OFZaVkMwMi4u&route=shorturl', 'Mantenimiento Preventivo')}
                 className="mobile-card" 
@@ -620,8 +660,10 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Operaciones Planta Externa</div>
                 </div>
               </button>
+              )}
 
               {/* 5. Inspecciones */}
+              {mod('qaor_inspecciones') && (
               <button 
                 onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VURE5KUzVIWTUzV1ZNSVpVWjZOU1pRMzg0RC4u&route=shorturl', 'Inspecciones')}
                 className="mobile-card" 
@@ -638,8 +680,10 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Formulario de Registro</div>
                 </div>
               </button>
+              )}
 
               {/* 6. SACS Móvil */}
+              {mod('qaor_sacs') && (
               <button 
                 onClick={() => window.open('http://200.88.24.50/SACSMovil/?#/auth/login', '_blank')}
                 className="mobile-card" 
@@ -666,8 +710,10 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Acceso a Sistema</div>
                 </div>
               </button>
+              )}
 
               {/* Botón de cambio de tema */}
+              {mod('interfaz') && (
               <button 
                 onClick={toggleTheme}
                 className="mobile-card" 
@@ -693,10 +739,12 @@ export default function InspectorApp() {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}</div>
                 </div>
               </button>
+              )}
             </>
           ) : (
             /* ═══════════ MENÚ ESTÁNDAR INSPECTORES ═══════════ */
             <>
+          {mod('tickets') && (
           <button 
             onClick={() => handleTabChange('pendientes')}
             className="mobile-card" 
@@ -728,7 +776,9 @@ export default function InspectorApp() {
               </div>
             </div>
           </button>
+          )}
 
+          {mod('ordenes') && (
           <button 
             onClick={() => handleTabChange('ordenes')}
             className="mobile-card" 
@@ -762,7 +812,9 @@ export default function InspectorApp() {
               </div>
             </div>
           </button>
+          )}
 
+          {mod('repetidas') && (
           <button 
             onClick={() => handleTabChange('repetidas')}
             className="mobile-card" 
@@ -795,7 +847,9 @@ export default function InspectorApp() {
               </div>
             </div>
           </button>
+          )}
 
+          {mod('diagnostico') && (
           <button 
             onClick={() => window.open('http://200.88.24.50/SACSMovil/?#/auth/login', '_blank')}
             className="mobile-card" 
@@ -821,7 +875,9 @@ export default function InspectorApp() {
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>SACS Móvil</div>
             </div>
           </button>
+          )}
 
+          {mod('actividades') && (
           <button 
             onClick={() => openForm('https://forms.cloud.microsoft/pages/responsepage.aspx?id=sW-UmAXgFkyhaDp3K54oLT9CtjGptxpKqWQ3WHjwg0VUMzM1QUhTSzRXOUNJTjhaN0hFNjlCQk9ORi4u&route=shorturl', 'Registro Actividades')}
             className="mobile-card" 
@@ -847,7 +903,9 @@ export default function InspectorApp() {
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Registro Gestores</div>
             </div>
           </button>
+          )}
 
+          {mod('inspecciones') && (
           <button 
             onClick={() => handleTabChange('mis_tickets')}
             className="mobile-card" 
@@ -873,8 +931,10 @@ export default function InspectorApp() {
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Realizadas</div>
             </div>
           </button>
+          )}
 
 
+          {mod('interfaz') && (
           <button 
             onClick={toggleTheme}
             className="mobile-card" 
@@ -900,6 +960,7 @@ export default function InspectorApp() {
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}</div>
             </div>
           </button>
+          )}
 
 
         </>

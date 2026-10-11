@@ -1,30 +1,37 @@
-import { useMemo, useRef, useState } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2, ArrowRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useDropzone } from 'react-dropzone';
+import {
+  Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2, ArrowRight, Check, X, ListChecks,
+  FileText, Package, RotateCcw, AlertCircle, Copy, ShieldCheck, RefreshCw, BookOpen, ChevronDown, Lightbulb,
+} from 'lucide-react';
+import type * as XLSX from 'xlsx';
 import {
   readWorkbook, parseSheet, detectModule, buildRows, MODULOS,
   type Modulo, type ParsedSheet,
 } from '../services/excelImport';
 import { importRows, type ImportTotals } from '../services/api';
-import type * as XLSX from 'xlsx';
+import './ImportExcel.css';
 
 const ORDEN: Modulo[] = ['tickets', 'ordenes', 'calidad', 'razones'];
-const CONFIANZA = { alta: 'success', media: 'warning', baja: 'danger' } as const;
+// Mismos iconos que el menú lateral, para que el módulo se reconozca de un vistazo
+const ICONO: Record<Modulo, typeof FileText> = { tickets: FileText, ordenes: Package, calidad: RotateCcw, razones: AlertCircle };
+const DESCRIPCION: Record<Modulo, string> = {
+  tickets: 'Averías y trabajos', ordenes: 'Órdenes de servicio', calidad: 'Casos repetidos', razones: 'Código razón cliente',
+};
 const PREVIEW_ROWS = 50;
 
 interface Props {
-  // Se llama al terminar con el módulo importado, para que el panel recargue y pueda abrirlo
-  onImported: (modulo: Modulo) => void;
-  onOpenModule: (modulo: Modulo) => void;
+  onImported: (modulo: Modulo) => void;   // recarga los datos del módulo en el panel
+  onOpenModule: (modulo: Modulo) => void; // abre la pestaña del módulo
   notify: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export default function ImportExcel({ onImported, onOpenModule, notify }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
   const [reading, setReading] = useState(false);
-  const [fileName, setFileName] = useState('');
+  const [file, setFile] = useState<{ name: string; size: number } | null>(null);
   const [wb, setWb] = useState<XLSX.WorkBook | null>(null);
   const [sheet, setSheet] = useState<ParsedSheet | null>(null);
+  const [detectado, setDetectado] = useState<Modulo>('tickets');
   const [modulo, setModulo] = useState<Modulo>('tickets');
   const [confianza, setConfianza] = useState<'alta' | 'media' | 'baja'>('baja');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -32,11 +39,9 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
 
   const built = useMemo(() => (sheet ? buildRows(modulo, sheet) : null), [sheet, modulo]);
   const importing = progress !== null;
+  const step = result ? 3 : sheet ? 2 : 1;
 
-  const reset = () => {
-    setWb(null); setSheet(null); setFileName(''); setResult(null); setProgress(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
+  const reset = () => { setWb(null); setSheet(null); setFile(null); setResult(null); setProgress(null); };
 
   const analyze = (book: XLSX.WorkBook, sheetName?: string) => {
     const parsed = parseSheet(book, sheetName);
@@ -48,19 +53,15 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
     const det = detectModule(parsed);
     setSheet(parsed);
     setModulo(det.modulo);
+    setDetectado(det.modulo);
     setConfianza(det.confianza);
   };
 
-  const handleFile = async (file?: File) => {
-    if (!file) return;
-    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
-      notify('Formato no soportado. Sube un archivo .xlsx, .xls o .csv', 'error');
-      return;
-    }
+  const handleFile = async (f: File) => {
     setReading(true); setResult(null);
     try {
-      const book = readWorkbook(await file.arrayBuffer());
-      setWb(book); setFileName(file.name);
+      const book = readWorkbook(await f.arrayBuffer());
+      setWb(book); setFile({ name: f.name, size: f.size });
       analyze(book);
     } catch (e) {
       console.error(e);
@@ -68,6 +69,20 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
     }
     setReading(false);
   };
+
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    multiple: false,
+    disabled: reading,
+    noClick: true,       // el clic lo maneja la zona completa (abajo) para poder usar "open"
+    noKeyboard: true,
+    accept: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls', '.csv'],
+      'text/csv': ['.csv'],
+    },
+    onDropAccepted: files => handleFile(files[0]),
+    onDropRejected: () => notify('Formato no soportado. Sube un archivo .xlsx, .xls o .csv', 'error'),
+  });
 
   const doImport = async () => {
     if (!built || !built.rows.length) return;
@@ -85,93 +100,94 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
 
   const cols = MODULOS[modulo].cols;
   const hasRows = !!built && built.rows.length > 0;
-  const soft = { background: 'rgba(100, 116, 139, 0.08)', borderRadius: '12px' } as const;
+  const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => handleFile(e.target.files?.[0])} />
+    <div className="imp">
+      <Steps current={step} finished={!!result} />
 
-      {/* 1. Subida */}
+      {/* 1 · Subir */}
       {!sheet && !result && (
         <div
-          className="glass-panel"
-          onDragOver={e => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files?.[0]); }}
-          onClick={() => inputRef.current?.click()}
-          style={{
-            cursor: 'pointer', textAlign: 'center', padding: '3rem 1.5rem',
-            background: dragging ? 'rgba(59, 130, 246, 0.10)' : undefined,
-            transition: 'background 0.2s',
-          }}
+          {...getRootProps({
+            className: `imp-drop${isDragActive ? ' active' : ''}${reading ? ' busy' : ''}`,
+            onClick: open,
+            onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } },
+            tabIndex: 0,
+            role: 'button',
+            'aria-label': 'Subir archivo de Excel',
+          })}
         >
-          {reading ? <Loader2 className="spinner" size={40} /> : <Upload size={40} color="var(--primary-color)" />}
-          <h3 style={{ margin: '1rem 0 0.4rem', color: 'var(--text-main)' }}>
-            {reading ? 'Leyendo archivo…' : 'Arrastra tu Excel aquí o haz clic para elegirlo'}
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-            .xlsx, .xls o .csv · el sistema detecta si son Tickets, Órdenes, Averías repetidas o Códigos razón
-          </p>
+          <input {...getInputProps()} />
+          <div className="imp-drop-icon">
+            {reading ? <Loader2 className="spinner" size={34} /> : <Upload size={34} />}
+          </div>
+          <h3>{reading ? 'Leyendo archivo…' : isDragActive ? 'Suelta el archivo aquí' : 'Arrastra tu Excel aquí'}</h3>
+          <p>{reading ? 'Esto toma solo un momento' : <>o <span className="imp-link">haz clic para elegirlo</span> desde tu equipo</>}</p>
+          <div className="imp-chips">
+            {['XLSX', 'XLS', 'CSV'].map(f => <span key={f} className="imp-chip mono">{f}</span>)}
+            <span className="imp-chip" style={{ background: 'none' }}>·</span>
+            {ORDEN.map(m => {
+              const Icon = ICONO[m];
+              return <span key={m} className="imp-chip"><Icon size={13} /> {MODULOS[m].label}</span>;
+            })}
+          </div>
         </div>
       )}
 
-      {/* 2. Análisis y vista previa */}
+      {/* 2 · Revisar */}
       {sheet && built && !result && (
         <>
-          <div className="glass-panel" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-              <FileSpreadsheet size={28} color="var(--secondary-color)" />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fileName}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {sheet.rows.length} filas · hoja
+          <div className="imp-card">
+            <div className="imp-file">
+              <div className="imp-file-icon"><FileSpreadsheet size={24} /></div>
+              <div className="imp-file-info">
+                <div className="imp-file-name">{file?.name}</div>
+                <div className="imp-file-meta">
+                  <span>{formatSize(file?.size ?? 0)}</span> · <span>{sheet.rows.length} filas</span> · <span>hoja</span>
                   {sheet.sheetNames.length > 1 ? (
-                    <select
-                      className="input-control" value={sheet.sheetName} disabled={importing}
-                      onChange={e => wb && analyze(wb, e.target.value)}
-                      style={{ display: 'inline-block', width: 'auto', padding: '0.15rem 0.5rem', margin: '0 0 0 0.4rem' }}
-                    >
+                    <select className="imp-select" value={sheet.sheetName} disabled={importing}
+                      onChange={e => wb && analyze(wb, e.target.value)}>
                       {sheet.sheetNames.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
-                  ) : ` “${sheet.sheetName}”`}
+                  ) : <b>“{sheet.sheetName}”</b>}
                 </div>
               </div>
-            </div>
-            <button className="btn-secondary" onClick={reset} disabled={importing}>Cambiar archivo</button>
-          </div>
-
-          <div className="glass-panel">
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-              <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Módulo detectado</span>
-              <span className={`badge ${CONFIANZA[confianza]}`}>confianza {confianza}</span>
-              {confianza !== 'alta' && (
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Confirma que sea el correcto antes de importar.</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-              {ORDEN.map(m => (
-                <button
-                  key={m} disabled={importing}
-                  className={modulo === m ? 'btn-primary' : 'btn-secondary'}
-                  onClick={() => setModulo(m)}
-                >
-                  {MODULOS[m].label}
-                </button>
-              ))}
+              <button className="imp-icon-btn" onClick={reset} disabled={importing}><X size={15} /> Quitar</button>
             </div>
           </div>
 
-          {/* Resumen */}
-          <div className="kpi-grid">
-            <Stat label="Listos para importar" value={built.informe.validas} tone="green" />
-            <Stat label="Sin identificador (se omiten)" value={built.informe.sinClave} tone={built.informe.sinClave ? 'amber' : 'blue'} />
-            <Stat label="Repetidos en el archivo" value={built.informe.repetidasEnArchivo} tone={built.informe.repetidasEnArchivo ? 'amber' : 'blue'} />
+          <div className="imp-card">
+            <div className="imp-section-title">
+              Módulo de destino
+              <span className={`imp-pill ${confianza}`}>detección {confianza}</span>
+              {confianza !== 'alta' && <span className="imp-hint">Confirma que sea el correcto antes de importar.</span>}
+            </div>
+            <div className="imp-modules" role="radiogroup" aria-label="Módulo de destino">
+              {ORDEN.map(m => {
+                const Icon = ICONO[m];
+                return (
+                  <button key={m} role="radio" aria-checked={modulo === m} disabled={importing}
+                    className={`imp-mod${modulo === m ? ' selected' : ''}`} onClick={() => setModulo(m)}>
+                    <div className="imp-mod-icon"><Icon size={20} /></div>
+                    <div><b>{MODULOS[m].label}</b><span>{DESCRIPCION[m]}</span></div>
+                    {m === detectado && <em className="imp-mod-tag" style={{ fontStyle: 'normal' }}>detectado</em>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="imp-stats">
+            <Stat icon={<CheckCircle2 size={22} />} tone="ok" value={built.informe.validas} label="Listos para importar" />
+            <Stat icon={<AlertTriangle size={22} />} tone={built.informe.sinClave ? 'warn' : 'idle'} value={built.informe.sinClave} label="Sin identificador (se omiten)" />
+            <Stat icon={<Copy size={22} />} tone={built.informe.repetidasEnArchivo ? 'warn' : 'idle'} value={built.informe.repetidasEnArchivo} label="Repetidos en el archivo" />
           </div>
 
           {(built.informe.noMapeadas.length > 0 || built.informe.ignoradas.length > 0 || built.informe.fechasNoInterpretadas > 0) && (
-            <div className="glass-panel" style={{ ...soft, fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', gap: '0.6rem' }}>
-              <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} color="var(--warning-color)" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div className="imp-notice">
+              <ShieldCheck size={18} />
+              <div>
                 {built.informe.noMapeadas.length > 0 && (
                   <span>Columnas que no pertenecen al módulo (se guardan aparte, no se muestran): <b>{built.informe.noMapeadas.join(', ')}</b></span>
                 )}
@@ -179,25 +195,36 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
                   <span>Se ignoran para no pisar el trabajo de los gestores: <b>{built.informe.ignoradas.join(', ')}</b></span>
                 )}
                 {built.informe.fechasNoInterpretadas > 0 && (
-                  <span>{built.informe.fechasNoInterpretadas} fecha(s) no se pudieron interpretar y se guardaron como texto.</span>
+                  <span>
+                    {built.informe.fechasNoInterpretadas} fecha(s) no se pudieron interpretar y se guardaron como texto, p. ej. <b>{built.informe.ejemplosFechas.join(" · ")}</b>
+                  </span>
                 )}
               </div>
             </div>
           )}
 
-          {/* Vista previa: solo columnas del módulo */}
-          <div className="glass-panel">
-            <h3 style={{ color: 'var(--text-main)', marginBottom: '0.25rem' }}>Vista previa · {MODULOS[modulo].label}</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-              {hasRows ? `Primeras ${Math.min(PREVIEW_ROWS, built.rows.length)} de ${built.rows.length} filas, solo con las columnas de este módulo.` : 'Ninguna fila tiene el identificador de este módulo. Prueba con otro módulo.'}
+          <div className="imp-card">
+            <div className="imp-section-title" style={{ marginBottom: '0.25rem' }}>
+              <ListChecks size={18} color="var(--primary-color)" /> Vista previa · {MODULOS[modulo].label}
+            </div>
+            <p className="imp-hint" style={{ marginBottom: '1rem' }}>
+              {hasRows
+                ? `Primeras ${Math.min(PREVIEW_ROWS, built.rows.length)} de ${built.rows.length} filas, solo con las columnas de este módulo.`
+                : 'Ninguna fila tiene el identificador de este módulo. Prueba con otro módulo.'}
             </p>
             {hasRows && (
-              <div className="table-container">
+              <div className="imp-table-wrap">
                 <table>
-                  <thead><tr>{cols.map(c => <th key={c.key}>{c.label}</th>)}</tr></thead>
+                  <thead><tr><th>#</th>{cols.map(c => <th key={c.key}>{c.label}</th>)}</tr></thead>
                   <tbody>
                     {built.rows.slice(0, PREVIEW_ROWS).map((r, i) => (
-                      <tr key={i}>{cols.map(c => <td key={c.key}>{fmtCell(c.key, r[c.key])}</td>)}</tr>
+                      <tr key={i}>
+                        <td className="imp-row-no">{i + 1}</td>
+                        {cols.map(c => {
+                          const t = fmtCell(c.key, r[c.key]);
+                          return <td key={c.key} className={t === '—' ? 'imp-empty' : undefined}>{t}</td>;
+                        })}
+                      </tr>
                     ))}
                   </tbody>
                 </table>
@@ -205,46 +232,164 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn-primary" disabled={!hasRows || importing} onClick={doImport}>
-              {importing ? <><Loader2 className="spinner" size={18} /> Importando {progress!.done}/{progress!.total}…</>
-                : <><Upload size={18} /> Importar {built.rows.length} registros a {MODULOS[modulo].label}</>}
-            </button>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Lo que ya existe se actualiza sin tocar asignaciones, estados ni códigos aplicados.
-            </span>
+          <div className="imp-action">
+            {importing ? (
+              <div className="grow">
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6, color: 'var(--text-main)', fontWeight: 600 }}>
+                  <span>Importando a {MODULOS[modulo].label}…</span><span>{progress!.done} / {progress!.total} · {pct}%</span>
+                </div>
+                <div className="imp-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${pct}%` }} /></div>
+              </div>
+            ) : (
+              <>
+                <button className="btn-primary" disabled={!hasRows} onClick={doImport}>
+                  <Upload size={18} /> Importar {built.rows.length} registros
+                </button>
+                <small className="grow">Lo que ya existe se actualiza sin tocar asignaciones, estados ni códigos aplicados.</small>
+              </>
+            )}
           </div>
         </>
       )}
 
-      {/* 3. Resultado */}
+      {/* 3 · Resultado */}
       {result && (
-        <div className="glass-panel" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
-          <CheckCircle2 size={44} color="var(--secondary-color)" />
-          <h3 style={{ margin: '1rem 0 0.5rem', color: 'var(--text-main)' }}>Importación completada · {MODULOS[result.modulo].label}</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            <b>{result.totals.inserted}</b> nuevos · <b>{result.totals.updated}</b> actualizados · <b>{result.totals.skipped}</b> omitidos
-          </p>
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div className="imp-card imp-done">
+          <div className="imp-done-icon"><Check size={42} strokeWidth={2.5} /></div>
+          <h3>Importación completada · {MODULOS[result.modulo].label}</h3>
+          <div className="imp-totals">
+            <div><strong>{result.totals.inserted}</strong><span>nuevos</span></div>
+            <div><strong>{result.totals.updated}</strong><span>actualizados</span></div>
+            <div><strong>{result.totals.skipped}</strong><span>omitidos</span></div>
+          </div>
+          <div className="imp-done-actions">
             <button className="btn-primary" onClick={() => onOpenModule(result.modulo)}>
               Ver {MODULOS[result.modulo].label} <ArrowRight size={16} />
             </button>
-            <button className="btn-secondary" onClick={reset}>Subir otro archivo</button>
+            <button className="btn-secondary" onClick={reset}><RefreshCw size={16} /> Subir otro archivo</button>
           </div>
         </div>
       )}
+
+      <Guia abierta={step === 1} />
     </div>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'amber' | 'red' }) {
+// ── Instructivo: cómo se usa esta pantalla ──────────────────────────────────────
+const PASOS: { icon: typeof Upload; titulo: string; texto: string }[] = [
+  { icon: FileSpreadsheet, titulo: 'Prepara tu Excel', texto: 'Usa el reporte tal como sale del sistema (.xlsx, .xls o .csv). Puede traer títulos arriba o varias hojas: no hace falta limpiarlo.' },
+  { icon: Upload, titulo: 'Súbelo', texto: 'Arrastra el archivo a la zona de carga o haz clic para elegirlo. El sistema detecta solo si son Tickets, Órdenes, Averías repetidas o Códigos razón.' },
+  { icon: ListChecks, titulo: 'Revisa y confirma', texto: 'Confirma el módulo (puedes cambiarlo), mira los totales y la vista previa. Solo se muestran las columnas del módulo.' },
+  { icon: CheckCircle2, titulo: 'Importa', texto: 'Pulsa Importar. Los registros nuevos entran como Pendiente y los que ya existían se actualizan. Luego usa “Ver módulo” para abrirlos.' },
+];
+
+const COLUMNAS: { modulo: Modulo; clave: string; resto: string }[] = [
+  { modulo: 'tickets', clave: 'Trabajo o Ticket', resto: 'Supervisor, Técnico, Sector, Tecnología, Prioridad, Fecha' },
+  { modulo: 'ordenes', clave: 'Orden externa (o Orden servicio)', resto: 'Trabajo (descripción), Cliente, Terminal, Sector, Tecnología, Vencimiento' },
+  { modulo: 'calidad', clave: 'Caso actual + Caso repetido', resto: 'Técnico repetido, Respuesta, Cierre repetido, Supervisor, Sector' },
+  { modulo: 'razones', clave: 'Ticket (y una columna con “razón” en su nombre)', resto: 'Cliente, Supervisor, Técnico, Sector, Tecnología, Fecha' },
+];
+
+const CONSEJOS: { t: string; d: string }[] = [
+  { t: 'Subir el mismo archivo dos veces no duplica nada.', d: 'Cada registro se identifica por su número (ticket u orden). Si ya existe, solo se actualizan sus datos.' },
+  { t: 'El trabajo de los gestores nunca se pisa.', d: 'Asignación, estado y código aplicado se conservan. Las columnas Estado, Inspector o Código del Excel se ignoran a propósito.' },
+  { t: 'Una celda vacía no borra lo que ya había.', d: 'Si el Excel trae un campo en blanco, se mantiene el valor guardado.' },
+  { t: 'Si hay dos columnas parecidas, gana la principal.', d: 'Por ejemplo, “Trabajo” manda sobre “Tipo servicio”. La otra no se pierde: se guarda aparte.' },
+  { t: 'Fechas: se aceptan los formatos habituales.', d: 'Fechas de Excel, 13/10/2026 12:00 p. m., 2026-10-13 o 15-oct-2026, siempre en hora de República Dominicana. Si alguna no se entiende, el aviso te muestra ejemplos.' },
+  { t: 'Filas que se omiten.', d: 'Las que no tienen número de ticket u orden, o están repetidas dentro del mismo archivo. El resumen te dice cuántas son.' },
+  { t: 'Un módulo equivocado se corrige antes de importar.', d: 'Si la detección no es “alta”, revisa que la tarjeta marcada sea la correcta; si la vista previa sale vacía, prueba con otro módulo.' },
+];
+
+function Guia({ abierta }: { abierta: boolean }) {
   return (
-    <div className="glass-panel kpi-card">
-      <div className={`kpi-icon ${tone}`}><FileSpreadsheet size={22} /></div>
-      <div className="kpi-info"><h3>{label}</h3><p>{value}</p></div>
+    <details className="imp-guide" open={abierta}>
+      <summary>
+        <span className="imp-guide-ico"><BookOpen size={20} /></span>
+        <span className="imp-guide-title">
+          <b>¿Cómo se usa esta pantalla?</b>
+          <small>Instructivo paso a paso, columnas que reconoce y preguntas frecuentes</small>
+        </span>
+        <ChevronDown size={20} className="imp-guide-chev" />
+      </summary>
+
+      <div className="imp-guide-body">
+        <ol className="imp-how">
+          {PASOS.map((p, i) => {
+            const Icon = p.icon;
+            return (
+              <li key={p.titulo}>
+                <div className="imp-how-top"><span className="imp-how-n">{i + 1}</span><Icon size={20} /></div>
+                <b>{p.titulo}</b>
+                <p>{p.texto}</p>
+              </li>
+            );
+          })}
+        </ol>
+
+        <h4 className="imp-guide-h"><ListChecks size={17} /> Qué columnas reconoce cada módulo</h4>
+        <p className="imp-guide-sub">Los nombres no tienen que ser idénticos (acepta variantes como “Orden Externa”, “OE Vence” o “Zona”). Lo único obligatorio es el identificador.</p>
+        <div className="imp-table-wrap imp-cols">
+          <table>
+            <thead><tr><th>Módulo</th><th>Identificador (obligatorio)</th><th>Otras columnas que usa</th></tr></thead>
+            <tbody>
+              {COLUMNAS.map(c => {
+                const Icon = ICONO[c.modulo];
+                return (
+                  <tr key={c.modulo}>
+                    <td><span className="imp-cols-mod"><Icon size={15} /> {MODULOS[c.modulo].label}</span></td>
+                    <td><b>{c.clave}</b></td>
+                    <td className="imp-cols-rest">{c.resto}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <h4 className="imp-guide-h"><Lightbulb size={17} /> Buenas prácticas y preguntas frecuentes</h4>
+        <ul className="imp-tips">
+          {CONSEJOS.map(c => (
+            <li key={c.t}><Check size={16} strokeWidth={3} /><div><b>{c.t}</b><span>{c.d}</span></div></li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
+}
+
+function Steps({ current, finished }: { current: number; finished: boolean }) {
+  const items = ['Subir archivo', 'Revisar y confirmar', 'Importar'];
+  return (
+    <div className="imp-card imp-steps" aria-label="Progreso de la importación">
+      {items.map((label, i) => {
+        const n = i + 1;
+        const done = finished || n < current;
+        const state = done ? 'done' : n === current ? 'active' : '';
+        return (
+          <div key={label} style={{ display: 'contents' }}>
+            <div className={`imp-step ${state}`} aria-current={n === current && !finished ? 'step' : undefined}>
+              <div className="imp-step-dot">{done ? <Check size={15} strokeWidth={3} /> : n}</div>
+              <span>{label}</span>
+            </div>
+            {i < items.length - 1 && <div className={`imp-step-line${done ? ' done' : ''}`} />}
+          </div>
+        );
+      })}
     </div>
   );
 }
+
+function Stat({ icon, tone, value, label }: { icon: React.ReactNode; tone: 'ok' | 'warn' | 'idle'; value: number; label: string }) {
+  return (
+    <div className="imp-stat">
+      <div className={`imp-stat-icon ${tone}`}>{icon}</div>
+      <div><strong>{value}</strong><span>{label}</span></div>
+    </div>
+  );
+}
+
+const formatSize = (b: number) => (b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`);
 
 // ISO -> hora de RD legible; el resto tal cual
 const rd = new Intl.DateTimeFormat('es-DO', { timeZone: 'America/Santo_Domingo', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' });

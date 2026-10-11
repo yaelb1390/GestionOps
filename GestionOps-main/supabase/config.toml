@@ -6,3 +6,6 @@ major_version = 15
 # La función emite el JWT propio; no puede exigir uno para llamarla.
 [functions.auth-login]
 verify_jwt = false
+
+[functions.auth-recover]
+verify_jwt = false

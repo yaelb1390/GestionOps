@@ -1,0 +1,93 @@
+/* Códigos de recuperación (Mi Perfil). Misma línea sobria: sombras suaves, sin bordes duros. */
+.rc {
+  --rc-soft: color-mix(in srgb, var(--text-main) 5%, transparent);
+  --rc-soft-2: color-mix(in srgb, var(--text-main) 10%, transparent);
+  background: var(--surface-color);
+  border-radius: 18px;
+  padding: 1.5rem;
+  max-width: 600px;
+  margin-top: 1.25rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.rc-head { display: flex; gap: 1rem; align-items: flex-start; }
+.rc-ico {
+  width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+  display: grid; place-items: center;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+.rc-title h3 { color: var(--text-main); font-size: 1.05rem; margin: 0 0 0.25rem; }
+.rc-title p { color: var(--text-muted); font-size: 0.86rem; margin: 0; line-height: 1.5; }
+.rc-loading { text-align: center; padding: 1rem; }
+
+.rc-state {
+  display: flex; gap: 0.65rem; align-items: flex-start;
+  padding: 0.85rem 1rem; border-radius: 14px; font-size: 0.86rem; line-height: 1.5;
+  background: var(--rc-soft); color: var(--text-muted);
+}
+.rc-state b { color: var(--text-main); }
+.rc-state svg { flex-shrink: 0; margin-top: 2px; }
+.rc-state.ok svg { color: var(--secondary-color); }
+.rc-state.low { background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
+.rc-state.low svg, .rc-state.warn svg { color: var(--warning-color); }
+.rc-state.warn { background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
+
+.rc-btn { align-self: flex-start; }
+.rc-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.75rem; }
+
+.rc-confirm {
+  display: flex; gap: 0.7rem; padding: 1rem; border-radius: 14px;
+  background: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  color: var(--text-muted); font-size: 0.86rem;
+}
+.rc-confirm > svg { flex-shrink: 0; margin-top: 2px; color: var(--warning-color); }
+.rc-confirm b { display: block; color: var(--text-main); margin-bottom: 2px; }
+
+.rc-codes-card {
+  border-radius: 16px; padding: 1.1rem;
+  background: var(--rc-soft);
+  animation: rc-rise 0.35s ease both;
+}
+.rc-warn {
+  display: flex; gap: 0.5rem; align-items: center;
+  font-size: 0.84rem; color: var(--text-muted); margin-bottom: 0.9rem;
+}
+.rc-warn svg { color: var(--warning-color); flex-shrink: 0; }
+.rc-warn b { color: var(--text-main); }
+.rc-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem;
+}
+.rc-grid li {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: var(--surface-color); border-radius: 12px; padding: 0.65rem 0.8rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.rc-grid li span { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rc-grid code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.95rem; font-weight: 600; letter-spacing: 0.06em; color: var(--text-main);
+  user-select: all;
+}
+.rc-check { display: flex; gap: 0.55rem; align-items: center; margin: 1rem 0 0.9rem; font-size: 0.86rem; color: var(--text-main); cursor: pointer; }
+.rc-check input { width: 18px; height: 18px; accent-color: var(--primary-color); }
+
+@keyframes rc-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rc-codes-card { animation: none; } }
+@media (max-width: 520px) { .rc-grid { grid-template-columns: 1fr; } .rc { padding: 1.1rem; } }
+
+.rc-mail {
+  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  padding: 0.95rem 1rem; border-radius: 14px; background: var(--rc-soft);
+}
+.rc-mail-ico {
+  width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+  display: grid; place-items: center;
+  color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+.rc-mail-txt { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; font-size: 0.84rem; color: var(--text-muted); line-height: 1.45; }
+.rc-mail-txt b:first-child { color: var(--text-main); font-size: 0.92rem; }
+.rc-mail-txt span b { color: var(--text-main); font-weight: 600; }

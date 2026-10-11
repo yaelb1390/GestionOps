@@ -112,7 +112,8 @@ export interface SessionUser {
 }
 
 // Valida contra la Edge Function auth-login y abre la sesión de Supabase Auth
-export async function login(usuario: string, password: string, rol: 'admin' | 'inspector'): Promise<SessionUser> {
+// `rol` es opcional: si no se envía, el servidor lo deduce del usuario (Admin -> 'admin'; Inspector/QAOR -> 'inspector')
+export async function login(usuario: string, password: string, rol?: 'admin' | 'inspector'): Promise<SessionUser> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
@@ -341,4 +342,88 @@ export async function importRows(
     onProgress?.(Math.min(i + BATCH, rows.length), rows.length);
   }
   return totals;
+}
+
+// ── Módulos del menú de gestores (Configuración) ─────────────────────────────
+
+export interface ModuloApp {
+  key: string;
+  menu: 'gestor' | 'qaor' | 'ambos';
+  label: string;
+  descripcion: string;
+  orden: number;
+  enabled: boolean;
+}
+
+// Lo leen admin y gestores (el menú lo necesita). Ante error devuelve null: la app NO bloquea módulos por un fallo de red.
+export async function fetchModulos(): Promise<ModuloApp[] | null> {
+  const { data, error } = await supabase.from('app_modules').select('key, menu, label, descripcion, orden, enabled').order('orden');
+  if (error) { console.error('Error cargando módulos:', error); return null; }
+  return (data || []).map(m => ({ ...m, descripcion: m.descripcion || '' })) as ModuloApp[];
+}
+
+export async function setModulo(key: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_module_enabled', { p_key: key, p_enabled: enabled });
+  if (error) throw new Error(error.message);
+}
+
+export async function setModulos(keys: string[], enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_modules_enabled', { p_keys: keys, p_enabled: enabled });
+  if (error) throw new Error(error.message);
+}
+
+// ── Recuperación de la contraseña de administrador (códigos de un solo uso) ──
+
+export interface RecoveryStatus { total: number; unused: number; generated_at: string | null }
+
+export async function getRecoveryStatus(): Promise<RecoveryStatus | null> {
+  const { data, error } = await supabase.rpc('recovery_status');
+  if (error) { console.error('Error leyendo códigos de recuperación:', error); return null; }
+  return data as RecoveryStatus;
+}
+
+// Genera un lote de 8 códigos (anula el anterior). Se devuelven una sola vez, en texto claro.
+export async function generateRecoveryCodes(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('generate_recovery_codes');
+  if (error) throw new Error(error.message);
+  return data as string[];
+}
+
+// Sin sesión: el admin que olvidó su clave usa su usuario + un código. Lanza Error con un mensaje apto para mostrar.
+export async function recoverPassword(usuario: string, codigo: string, nueva: string): Promise<{ restantes: number }> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-recover`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ usuario, codigo, nueva }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'No se pudo restablecer la contraseña');
+  return { restantes: body.restantes ?? 0 };
+}
+
+// ── Recuperación por correo ──────────────────────────────────────────────────
+
+// Pide que se envíe un código de 6 dígitos al correo registrado en Mi Perfil. La respuesta es siempre la misma
+// exista o no el usuario (no se revela quién es administrador). Lanza Error solo si el envío no está disponible.
+export async function enviarCodigoCorreo(usuario: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-recover`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ accion: 'enviar', usuario }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'No se pudo enviar el código');
+}
+
+// Admin con sesión: envía un correo de prueba al correo de Mi Perfil. Devuelve el destino enmascarado (y***@gmail.com).
+export async function enviarCorreoPrueba(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-recover`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session?.access_token ?? ''}` },
+    body: JSON.stringify({ accion: 'probar' }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'No se pudo enviar el correo de prueba');
+  return body.destino as string;
 }

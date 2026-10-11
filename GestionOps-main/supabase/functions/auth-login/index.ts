@@ -31,7 +31,9 @@ Deno.serve(async (req) => {
 
   const usuario = String(body.usuario ?? "").trim();
   const password = String(body.password ?? "");
-  const rol = body.rol === "admin" ? "admin" : "inspector";
+  // El rol ya no lo elige el usuario: se deduce de su registro (Admin -> panel; Inspector/QAOR -> app del gestor).
+  // Si el cliente aún lo envía se respeta (compatibilidad con versiones anteriores del frontend).
+  const rolPedido = body.rol === "admin" ? "admin" : body.rol === "inspector" ? "inspector" : null;
   if (!usuario || !password) return json({ error: "Usuario y contraseña requeridos" }, 400);
 
   const url = Deno.env.get("SUPABASE_URL")!;
@@ -39,10 +41,12 @@ Deno.serve(async (req) => {
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, opts);
 
   // 1) Credenciales (bcrypt + estado Activo + rol Admin si aplica + bloqueo por intentos)
-  const { data, error } = await admin.rpc("login_check", { p_usuario: usuario, p_password: password, p_rol: rol });
+  const { data, error } = await admin.rpc("login_check", { p_usuario: usuario, p_password: password, p_rol: rolPedido === "admin" ? "admin" : "inspector" });
   if (error) return json({ error: error.message }, error.code === "28000" ? 429 : 500);
   const user = Array.isArray(data) ? data[0] : data;
   if (!user) return json({ error: "Credenciales incorrectas o usuario inactivo" }, 401);
+
+  const rol = rolPedido ?? (user.rol === "Admin" ? "admin" : "inspector");
 
   // 2) Usuario de Auth (se crea la primera vez) con el rol de ESTE inicio de sesión
   const email = `${user.id}@${EMAIL_DOMAIN}`;

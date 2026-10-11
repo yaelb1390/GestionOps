@@ -155,7 +155,7 @@ export function detectModule(sheet: Pick<ParsedSheet, 'rawHeaders' | 'normHeader
 
   const scores: Record<Modulo, number> = {
     calidad: ['caso_repetido', 'tecnico_repetido', 'respuesta_repetido', 'fecha_repetido'].filter(has).length * 3 + (has('work_name') ? 1 : 0),
-    ordenes: (has('orden_externa_id') ? 3 : 0) + (has('orden_servicio') ? 3 : 0) + (has('oe_vence') ? 2 : 0) + (has('cliente') ? 1 : 0) + (has('terminal') ? 1 : 0),
+    ordenes: (has('orden_externa_id') ? 6 : 0) + (has('orden_servicio') ? 4 : 0) + (has('oe_vence') ? 3 : 0) + (has('cliente') ? 1 : 0) + (has('terminal') ? 1 : 0),
     tickets: base + (has('ticket') ? 1 : 0),
     razones: base + (has('ticket') ? 1 : 0) + (razonHeader ? 4 : 0),
   };
@@ -182,25 +182,55 @@ const DATE_COLS = ['fecha', 'oe_vence', 'fecha_repetido'];
 const PROTECTED_COLS = ['status', 'inspector', 'inspector_id', 'codigo_aplicado', 'fecha_inspeccion'];
 const DESC_WORDS = ['reparacion', 'instalacion', 'averia', 'proactiva', 'internet', 'voip', 'cobre'];
 
-const pad = (n: number) => String(n).padStart(2, '0');
+// Meses en español e inglés (abreviados) para fechas como "13-oct-2026"
+const MESES: Record<string, number> = { ene: 1, jan: 1, feb: 2, mar: 3, abr: 4, apr: 4, may: 5, jun: 6, jul: 7, ago: 8, aug: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12, dec: 12 };
 
-// Date de Excel / "dd/MM/yyyy HH:mm[:ss]" / ISO -> ISO con la hora de reloj interpretada en RD (GMT-4), o null.
+// Hora de reloj de RD (GMT-4) -> ISO UTC. Se calcula con Date.UTC: no depende de la zona horaria del navegador.
+function rdIso(y: number, mo: number, d: number, h = 0, mi = 0, se = 0): string | null {
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || se > 59) return null;
+  const chk = new Date(Date.UTC(y, mo - 1, d));
+  if (chk.getUTCFullYear() !== y || chk.getUTCMonth() !== mo - 1 || chk.getUTCDate() !== d) return null; // 31/02, etc.
+  return new Date(Date.UTC(y, mo - 1, d, h + 4, mi, se)).toISOString();
+}
+
+// Número de serie de Excel (días desde 1899-12-30, con fracción = hora) -> ISO con la hora de reloj en RD
+function serialIso(n: number): string | null {
+  if (!(n > 20000 && n < 80000)) return null; // ~1954-2118: fuera de rango no es una fecha
+  const t = new Date(Date.UTC(1899, 11, 30) + Math.round(n * 86400) * 1000);
+  return rdIso(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate(), t.getUTCHours(), t.getUTCMinutes(), t.getUTCSeconds());
+}
+
+// Date de Excel / número de serie / "dd/MM/yyyy HH:mm[:ss]" / "13-oct-2026 3:30 p. m." / "yyyy-MM-dd HH:mm" / ISO
+// -> ISO UTC interpretando la hora de reloj en RD (GMT-4), o null.
 // Los Date de SheetJS llevan la hora de reloj del Excel en componentes locales, por eso no se usa toISOString().
 export function parseDate(v: unknown): string | null {
   if (v === '' || v == null) return null;
   if (v instanceof Date) {
     if (isNaN(v.getTime())) return null;
-    return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}:00-04:00`;
+    // Los números de serie en coma flotante dejan la fecha unos milisegundos antes (13:04:59.999): se redondea al segundo
+    const r = new Date(Math.round(v.getTime() / 1000) * 1000);
+    return rdIso(r.getFullYear(), r.getMonth() + 1, r.getDate(), r.getHours(), r.getMinutes(), r.getSeconds());
   }
+  if (typeof v === 'number') return serialIso(v);
   const s = String(v).trim();
-  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (/^\d+(\.\d+)?$/.test(s)) return serialIso(parseFloat(s));
+  // d/m/y · y-m-d · d-mmm-y, con hora opcional (24 h o "3:30 p. m.")
+  const m = normalizeString(s).match(/^(\d{1,4})[/\-. ]+([a-z]{3,}|\d{1,2})[/\-. ]+(\d{1,4})(?:[ t,]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*(?:([ap])\.?\s?m\.?)?)?$/);
   if (m) {
-    const [, d, mo, y, h = '0', mi = '0', se = '0'] = m;
-    const t = new Date(`${y}-${pad(+mo)}-${pad(+d)}T${pad(+h)}:${mi}:${pad(+se)}-04:00`);
+    const month = /^\d+$/.test(m[2]) ? +m[2] : MESES[m[2].slice(0, 3)];
+    if (!month) return null;
+    const first = +m[1], last = +m[3];
+    const [y, d] = m[1].length === 4 ? [first, last] : [last < 100 ? 2000 + last : last, first];
+    let h = +(m[4] ?? 0);
+    if (m[7]) h = (h % 12) + (m[7] === 'p' ? 12 : 0);
+    return rdIso(y, month, d, h, +(m[5] ?? 0), +(m[6] ?? 0));
+  }
+  // ISO con zona explícita (Z o +hh:mm), p. ej. exportado por otro sistema
+  if (/t.*(z|[+-]\d{2}:?\d{2})$/i.test(s)) {
+    const t = new Date(s);
     return isNaN(t.getTime()) ? null : t.toISOString();
   }
-  const t = new Date(s);
-  return isNaN(t.getTime()) ? null : t.toISOString();
+  return null;
 }
 
 const cleanId = (v: string) => v.replace(/\.0$/, '');
@@ -225,6 +255,7 @@ export interface Informe {
   sinClave: number;
   repetidasEnArchivo: number;
   fechasNoInterpretadas: number;
+  ejemplosFechas: string[];  // hasta 3 valores que no se pudieron leer, para poder corregirlos
   noMapeadas: string[];      // columnas del Excel que se guardan en `extra`
   ignoradas: string[];       // columnas que existen pero no se pisan (estado, inspector, código...)
 }
@@ -236,25 +267,54 @@ export interface Resultado {
 
 export function buildRows(modulo: Modulo, sheet: Pick<ParsedSheet, 'rawHeaders' | 'normHeaders' | 'rows'>): Resultado {
   const known = new Set([...BASE_COLS, ...(modulo === 'calidad' ? CALIDAD_COLS : [])]);
-  const informe: Informe = { total: sheet.rows.length, validas: 0, sinClave: 0, repetidasEnArchivo: 0, fechasNoInterpretadas: 0, noMapeadas: [], ignoradas: [] };
+  const informe: Informe = { total: sheet.rows.length, validas: 0, sinClave: 0, repetidasEnArchivo: 0, fechasNoInterpretadas: 0, ejemplosFechas: [], noMapeadas: [], ignoradas: [] };
   const noMap = new Set<string>(), ign = new Set<string>();
   const vistas = new Set<string>();
+  const snake = (h: string) => normalizeString(h).replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  const tieneIdOrden = sheet.normHeaders.includes('orden_externa_id') || sheet.normHeaders.includes('orden_servicio');
+  // "Trabajo" y "Tipo de prioridad" se procesan primero para que su valor tenga prioridad sobre columnas equivalentes
+  const primero = (j: number) => ['trabajo', 'tipo de prioridad'].includes(normalizeString(sheet.rawHeaders[j]));
+  const orden = sheet.normHeaders.map((_, j) => j).sort((x, y) => Number(primero(y)) - Number(primero(x)));
   const rows: Record<string, any>[] = [];
 
   for (const raw of sheet.rows) {
-    // Mismo criterio que doGet: "Trabajo" es el ticket salvo que parezca una descripción
+    // Mismo criterio que doGet: "Trabajo" es el ticket salvo que parezca una descripción.
+    // Excepción: si el archivo trae "Orden externa"/"Orden servicio", esa es la clave y "Trabajo" SIEMPRE es la descripción.
     const o: Record<string, string> = {};
-    for (let j = 0; j < sheet.normHeaders.length; j++) {
+    // Si dos columnas significan lo mismo (p. ej. "Trabajo" y "Tipo servicio" -> descripción) gana la primera con
+    // valor ("Trabajo" y "Tipo de prioridad" van primero). En fechas gana la primera que SE PUEDA LEER (una columna
+    // con "Mañana" no pisa a una fecha). Ninguna se pierde: la otra se guarda aparte con su propio nombre.
+    const fuente: Record<string, string> = {};
+    const aparte = (nombre: string, val: string, key: string) => {
+      const base = snake(nombre) || key;
+      let alt = base, n = 2;
+      while (alt === key || alt in o) alt = `${base}_${n++}`;
+      o[alt] = val;
+    };
+    const put = (key: string, val: string, rawName: string) => {
+      if (!val) return;
+      const actual = o[key];
+      if (!actual) { o[key] = val; fuente[key] = rawName; return; }
+      if (actual === val) return;
+      if (DATE_COLS.includes(key) && !parseDate(actual) && parseDate(val)) {
+        aparte(fuente[key], actual, key);
+        o[key] = val; fuente[key] = rawName;
+        return;
+      }
+      aparte(rawName, val, key);
+    };
+    for (const j of orden) {
       const key = sheet.normHeaders[j];
       if (!key) continue;
       const cell = cellText(raw[j]);
       const rawH = normalizeString(sheet.rawHeaders[j]);
       if (['ticket', 'nro_ticket', 'id_ticket', 'id'].includes(rawH)) { if (cell) o.ticket = cell; }
       else if (rawH === 'trabajo') {
-        if (!DESC_WORDS.some(w => cell.toLowerCase().includes(w))) { if (!o.ticket) o.ticket = cell; }
-        else o.descripcion_orden = cell;
+        if (tieneIdOrden) put('descripcion_orden', cell, sheet.rawHeaders[j]);
+        else if (!DESC_WORDS.some(w => cell.toLowerCase().includes(w))) { if (!o.ticket) o.ticket = cell; }
+        else put('descripcion_orden', cell, sheet.rawHeaders[j]);
       } else if (key === 'ticket') { if (!o.ticket) o.ticket = cell; }
-      else o[key] = cell;
+      else put(key, cell, sheet.rawHeaders[j]);
     }
 
     const rec: Record<string, any> = {};
@@ -264,7 +324,12 @@ export function buildRows(modulo: Modulo, sheet: Pick<ParsedSheet, 'rawHeaders' 
       if (PROTECTED_COLS.includes(k)) { ign.add(k); continue; }
       if (DATE_COLS.includes(k) && known.has(k)) {
         const iso = parseDate(v);
-        if (iso) rec[k] = iso; else { informe.fechasNoInterpretadas++; extra[k] = v; }
+        if (iso) rec[k] = iso;
+        else {
+          informe.fechasNoInterpretadas++;
+          if (informe.ejemplosFechas.length < 3) informe.ejemplosFechas.push(`${k}: "${v}"`);
+          extra[k] = v;
+        }
       } else if (known.has(k)) rec[k] = k.endsWith('_id') || k === 'ticket' || k === 'orden_servicio' ? cleanId(v) : v;
       else { extra[k] = v; noMap.add(k); }
     }

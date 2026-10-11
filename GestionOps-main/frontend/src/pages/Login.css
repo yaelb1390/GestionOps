@@ -1,0 +1,260 @@
+/* Login — fondo oscuro azul-pizarra con el rojo Claro solo como acento (manchas de luz, líneas de fibra óptica).
+   La tarjeta es blanca y sólida: es lo que destaca. Nada de inundar la pantalla de rojo. */
+
+.login-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem 1rem 3.5rem;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(135deg, #0a1020 0%, #0f1a2e 52%, #0b1322 100%);
+}
+
+/* Manchas de luz (2 rojas muy tenues + 1 azulada) */
+.login-glow {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    radial-gradient(46% 42% at 12% 8%, rgba(218, 41, 28, 0.30), transparent 62%),
+    radial-gradient(42% 40% at 92% 96%, rgba(218, 41, 28, 0.20), transparent 64%),
+    radial-gradient(38% 36% at 88% 10%, rgba(56, 100, 200, 0.16), transparent 62%);
+}
+
+/* Líneas de fibra óptica: trazos finos + pulsos de luz que las recorren */
+.login-fiber {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  pointer-events: none;
+}
+.login-fiber path { fill: none; stroke: rgba(255, 255, 255, 0.07); stroke-width: 1.2; }
+.login-fiber .pulse {
+  stroke: url(#fiber-grad);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 90 1400;
+  animation: fiber-run 9s linear infinite;
+}
+.login-fiber .pulse:nth-of-type(2) { animation-duration: 12s; animation-delay: -4s; }
+.login-fiber .pulse:nth-of-type(3) { animation-duration: 15s; animation-delay: -9s; }
+.login-fiber .pulse:nth-of-type(4) { animation-duration: 11s; animation-delay: -6s; }
+
+/* Grano fino: evita las bandas del degradado y da textura */
+.login-grain {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ── Tarjeta ──────────────────────────────────────────── */
+.login-card {
+  position: relative;
+  width: 100%;
+  max-width: 410px;
+  padding: 2.75rem 2.5rem 2.25rem;
+  border-radius: 26px;
+  background: #ffffff;
+  color: #1e293b;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 30px 70px -10px rgba(0, 0, 0, 0.55),
+    0 0 110px rgba(218, 41, 28, 0.16);
+  animation: login-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* Filo de marca en el borde superior */
+.login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, #da291c 0%, #ff5a4d 55%, rgba(218, 41, 28, 0.15) 100%);
+}
+
+.login-logo { display: flex; justify-content: center; margin-bottom: 0.4rem; }
+.login-logo img {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  object-fit: contain;
+  transform: scale(1.15);
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.12));
+}
+.login-brand {
+  text-align: center;
+  color: #64748b;
+  margin-bottom: 1.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+.login-title { text-align: center; margin-bottom: 1.6rem; }
+.login-title h1 { font-size: 1.35rem; font-weight: 700; color: #0f172a; margin: 0 0 0.25rem; }
+.login-title p { margin: 0; font-size: 0.88rem; color: #64748b; }
+
+.login-card .input-group label { color: #475569; }
+.login-card .input-control {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.login-card .input-control:focus {
+  background: #fff;
+  border-color: #da291c;
+  box-shadow: 0 0 0 4px rgba(218, 41, 28, 0.12);
+  outline: none;
+}
+
+.login-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 1rem;
+  padding: 1rem;
+  font-size: 1rem;
+  box-shadow: 0 10px 24px -8px rgba(218, 41, 28, 0.55);
+}
+
+.login-error {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(218, 41, 28, 0.07);
+  color: #9f1d14;
+  font-size: 0.86rem;
+  font-weight: 500;
+  box-shadow: inset 3px 0 0 #da291c;
+  animation: login-shake 0.4s ease;
+}
+.login-error svg { flex-shrink: 0; margin-top: 2px; }
+
+.login-forgot { margin-top: 1.4rem; text-align: center; }
+.login-forgot button {
+  background: none;
+  border: none;
+  color: #da291c;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+}
+.login-forgot button:hover { background: rgba(218, 41, 28, 0.07); }
+
+.login-foot {
+  position: absolute;
+  bottom: 1.1rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.3px;
+  color: rgba(226, 232, 240, 0.6);
+}
+.login-foot b { color: #ff6b5e; font-weight: 700; font-style: italic; letter-spacing: 0.5px; }
+
+@keyframes login-rise { from { opacity: 0; transform: translateY(18px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes login-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes fiber-run { from { stroke-dashoffset: 1490; } to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card, .login-error, .login-fiber .pulse { animation: none !important; }
+}
+@media (max-width: 480px) {
+  .login-card { padding: 2.25rem 1.5rem 1.75rem; border-radius: 22px; }
+}
+
+/* ── Recuperar contraseña ──────────────────────────────── */
+.login-code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.login-pw { position: relative; width: 100%; }
+.login-pw .input-control { width: 100%; padding-right: 2.8rem; }
+.login-eye {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 0;
+  color: #64748b;
+  padding: 0.4rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.login-eye:hover { background: rgba(100, 116, 139, 0.12); color: #0f172a; }
+.login-forgot button { display: inline-flex; align-items: center; gap: 0.3rem; }
+.login-help {
+  margin: 1.1rem 0 0;
+  padding: 0.8rem 0.95rem;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.login-help b { color: #334155; font-weight: 600; }
+.login-done { text-align: center; padding: 0.5rem 0 0.25rem; }
+.login-done h1 { font-size: 1.3rem; color: #0f172a; margin: 0.9rem 0 0.35rem; }
+.login-done p { color: #64748b; font-size: 0.9rem; margin: 0 0 0.6rem; }
+.login-done-ico {
+  width: 76px; height: 76px; margin: 0 auto; border-radius: 50%;
+  display: grid; place-items: center; color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 0 9px rgba(16, 185, 129, 0.06);
+  animation: login-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.login-done-warn { color: #92400e !important; background: rgba(245, 158, 11, 0.12); padding: 0.55rem 0.8rem; border-radius: 10px; font-size: 0.82rem !important; }
+@keyframes login-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+
+.login-mail-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0.9rem;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(218, 41, 28, 0.08);
+  color: #b3201a;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.login-mail-btn:hover:not(:disabled) { background: rgba(218, 41, 28, 0.14); }
+.login-mail-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-sent {
+  margin: -0.35rem 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  box-shadow: inset 3px 0 0 #10b981;
+  animation: login-rise 0.35s ease both;
+}
+.login-sent b { color: #0f172a; font-weight: 600; }
+.login-card .input-group label small { color: #94a3b8; font-weight: 400; font-size: 0.74rem; }

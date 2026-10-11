@@ -1,0 +1,178 @@
+/* Configuración · módulos del gestor. Misma línea sobria que Importar Excel: sombras suaves, sin bordes duros. */
+
+.cfg {
+  --cfg-soft: color-mix(in srgb, var(--text-main) 5%, transparent);
+  --cfg-soft-2: color-mix(in srgb, var(--text-main) 10%, transparent);
+  --cfg-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 980px;
+}
+
+.cfg-card {
+  background: var(--surface-color);
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: var(--cfg-shadow);
+  animation: cfg-rise 0.35s ease both;
+}
+
+.cfg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.cfg-head h3 { font-size: 1.1rem; color: var(--text-main); margin-bottom: 0.25rem; }
+.cfg-head p { color: var(--text-muted); font-size: 0.88rem; margin: 0; max-width: 560px; }
+
+.cfg-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: var(--cfg-soft);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.cfg-count b { color: var(--text-main); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+
+/* ── Sección ───────────────────────────────────────────── */
+.cfg-section-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.cfg-section-top h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+.cfg-section-top h4 svg { color: var(--primary-color); }
+.cfg-section-top small { color: var(--text-muted); font-weight: 400; font-size: 0.8rem; }
+.cfg-bulk { display: flex; gap: 0.4rem; }
+.cfg-link {
+  border: 0;
+  background: var(--cfg-soft);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.cfg-link:hover:not(:disabled) { background: var(--cfg-soft-2); }
+.cfg-link:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Fila de módulo ────────────────────────────────────── */
+.cfg-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 0.25rem;
+}
+.cfg-row + .cfg-row { box-shadow: 0 -1px 0 var(--cfg-soft); }
+.cfg-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex-shrink: 0;
+  transition: filter 0.25s, opacity 0.25s;
+}
+.cfg-row.off .cfg-icon { filter: grayscale(1); opacity: 0.45; }
+.cfg-info { flex: 1; min-width: 0; }
+.cfg-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-weight: 700;
+  color: var(--text-main);
+  transition: color 0.2s;
+}
+.cfg-row.off .cfg-name { color: var(--text-muted); }
+.cfg-desc { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+.cfg-tag {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--cfg-soft);
+  color: var(--text-muted);
+}
+
+.cfg-state {
+  min-width: 62px;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.cfg-row:not(.off) .cfg-state { color: var(--secondary-color); }
+
+/* ── Interruptor (Radix Switch) ────────────────────────── */
+.cfg-switch {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 38%, transparent);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cfg-switch[data-state='checked'] { background: var(--secondary-color); }
+.cfg-switch:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary-color) 35%, transparent); }
+.cfg-switch[data-disabled] { opacity: 0.55; cursor: progress; }
+.cfg-switch-thumb {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.cfg-switch[data-state='checked'] .cfg-switch-thumb { transform: translateX(20px); }
+
+.cfg-note {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  background: var(--cfg-soft);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.cfg-note svg { flex-shrink: 0; margin-top: 1px; color: var(--primary-color); }
+.cfg-note b { color: var(--text-main); font-weight: 600; }
+
+@keyframes cfg-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cfg *, .cfg *::before, .cfg *::after { animation: none !important; transition: none !important; }
+}
+@media (max-width: 640px) {
+  .cfg-state { display: none; }
+  .cfg-card { padding: 1.1rem; }
+}

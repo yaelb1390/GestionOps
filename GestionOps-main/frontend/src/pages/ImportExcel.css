@@ -1,0 +1,541 @@
+/* Importar Excel — diseño sobrio: sombras suaves en capas, sin bordes duros, acentos rojos solo en iconos.
+   Todo se apoya en las variables del tema (claro/oscuro) y en color-mix, sin colores fijos. */
+
+.imp {
+  --imp-soft: color-mix(in srgb, var(--text-main) 5%, transparent);
+  --imp-soft-2: color-mix(in srgb, var(--text-main) 9%, transparent);
+  --imp-accent-bg: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  --imp-accent-ring: color-mix(in srgb, var(--primary-color) 32%, transparent);
+  --imp-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+  --imp-shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.05), 0 14px 34px rgba(15, 23, 42, 0.09);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto; /* contenido centrado en la pantalla */
+}
+
+.imp-card {
+  background: var(--surface-color);
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: var(--imp-shadow);
+  animation: imp-rise 0.35s ease both;
+}
+
+/* ── Pasos ─────────────────────────────────────────────── */
+.imp-steps {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+}
+.imp-step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.imp-step-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--imp-soft-2);
+  font-size: 0.8rem;
+  transition: background 0.3s, color 0.3s, box-shadow 0.3s;
+}
+.imp-step.active { color: var(--text-main); }
+.imp-step.active .imp-step-dot {
+  background: var(--primary-color);
+  color: #fff;
+  box-shadow: 0 0 0 5px var(--imp-accent-bg);
+}
+.imp-step.done { color: var(--text-main); }
+.imp-step.done .imp-step-dot { background: var(--secondary-color); color: #fff; }
+.imp-step-line {
+  flex: 1;
+  height: 2px;
+  min-width: 18px;
+  border-radius: 2px;
+  background: var(--imp-soft-2);
+  position: relative;
+  overflow: hidden;
+}
+.imp-step-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--secondary-color);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s ease;
+}
+.imp-step-line.done::after { transform: scaleX(1); }
+
+/* ── Zona de carga ─────────────────────────────────────── */
+.imp-drop {
+  position: relative;
+  text-align: center;
+  padding: 3.5rem 1.5rem 3rem;
+  border-radius: 18px;
+  cursor: pointer;
+  outline: none;
+  background: var(--surface-color);
+  box-shadow: var(--imp-shadow);
+  transition: box-shadow 0.25s, transform 0.25s, background 0.25s;
+}
+.imp-drop::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--text-main) 16%, transparent);
+  pointer-events: none;
+  transition: border-color 0.25s;
+}
+.imp-drop:hover,
+.imp-drop:focus-visible {
+  box-shadow: var(--imp-shadow-lift);
+}
+.imp-drop:focus-visible::before { border-color: var(--imp-accent-ring); }
+.imp-drop.active {
+  transform: scale(1.008);
+  background: color-mix(in srgb, var(--primary-color) 4%, var(--surface-color));
+  box-shadow: 0 0 0 4px var(--imp-accent-bg), var(--imp-shadow-lift);
+}
+.imp-drop.active::before { border-color: var(--imp-accent-ring); }
+.imp-drop.busy { cursor: progress; opacity: 0.85; }
+
+.imp-drop-icon {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 1.25rem;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--primary-color);
+  background: var(--imp-accent-bg);
+  animation: imp-float 3.2s ease-in-out infinite;
+}
+.imp-drop.active .imp-drop-icon { animation-duration: 1.2s; }
+.imp-drop h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.4rem;
+}
+.imp-drop p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin: 0;
+}
+.imp-drop .imp-link { color: var(--primary-color); font-weight: 600; }
+
+.imp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  position: relative;
+}
+.imp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--imp-soft);
+}
+.imp-chip svg { color: var(--primary-color); }
+.imp-chip.mono { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+
+/* ── Archivo seleccionado ──────────────────────────────── */
+.imp-file {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.imp-file-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--primary-color);
+  background: var(--imp-accent-bg);
+  flex-shrink: 0;
+}
+.imp-file-info { flex: 1; min-width: 0; }
+.imp-file-name {
+  font-weight: 700;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-file-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.imp-select {
+  appearance: none;
+  background: var(--imp-soft);
+  color: var(--text-main);
+  border: 0;
+  border-radius: 8px;
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.imp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--imp-soft);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.imp-icon-btn:hover:not(:disabled) { background: var(--imp-soft-2); }
+.imp-icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Módulos ───────────────────────────────────────────── */
+.imp-section-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.imp-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+}
+.imp-pill.alta { background: color-mix(in srgb, var(--secondary-color) 14%, transparent); color: var(--secondary-color); }
+.imp-pill.media { background: color-mix(in srgb, var(--warning-color) 16%, transparent); color: var(--warning-color); }
+.imp-pill.baja { background: var(--imp-soft-2); color: var(--text-muted); }
+.imp-hint { font-size: 0.82rem; color: var(--text-muted); font-weight: 400; }
+
+.imp-modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.85rem;
+}
+.imp-mod {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  text-align: left;
+  padding: 1rem;
+  border: 0;
+  border-radius: 14px;
+  background: var(--imp-soft);
+  color: var(--text-main);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.25s, transform 0.2s;
+}
+.imp-mod:hover:not(:disabled) { background: var(--imp-soft-2); transform: translateY(-1px); }
+.imp-mod:disabled { cursor: not-allowed; opacity: 0.6; }
+.imp-mod-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--primary-color);
+  background: var(--imp-accent-bg);
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+.imp-mod b { display: block; font-size: 0.95rem; }
+.imp-mod span { font-size: 0.78rem; color: var(--text-muted); }
+.imp-mod.selected {
+  background: var(--surface-color);
+  box-shadow: 0 0 0 2px var(--imp-accent-ring), var(--imp-shadow-lift);
+}
+.imp-mod.selected .imp-mod-icon { background: var(--primary-color); color: #fff; }
+.imp-mod-tag {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Resumen ───────────────────────────────────────────── */
+.imp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.85rem;
+}
+.imp-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 16px;
+  background: var(--surface-color);
+  box-shadow: var(--imp-shadow);
+  animation: imp-rise 0.4s ease both;
+}
+.imp-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.imp-stat-icon.ok { background: color-mix(in srgb, var(--secondary-color) 13%, transparent); color: var(--secondary-color); }
+.imp-stat-icon.warn { background: color-mix(in srgb, var(--warning-color) 15%, transparent); color: var(--warning-color); }
+.imp-stat-icon.idle { background: var(--imp-soft-2); color: var(--text-muted); }
+.imp-stat strong { display: block; font-size: 1.6rem; line-height: 1.1; color: var(--text-main); font-variant-numeric: tabular-nums; }
+.imp-stat span { font-size: 0.8rem; color: var(--text-muted); }
+
+.imp-notice {
+  display: flex;
+  gap: 0.7rem;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--warning-color) 9%, var(--surface-color));
+  box-shadow: var(--imp-shadow);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  animation: imp-rise 0.4s ease both;
+}
+.imp-notice svg { flex-shrink: 0; margin-top: 2px; color: var(--warning-color); }
+.imp-notice b { color: var(--text-main); font-weight: 600; }
+.imp-notice > div { display: flex; flex-direction: column; gap: 0.35rem; }
+
+/* ── Tabla de vista previa ─────────────────────────────── */
+.imp-table-wrap {
+  max-height: 420px;
+  overflow: auto;
+  border-radius: 12px;
+  background: var(--imp-soft);
+}
+.imp-table-wrap table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.imp-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 0.7rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-color) 92%, var(--text-main));
+  white-space: nowrap;
+}
+.imp-table-wrap tbody td {
+  padding: 0.65rem 1rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  border: 0;
+}
+.imp-table-wrap tbody tr { background: var(--surface-color); }
+.imp-table-wrap tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-color) 96%, var(--text-main)); }
+.imp-table-wrap tbody tr:hover { background: var(--imp-accent-bg); }
+.imp-table-wrap .imp-empty { color: var(--text-muted); }
+.imp-row-no { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 1%; }
+
+/* ── Barra de acción y progreso ────────────────────────── */
+.imp-action {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-color) 97%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--imp-shadow-lift);
+  z-index: 3;
+}
+.imp-action .grow { flex: 1; min-width: 220px; }
+.imp-action small { color: var(--text-muted); font-size: 0.8rem; }
+.imp-progress {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--imp-soft-2);
+  overflow: hidden;
+}
+.imp-progress i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 55%, #fff));
+  background-size: 200% 100%;
+  animation: imp-shimmer 1.4s linear infinite;
+  transition: width 0.35s ease;
+}
+
+/* ── Resultado ─────────────────────────────────────────── */
+.imp-done { text-align: center; padding: 3rem 1.5rem; }
+.imp-done-icon {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 1.25rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--secondary-color);
+  background: color-mix(in srgb, var(--secondary-color) 13%, transparent);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--secondary-color) 6%, transparent);
+  animation: imp-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.imp-done h3 { font-size: 1.3rem; color: var(--text-main); margin-bottom: 1.25rem; }
+.imp-totals {
+  display: inline-flex;
+  gap: 2.25rem;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.imp-totals div { min-width: 90px; }
+.imp-totals strong { display: block; font-size: 2rem; line-height: 1.1; color: var(--text-main); font-variant-numeric: tabular-nums; }
+.imp-totals span { font-size: 0.8rem; color: var(--text-muted); }
+.imp-done-actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+
+/* ── Animaciones ───────────────────────────────────────── */
+@keyframes imp-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes imp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes imp-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes imp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .imp *, .imp *::before, .imp *::after { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 640px) {
+  .imp-steps { overflow-x: auto; }
+  .imp-step span { display: none; }
+  .imp-step.active span { display: inline; }
+  .imp-drop { padding: 2.5rem 1rem; }
+  .imp-totals { gap: 1.25rem; }
+}
+
+/* ── Instructivo ───────────────────────────────────────── */
+.imp-guide {
+  background: var(--surface-color);
+  border-radius: 18px;
+  box-shadow: var(--imp-shadow);
+  overflow: hidden;
+  animation: imp-rise 0.4s ease both;
+}
+.imp-guide > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 1.5rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+.imp-guide > summary::-webkit-details-marker { display: none; }
+.imp-guide > summary:hover { background: var(--imp-soft); }
+.imp-guide > summary:focus-visible { outline: 2px solid var(--imp-accent-ring); outline-offset: -2px; }
+.imp-guide-ico {
+  width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0;
+  display: grid; place-items: center;
+  color: var(--primary-color); background: var(--imp-accent-bg);
+}
+.imp-guide-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.imp-guide-title b { color: var(--text-main); font-size: 1.02rem; }
+.imp-guide-title small { color: var(--text-muted); font-size: 0.82rem; }
+.imp-guide-chev { color: var(--text-muted); transition: transform 0.25s ease; flex-shrink: 0; }
+.imp-guide[open] .imp-guide-chev { transform: rotate(180deg); }
+.imp-guide-body { padding: 0.25rem 1.5rem 1.75rem; animation: imp-rise 0.3s ease both; }
+
+.imp-how {
+  list-style: none;
+  margin: 0 0 1.75rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+.imp-how li {
+  background: var(--imp-soft);
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem 1.2rem;
+}
+.imp-how-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; color: var(--primary-color); }
+.imp-how-n {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--primary-color); color: #fff;
+  font-size: 0.8rem; font-weight: 700;
+  box-shadow: 0 0 0 4px var(--imp-accent-bg);
+}
+.imp-how li b { display: block; color: var(--text-main); margin-bottom: 0.3rem; }
+.imp-how li p { margin: 0; font-size: 0.84rem; line-height: 1.5; color: var(--text-muted); }
+
+.imp-guide-h {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 1.5rem 0 0.25rem;
+  font-size: 0.98rem; color: var(--text-main);
+}
+.imp-guide-h svg { color: var(--primary-color); }
+.imp-guide-sub { margin: 0 0 0.9rem; font-size: 0.84rem; color: var(--text-muted); }
+.imp-cols { max-height: none; }
+.imp-cols td { white-space: normal; vertical-align: top; }
+.imp-cols-mod { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 600; white-space: nowrap; }
+.imp-cols-mod svg { color: var(--primary-color); }
+.imp-cols-rest { color: var(--text-muted); }
+
+.imp-tips { list-style: none; margin: 0.9rem 0 0; padding: 0; display: grid; gap: 0.7rem; }
+.imp-tips li { display: flex; gap: 0.75rem; align-items: flex-start; }
+.imp-tips li > svg {
+  flex-shrink: 0; margin-top: 2px; padding: 3px; box-sizing: content-box;
+  width: 16px; height: 16px; border-radius: 50%;
+  color: var(--secondary-color);
+  background: color-mix(in srgb, var(--secondary-color) 14%, transparent);
+}
+.imp-tips li div { display: flex; flex-direction: column; gap: 2px; font-size: 0.86rem; }
+.imp-tips li b { color: var(--text-main); font-weight: 600; }
+.imp-tips li span { color: var(--text-muted); line-height: 1.5; }
+
+@media (max-width: 640px) {
+  .imp-guide > summary { padding: 1rem; }
+  .imp-guide-body { padding: 0.25rem 1rem 1.25rem; }
+  .imp-guide-title small { display: none; }
+}

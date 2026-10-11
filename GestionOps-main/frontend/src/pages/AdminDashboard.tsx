@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   LogOut, Search, Filter, AlertTriangle, CheckCircle2, Loader2,
   Sun, Moon, Settings, RotateCcw, AlertCircle,
-  LayoutDashboard, FileText, Users, Package, Upload
+  LayoutDashboard, FileText, Users, Package, Upload, SlidersHorizontal
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import ImportExcel from './ImportExcel';
+import ConfigModulos from './ConfigModulos';
+import RecoveryCodes from './RecoveryCodes';
 import { subscribeTables } from '../services/realtime';
 import { logout, fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
 
@@ -341,7 +343,7 @@ export default function AdminDashboard() {
       if (!val) return true;
       const term = val.toLowerCase();
       switch (key) {
-        case 'Trabajo': return String(o.ticket || (o as any).trabajo || '').toLowerCase().includes(term);
+        case 'Trabajo': return String(o.descripcion_orden || o.ticket || (o as any).trabajo || o.orden_servicio || '').toLowerCase().includes(term);
         case 'Orden Externa': return String(o.descripcion_orden || (o as any)['orden externa'] || '').toLowerCase().includes(term);
         case 'Cliente': return String(o.cliente || '').toLowerCase().includes(term);
         case 'OE Vencimiento': return String(o.fecha || (o as any)['oe vencimiento'] || '').toLowerCase().includes(term);
@@ -449,6 +451,9 @@ export default function AdminDashboard() {
           <button className={`nav-item ${activeTab === 'importar' ? 'active' : ''}`} onClick={() => setActiveTab('importar')}>
             <Upload size={20} /> Importar Excel
           </button>
+          <button className={`nav-item ${activeTab === 'configuracion' ? 'active' : ''}`} onClick={() => setActiveTab('configuracion')}>
+            <SlidersHorizontal size={20} /> Configuración
+          </button>
           <button className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
             <Settings size={20} /> Mi Perfil
           </button>
@@ -465,7 +470,7 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <main className="main-content">
-        <div className="header-actions">
+        <div className="header-actions" style={activeTab === 'importar' ? { width: '100%', maxWidth: 1180, marginInline: 'auto' } : undefined}>
           <div>
             <h1 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {activeTab === 'dashboard' ? <><LayoutDashboard size={28} color="var(--primary-color)" /> Resumen Operativo</> : 
@@ -476,6 +481,7 @@ export default function AdminDashboard() {
                activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
                activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
                activeTab === 'importar' ? <><Upload size={28} color="var(--primary-color)" /> Importar desde Excel</> :
+               activeTab === 'configuracion' ? <><SlidersHorizontal size={28} color="var(--primary-color)" /> Configuración</> :
                <><Settings size={28} color="var(--primary-color)" /> Configuración de Perfil</>}
             </h1>
             <p className="subtitle">Centro de control de averías de fibra óptica</p>
@@ -1043,7 +1049,13 @@ export default function AdminDashboard() {
                     const ordenId = o.orden_servicio || o.ticket;
                     return (
                       <tr key={idx}>
-                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{o.ticket || (o as any).trabajo || '-'}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                          {/* Trabajo = descripción del Excel; debajo, el número de orden (clave) */}
+                          {o.descripcion_orden || o.ticket || (o as any).trabajo || '-'}
+                          {ordenId && String(ordenId) !== String(o.descripcion_orden || o.ticket || '') && (
+                            <div style={{ fontWeight: 500, fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>Orden {ordenId}</div>
+                          )}
+                        </td>
                         <td style={{ fontSize: '0.8rem' }}>{o.cliente || '-'}</td>
                         <td>{o.tech || (o as any).tech_name || '-'}</td>
                         <td>{o.supervisor || '-'}</td>
@@ -1512,6 +1524,8 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {activeTab === 'configuracion' && <ConfigModulos notify={displayToast} />}
+
         {activeTab === 'importar' && (
           <ImportExcel
             notify={displayToast}
@@ -1571,6 +1585,8 @@ export default function AdminDashboard() {
             </form>
           </div>
         )}
+
+        {activeTab === 'config' && <RecoveryCodes usuario={localStorage.getItem('username') || adminConfig.admin_username || 'admin'} notify={displayToast} />}
         {activeTab === 'razones' && (
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>

@@ -23,3 +23,11 @@ export function subscribeTables(onChange: (tabla: Tabla) => void, debounceMs = 5
     supabase.removeChannel(channel);
   };
 }
+
+// Avisa cuando el administrador activa o desactiva un módulo (para que el menú del gestor cambie al instante)
+export function subscribeModules(onChange: () => void): () => void {
+  const channel = supabase.channel('mods-' + Math.random().toString(36).slice(2));
+  channel.on('postgres_changes', { event: '*', schema: 'public', table: 'app_modules' }, () => onChange());
+  channel.subscribe();
+  return () => { supabase.removeChannel(channel); };
+}
