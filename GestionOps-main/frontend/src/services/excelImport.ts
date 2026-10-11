@@ -146,9 +146,31 @@ export interface Deteccion {
   modulo: Modulo;
   confianza: 'alta' | 'media' | 'baja';
   scores: Record<Modulo, number>;
+  motivo?: string;   // por qué se eligió (solo cuando no bastó con los encabezados)
 }
 
-export function detectModule(sheet: Pick<ParsedSheet, 'rawHeaders' | 'normHeaders'>): Deteccion {
+// Tickets (averías) y Órdenes (aprovisionamiento) salen del mismo sistema con LOS MISMOS encabezados, así que los
+// títulos no los distinguen. Lo que sí cambia es el contenido: el tipo de trabajo y la prioridad.
+const RE_TICKET = /\b(reparacion|averia|averias|proactiv|soporte)/;
+const RE_ORDEN = /\b(instalacion|traslado|migracion|aprov|upgrade|downgrade|retiro|desconexion|reconexion|activacion|mudanza)/;
+
+function votoPorContenido(sheet: { normHeaders: string[]; rawHeaders: string[]; rows?: unknown[][] }): { t: number; o: number; total: number } {
+  const rows = sheet.rows ?? [];
+  const colTrabajo = sheet.rawHeaders.findIndex(h => normalizeString(h) === 'trabajo');
+  let t = 0, o = 0;
+  for (const r of rows.slice(0, 300)) {
+    const trabajo = colTrabajo >= 0 ? normalizeString(r[colTrabajo]) : '';
+    if (RE_TICKET.test(trabajo)) { t++; continue; }
+    if (RE_ORDEN.test(trabajo)) { o++; continue; }
+    // Si el tipo de trabajo no es concluyente, se mira toda la fila: "Cita Averias" frente a "Cita Aprov"
+    const fila = normalizeString(r.map(c => String(c ?? '')).join(' '));
+    const av = /aver/.test(fila), ap = /aprov/.test(fila);
+    if (av && !ap) t++; else if (ap && !av) o++;
+  }
+  return { t, o, total: t + o };
+}
+
+export function detectModule(sheet: Pick<ParsedSheet, 'rawHeaders' | 'normHeaders'> & Partial<Pick<ParsedSheet, 'rows' | 'sheetName'>>): Deteccion {
   const has = (k: string) => sheet.normHeaders.includes(k);
   const base = ['ticket', 'supervisor', 'tech', 'priority', 'sector', 'tecnologia'].filter(has).length;
   const razonHeader = sheet.rawHeaders.some(h => normalizeString(h).includes('razon'));
@@ -164,10 +186,46 @@ export function detectModule(sheet: Pick<ParsedSheet, 'rawHeaders' | 'normHeader
   const ranked = order.map(m => [m, scores[m]] as const).sort((a, b) => b[1] - a[1]);
   const [top, second] = [ranked[0], ranked[1]];
   const gap = top[1] - second[1];
-  const confianza = top[1] >= 6 && gap >= 3 ? 'alta' : top[1] >= 3 && gap >= 1 ? 'media' : 'baja';
+  let confianza: Deteccion['confianza'] = top[1] >= 6 && gap >= 3 ? 'alta' : top[1] >= 3 && gap >= 1 ? 'media' : 'baja';
   // Si hay empate entre tickets y razones, se propone tickets
-  const modulo = top[1] === second[1] && [top[0], second[0]].every(m => m === 'tickets' || m === 'razones') ? 'tickets' : top[0];
-  return { modulo, confianza, scores };
+  let modulo: Modulo = top[1] === second[1] && [top[0], second[0]].every(m => m === 'tickets' || m === 'razones') ? 'tickets' : top[0];
+  let motivo: string | undefined;
+
+  // Tickets u Órdenes: los encabezados no alcanzan (son iguales); decide el contenido y, si no, el nombre de la hoja
+  if (modulo === 'ordenes' || modulo === 'tickets') {
+    const v = votoPorContenido(sheet);
+    const rt = v.total ? v.t / v.total : 0, ro = v.total ? v.o / v.total : 0;
+    const nombre = normalizeString(sheet.sheetName ?? '');
+    if (v.total >= 3 && (rt >= 0.7 || ro >= 0.7)) {
+      const elegido: Modulo = rt >= 0.7 ? 'tickets' : 'ordenes';
+      const fuerte = Math.max(rt, ro) >= 0.9;
+      if (elegido !== modulo || confianza !== 'alta') {
+        motivo = elegido === 'tickets'
+          ? 'por el contenido: trabajos de reparación / averías'
+          : 'por el contenido: instalaciones, traslados o aprovisionamiento';
+      }
+      modulo = elegido;
+      confianza = fuerte ? 'alta' : 'media';
+    } else if (/ticket|averi|reparac/.test(nombre)) {
+      modulo = 'tickets'; confianza = 'media'; motivo = `por el nombre de la hoja «${sheet.sheetName}»`;
+    } else if (/orden|aprov|instal/.test(nombre)) {
+      modulo = 'ordenes'; confianza = 'media'; motivo = `por el nombre de la hoja «${sheet.sheetName}»`;
+    }
+  }
+  return { modulo, confianza, scores, motivo };
+}
+
+// Resumen de TODAS las hojas del libro: qué módulo parece cada una y cuántas filas trae
+export interface ResumenHoja { nombre: string; filas: number; modulo: Modulo; confianza: Deteccion['confianza']; motivo?: string }
+export function resumenHojas(wb: XLSX.WorkBook): ResumenHoja[] {
+  const out: ResumenHoja[] = [];
+  for (const n of wb.SheetNames) {
+    const p = parseSheet(wb, n);
+    if (!p || !p.rows.length || p.sheetName !== n) continue;   // hojas vacías no se ofrecen
+    const d = detectModule(p);
+    out.push({ nombre: n, filas: p.rows.length, modulo: d.modulo, confianza: d.confianza, motivo: d.motivo });
+  }
+  return out;
 }
 
 // ── Construcción de filas para la importación ───────────────────────────────────────────────────
@@ -334,6 +392,12 @@ export function buildRows(modulo: Modulo, sheet: Pick<ParsedSheet, 'rawHeaders' 
       else { extra[k] = v; noMap.add(k); }
     }
     if (Object.keys(extra).length) rec.extra = extra;
+
+    // En las hojas de Tickets que exporta el sistema no hay columna "Ticket": el número viene en "Orden externa"
+    if (modulo !== 'ordenes' && !rec.ticket) {
+      const alt = rec.orden_externa_id || rec.orden_servicio;
+      if (alt) rec.ticket = cleanId(String(alt));
+    }
 
     const clave = claveDe(modulo, rec);
     if (!clave) { informe.sinClave++; continue; }

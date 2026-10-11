@@ -539,3 +539,22 @@
   .imp-guide-body { padding: 0.25rem 1rem 1.25rem; }
   .imp-guide-title small { display: none; }
 }
+
+/* ── Hojas del archivo ─────────────────────────────────── */
+.imp-sheets { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; box-shadow: 0 -1px 0 var(--imp-soft); }
+.imp-sheets-label { flex-basis: 100%; font-size: 0.8rem; color: var(--text-muted); }
+.imp-sheet {
+  display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.9rem;
+  border: 0; border-radius: 12px; background: var(--imp-soft); color: var(--text-main);
+  font: inherit; font-size: 0.85rem; cursor: pointer; transition: background 0.2s, box-shadow 0.2s;
+}
+.imp-sheet:hover:not(:disabled) { background: var(--imp-soft-2); }
+.imp-sheet:disabled { cursor: not-allowed; opacity: 0.6; }
+.imp-sheet:focus-visible { outline: 2px solid var(--imp-accent-ring); outline-offset: 1px; }
+.imp-sheet.on { background: var(--surface-color); box-shadow: 0 0 0 2px var(--imp-accent-ring), var(--imp-shadow); }
+.imp-sheet-mod { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--primary-color); font-weight: 600; font-size: 0.78rem; }
+.imp-sheet-n { color: var(--text-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.imp-sheet-ok { color: var(--secondary-color); }
+.imp-sheet.done:not(.on) { opacity: 0.75; }
+.imp-next { margin: -0.4rem 0 1.2rem; font-size: 0.9rem; color: var(--text-muted); }
+.imp-next b { color: var(--text-main); }

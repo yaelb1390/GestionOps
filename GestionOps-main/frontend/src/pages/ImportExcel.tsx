@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import type * as XLSX from 'xlsx';
 import {
-  readWorkbook, parseSheet, detectModule, buildRows, MODULOS,
-  type Modulo, type ParsedSheet,
+  readWorkbook, parseSheet, detectModule, buildRows, resumenHojas, MODULOS,
+  type Modulo, type ParsedSheet, type ResumenHoja,
 } from '../services/excelImport';
 import { importRows, type ImportTotals } from '../services/api';
 import './ImportExcel.css';
@@ -36,12 +36,17 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
   const [confianza, setConfianza] = useState<'alta' | 'media' | 'baja'>('baja');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<{ modulo: Modulo; totals: ImportTotals } | null>(null);
+  const [hojas, setHojas] = useState<ResumenHoja[]>([]);        // todas las hojas del archivo y su módulo detectado
+  const [importadas, setImportadas] = useState<string[]>([]);   // hojas de este archivo ya importadas
+  const [motivo, setMotivo] = useState('');                      // por qué se eligió el módulo (contenido / nombre de hoja)
 
   const built = useMemo(() => (sheet ? buildRows(modulo, sheet) : null), [sheet, modulo]);
   const importing = progress !== null;
   const step = result ? 3 : sheet ? 2 : 1;
 
-  const reset = () => { setWb(null); setSheet(null); setFile(null); setResult(null); setProgress(null); };
+  const reset = () => { setWb(null); setSheet(null); setFile(null); setResult(null); setProgress(null); setHojas([]); setImportadas([]); setMotivo(''); };
+  // Siguiente hoja del archivo que todavía no se importó (para encadenar Órdenes → Tickets sin volver a subir)
+  const siguiente = hojas.find(h => !importadas.includes(h.nombre));
 
   const analyze = (book: XLSX.WorkBook, sheetName?: string) => {
     const parsed = parseSheet(book, sheetName);
@@ -55,6 +60,7 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
     setModulo(det.modulo);
     setDetectado(det.modulo);
     setConfianza(det.confianza);
+    setMotivo(det.motivo ?? '');
   };
 
   const handleFile = async (f: File) => {
@@ -62,6 +68,7 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
     try {
       const book = readWorkbook(await f.arrayBuffer());
       setWb(book); setFile({ name: f.name, size: f.size });
+      setHojas(resumenHojas(book)); setImportadas([]);
       analyze(book);
     } catch (e) {
       console.error(e);
@@ -87,8 +94,10 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
   const doImport = async () => {
     if (!built || !built.rows.length) return;
     setProgress({ done: 0, total: built.rows.length });
+    const hojaActual = sheet?.sheetName;
     try {
       const totals = await importRows(modulo, built.rows, (done, total) => setProgress({ done, total }));
+      setImportadas(p => (hojaActual && !p.includes(hojaActual) ? [...p, hojaActual] : p));
       setResult({ modulo, totals });
       onImported(modulo);
       notify(`Importación terminada: ${totals.inserted} nuevos, ${totals.updated} actualizados`, 'success');
@@ -144,23 +153,36 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
               <div className="imp-file-info">
                 <div className="imp-file-name">{file?.name}</div>
                 <div className="imp-file-meta">
-                  <span>{formatSize(file?.size ?? 0)}</span> · <span>{sheet.rows.length} filas</span> · <span>hoja</span>
-                  {sheet.sheetNames.length > 1 ? (
-                    <select className="imp-select" value={sheet.sheetName} disabled={importing}
-                      onChange={e => wb && analyze(wb, e.target.value)}>
-                      {sheet.sheetNames.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  ) : <b>“{sheet.sheetName}”</b>}
+                  <span>{formatSize(file?.size ?? 0)}</span> · <span>{sheet.rows.length} filas</span> · <span>hoja</span> <b>“{sheet.sheetName}”</b>
                 </div>
               </div>
               <button className="imp-icon-btn" onClick={reset} disabled={importing}><X size={15} /> Quitar</button>
             </div>
+            {hojas.length > 1 && (
+              <div className="imp-sheets" role="tablist" aria-label="Hojas del archivo">
+                <span className="imp-sheets-label">Este archivo trae {hojas.length} hojas. Cada una se importa por separado:</span>
+                {hojas.map(h => {
+                  const Icono = ICONO[h.modulo];
+                  const activa = h.nombre === sheet.sheetName, hecha = importadas.includes(h.nombre);
+                  return (
+                    <button key={h.nombre} role="tab" aria-selected={activa} disabled={importing}
+                      className={`imp-sheet${activa ? ' on' : ''}${hecha ? ' done' : ''}`} onClick={() => wb && analyze(wb, h.nombre)}>
+                      <b>{h.nombre}</b>
+                      <span className="imp-sheet-mod"><Icono size={13} /> {MODULOS[h.modulo].label}</span>
+                      <span className="imp-sheet-n">{h.filas} filas</span>
+                      {hecha && <Check size={14} strokeWidth={3} className="imp-sheet-ok" aria-label="ya importada" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="imp-card">
             <div className="imp-section-title">
               Módulo de destino
               <span className={`imp-pill ${confianza}`}>detección {confianza}</span>
+              {motivo && <span className="imp-hint">· {motivo}</span>}
               {confianza !== 'alta' && <span className="imp-hint">Confirma que sea el correcto antes de importar.</span>}
             </div>
             <div className="imp-modules" role="radiogroup" aria-label="Módulo de destino">
@@ -262,9 +284,19 @@ export default function ImportExcel({ onImported, onOpenModule, notify }: Props)
             <div><strong>{result.totals.updated}</strong><span>actualizados</span></div>
             <div><strong>{result.totals.skipped}</strong><span>omitidos</span></div>
           </div>
+          {siguiente && (
+            <p className="imp-next">
+              Falta importar la hoja <b>«{siguiente.nombre}»</b> ({MODULOS[siguiente.modulo].label}, {siguiente.filas} filas).
+            </p>
+          )}
           <div className="imp-done-actions">
-            <button className="btn-primary" onClick={() => onOpenModule(result.modulo)}>
-              Ver {MODULOS[result.modulo].label} <ArrowRight size={16} />
+            {siguiente && (
+              <button className="btn-primary" onClick={() => { setResult(null); if (wb) analyze(wb, siguiente.nombre); }}>
+                Importar hoja «{siguiente.nombre}» · {MODULOS[siguiente.modulo].label} <ArrowRight size={16} />
+              </button>
+            )}
+            <button className={siguiente ? 'btn-secondary' : 'btn-primary'} onClick={() => onOpenModule(result.modulo)}>
+              Ver {MODULOS[result.modulo].label} {!siguiente && <ArrowRight size={16} />}
             </button>
             <button className="btn-secondary" onClick={reset}><RefreshCw size={16} /> Subir otro archivo</button>
           </div>
@@ -285,7 +317,7 @@ const PASOS: { icon: typeof Upload; titulo: string; texto: string }[] = [
 ];
 
 const COLUMNAS: { modulo: Modulo; clave: string; resto: string }[] = [
-  { modulo: 'tickets', clave: 'Trabajo o Ticket', resto: 'Supervisor, Técnico, Sector, Tecnología, Prioridad, Fecha' },
+  { modulo: 'tickets', clave: 'Ticket (o el número de “Orden externa” si no hay columna Ticket)', resto: 'Supervisor, Técnico, Sector, Tecnología, Prioridad, Fecha' },
   { modulo: 'ordenes', clave: 'Orden externa (o Orden servicio)', resto: 'Trabajo (descripción), Cliente, Terminal, Sector, Tecnología, Vencimiento' },
   { modulo: 'calidad', clave: 'Caso actual + Caso repetido', resto: 'Técnico repetido, Respuesta, Cierre repetido, Supervisor, Sector' },
   { modulo: 'razones', clave: 'Ticket (y una columna con “razón” en su nombre)', resto: 'Cliente, Supervisor, Técnico, Sector, Tecnología, Fecha' },
@@ -297,6 +329,7 @@ const CONSEJOS: { t: string; d: string }[] = [
   { t: 'Una celda vacía no borra lo que ya había.', d: 'Si el Excel trae un campo en blanco, se mantiene el valor guardado.' },
   { t: 'Si hay dos columnas parecidas, gana la principal.', d: 'Por ejemplo, “Trabajo” manda sobre “Tipo servicio”. La otra no se pierde: se guarda aparte.' },
   { t: 'Fechas: se aceptan los formatos habituales.', d: 'Fechas de Excel, 13/10/2026 12:00 p. m., 2026-10-13 o 15-oct-2026, siempre en hora de República Dominicana. Si alguna no se entiende, el aviso te muestra ejemplos.' },
+  { t: 'Archivos con varias hojas (por ejemplo, Órdenes y Tickets).', d: 'Cada hoja se detecta e importa por separado: al terminar una, un botón te lleva a la siguiente sin volver a subir el archivo. Órdenes y Tickets salen del sistema con los mismos encabezados, así que se distinguen por el contenido (reparación o avería frente a instalación o traslado) y, si no alcanza, por el nombre de la hoja.' },
   { t: 'Filas que se omiten.', d: 'Las que no tienen número de ticket u orden, o están repetidas dentro del mismo archivo. El resumen te dice cuántas son.' },
   { t: 'Un módulo equivocado se corrige antes de importar.', d: 'Si la detección no es “alta”, revisa que la tarjeta marcada sea la correcta; si la vista previa sale vacía, prueba con otro módulo.' },
 ];

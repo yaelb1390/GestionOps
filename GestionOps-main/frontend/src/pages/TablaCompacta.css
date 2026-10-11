@@ -1,0 +1,100 @@
+/* Tabla compacta: filas de una sola línea y filtros angostos, para ver más datos de un vistazo sin desplazarse.
+   Se activa añadiendo la clase "tabla-compacta" al .table-container. */
+
+.tabla-compacta table { table-layout: auto; }
+
+/* Encabezado: título pequeño y filtro angosto (antes cada filtro medía 300 px y estiraba la columna) */
+.tabla-compacta th {
+  padding: 0.55rem 0.55rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.07em;
+  border-bottom-width: 1px;
+  vertical-align: bottom;
+}
+.tabla-compacta th > div { gap: 0.3rem !important; }
+.tabla-compacta th .search-bar {
+  width: 100% !important;
+  min-width: 80px;
+  max-width: 130px;
+  height: 26px !important;
+  padding: 0 0.5rem !important;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.tabla-compacta th .search-bar input { font-size: 0.72rem !important; margin-left: 0.35rem; min-width: 0; }
+.tabla-compacta th .search-bar svg { flex-shrink: 0; width: 11px; height: 11px; }
+
+/* Celdas: una línea, con menos aire */
+.tabla-compacta td {
+  padding: 0.42rem 0.55rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.tabla-compacta td:first-child { font-variant-numeric: tabular-nums; }
+.tabla-compacta tbody tr { transition: background 0.15s ease; }
+.tabla-compacta tbody tr:hover { background: color-mix(in srgb, var(--primary-color) 4%, transparent); }
+
+/* Etiquetas en una sola línea; el texto completo sale al pasar el cursor (atributo title) */
+.tabla-compacta .badge {
+  display: inline-block;
+  max-width: 130px;
+  padding: 0.12rem 0.55rem;
+  font-size: 0.7rem;
+  line-height: 1.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* Acciones: selector y botón más pequeños, uno junto al otro */
+.tabla-compacta .tc-acciones { display: flex; align-items: center; gap: 0.4rem; }
+.tabla-compacta .assign-select {
+  padding: 0.18rem 1.5rem 0.18rem 0.65rem !important;
+  font-size: 0.7rem !important;
+  max-width: 118px;
+  background-position: right 0.4rem center;
+}
+.tabla-compacta .btn-danger { width: auto !important; white-space: nowrap; padding: 0.2rem 0.6rem !important; font-size: 0.68rem !important; border-radius: 999px; }
+
+/* Selector de nombre de gestor muy largo */
+.tabla-compacta td .badge.info { max-width: 140px; }
+
+/* Celda de texto largo: una línea con "…" (el ancho máximo se fija por columna con --w) */
+.tabla-compacta td.tc-trunc {
+  max-width: var(--w, 160px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Adaptación automática: según el ANCHO REAL de la tabla (no de la ventana), las columnas y filtros se estrechan
+   para que quepa sin desplazarse. Si hay espacio de sobra, se queda con las medidas normales. */
+.tabla-compacta { container-type: inline-size; }
+@container (max-width: 1250px) {
+  .tabla-compacta th, .tabla-compacta td { padding-left: 0.42rem; padding-right: 0.42rem; }
+  .tabla-compacta th .search-bar { min-width: 66px; }
+  .tabla-compacta td.tc-trunc { max-width: calc(var(--w, 160px) * 0.75); }
+  .tabla-compacta td.tc-trunc.tc-clave { max-width: var(--w, 160px); }
+  .tabla-compacta .assign-select { max-width: 104px; }
+}
+@container (max-width: 1050px) {
+  .tabla-compacta th, .tabla-compacta td { padding-left: 0.34rem; padding-right: 0.34rem; }
+  /* los títulos largos ("ORDEN EXTERNA", "GESTOR ASIGNADO") pasan a dos líneas: solo el encabezado, las filas siguen en una */
+  .tabla-compacta th { letter-spacing: 0.04em; white-space: normal; line-height: 1.15; }
+  .tabla-compacta th .search-bar { min-width: 44px; }
+  .tabla-compacta td.tc-trunc { max-width: calc(var(--w, 160px) * 0.55); }
+  .tabla-compacta td.tc-trunc.tc-clave { max-width: calc(var(--w, 160px) * 0.9); }
+  .tabla-compacta .assign-select { max-width: 92px; }
+  .tabla-compacta td .badge, .tabla-compacta td .badge.info { max-width: 100px; }
+}
+@container (max-width: 920px) {
+  .tabla-compacta th, .tabla-compacta td { padding-left: 0.28rem; padding-right: 0.28rem; }
+  .tabla-compacta th { font-size: 0.6rem; }
+  .tabla-compacta td { font-size: 0.77rem; }
+  .tabla-compacta th .search-bar { min-width: 38px; padding: 0 0.3rem !important; }
+  .tabla-compacta td.tc-trunc { max-width: calc(var(--w, 160px) * 0.42); }
+  .tabla-compacta td.tc-trunc.tc-clave { max-width: calc(var(--w, 160px) * 0.75); }
+  .tabla-compacta .assign-select { max-width: 82px; }
+}

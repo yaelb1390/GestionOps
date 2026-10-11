@@ -16,7 +16,8 @@ Uso:
 Opciones:
     --modulo {auto,tickets,ordenes,calidad,razones}   (por defecto: auto)
     -o / --salida ARCHIVO     solo con un archivo de entrada (por defecto: <nombre>_listo.xlsx)
-    --hoja NOMBRE             hoja a leer (por defecto: la primera que tenga datos)
+    --hoja NOMBRE             hoja a leer. Sin esto, si el libro trae varias hojas con datos se procesa CADA una
+                              y se escribe un archivo por hoja (<archivo>_<hoja>_listo.xlsx)
     --con-extras              conserva también las demás columnas del archivo, al final
 
 Qué hace:
@@ -64,8 +65,9 @@ MODULOS = {
 }
 NOMBRES = {"tickets": "Tickets", "ordenes": "Órdenes", "calidad": "Averías repetidas", "razones": "Códigos razón"}
 # Columnas reales que existen en la base pero no se muestran: se incluyen solo si traen datos
-OPCIONALES = [("orden_servicio", "Orden servicio"), ("tech_id", "ID Tecnico"), ("supervisor_id", "ID Supervisor"),
-              ("barrio", "Barrio"), ("ciudad", "Ciudad")]
+OPCIONALES = [("orden_externa_id", "Orden externa"), ("orden_servicio", "Orden servicio"), ("cliente", "Cliente"),
+              ("terminal", "Terminal"), ("oe_vence", "OE Vencimiento"), ("tech_id", "ID Tecnico"),
+              ("supervisor_id", "ID Supervisor"), ("barrio", "Barrio"), ("ciudad", "Ciudad")]
 COLS_CALIDAD = {"work_name", "caso_repetido", "tecnico_repetido", "respuesta_repetido", "fecha_repetido"}
 FECHAS = {"fecha", "oe_vence", "fecha_repetido"}
 PROTEGIDAS = {"status", "inspector", "inspector_id", "codigo_aplicado", "fecha_inspeccion"}
@@ -252,6 +254,19 @@ def leer_hojas(ruta, hoja=None):
     return wb.sheetnames[0], []
 
 
+def hojas_con_datos(ruta):
+    """Nombres de las hojas con datos (un .csv cuenta como una sola)."""
+    if ruta.suffix.lower() != ".xlsx":
+        return [None]
+    wb = load_workbook(ruta, data_only=True, read_only=True)
+    nombres = []
+    for n in wb.sheetnames:
+        filas = [r for r in wb[n].iter_rows(values_only=True) if any(texto(c) for c in r)]
+        if len(filas) > 1:
+            nombres.append(n)
+    return nombres or [None]
+
+
 def fila_encabezados(filas):
     claves = {"trabajo", "ticket", "orden servicio", "id", "caso", "caso actual", "orden externa"}
     for i, r in enumerate(filas[:10]):
@@ -260,7 +275,33 @@ def fila_encabezados(filas):
     return 0
 
 
-def detectar(raw, nh):
+# Tickets (averías) y Órdenes (aprovisionamiento) salen del mismo sistema con LOS MISMOS encabezados: los títulos no
+# los distinguen. Lo que cambia es el contenido: el tipo de trabajo ("Reparación…" / "Instalación…") y la prioridad.
+RE_TICKET = re.compile(r"\b(reparacion|averia|averias|proactiv|soporte)")
+RE_ORDEN = re.compile(r"\b(instalacion|traslado|migracion|aprov|upgrade|downgrade|retiro|desconexion|reconexion|activacion|mudanza)")
+
+
+def voto_contenido(raw, filas):
+    col = next((i for i, h in enumerate(raw) if norm(h) == "trabajo"), -1)
+    t = o = 0
+    for r in filas[:300]:
+        trabajo = norm(r[col]) if 0 <= col < len(r) else ""
+        if RE_TICKET.search(trabajo):
+            t += 1
+            continue
+        if RE_ORDEN.search(trabajo):
+            o += 1
+            continue
+        fila = norm(" ".join(texto(c) for c in r))   # si el trabajo no es concluyente, se mira toda la fila
+        av, ap = "aver" in fila, "aprov" in fila
+        if av and not ap:
+            t += 1
+        elif ap and not av:
+            o += 1
+    return t, o
+
+
+def detectar(raw, nh, filas=None, nombre_hoja=""):
     tiene = nh.__contains__
     base = sum(tiene(k) for k in ("ticket", "supervisor", "tech", "priority", "sector", "tecnologia"))
     razon = any("razon" in norm(h) for h in raw)
@@ -279,7 +320,23 @@ def detectar(raw, nh):
     conf = "alta" if sc[top] >= 6 and gap >= 3 else "media" if sc[top] >= 3 and gap >= 1 else "baja"
     if sc[top] == sc[second] and {top, second} <= {"tickets", "razones"}:
         top = "tickets"
-    return top, conf, sc
+    motivo = ""
+    if top in ("ordenes", "tickets"):
+        t, o = voto_contenido(raw, filas or [])
+        tot = t + o
+        rt, ro = (t / tot, o / tot) if tot else (0, 0)
+        nombre = norm(nombre_hoja)
+        if tot >= 3 and (rt >= 0.7 or ro >= 0.7):
+            elegido = "tickets" if rt >= 0.7 else "ordenes"
+            if elegido != top or conf != "alta":
+                motivo = ("por el contenido: trabajos de reparación / averías" if elegido == "tickets"
+                          else "por el contenido: instalaciones, traslados o aprovisionamiento")
+            top, conf = elegido, ("alta" if max(rt, ro) >= 0.9 else "media")
+        elif re.search(r"ticket|averi|reparac", nombre):
+            top, conf, motivo = "tickets", "media", f"por el nombre de la hoja «{nombre_hoja}»"
+        elif re.search(r"orden|aprov|instal", nombre):
+            top, conf, motivo = "ordenes", "media", f"por el nombre de la hoja «{nombre_hoja}»"
+    return top, conf, sc, motivo
 
 
 def clave_de(modulo, r):
@@ -301,7 +358,7 @@ def procesar(ruta, modulo_pedido, hoja, con_extras):
     nh = [normalize_header(h) for h in raw]
     datos = [(hi + 2 + i, r) for i, r in enumerate(filas[hi + 1:])]  # (nº de fila en Excel, celdas)
 
-    modulo, conf, scores = (modulo_pedido, "elegido", None) if modulo_pedido != "auto" else detectar(raw, nh)
+    modulo, conf, scores, motivo = (modulo_pedido, "elegido", None, "") if modulo_pedido != "auto" else detectar(raw, nh, [c for _, c in datos], nombre_hoja)
     conocidas = {k for k, _ in MODULOS[modulo]} | {k for k, _ in OPCIONALES} | (COLS_CALIDAD if modulo == "calidad" else set())
     conocidas |= {"remarks", "root_cause"}
     tiene_id_orden = "orden_externa_id" in nh or "orden_servicio" in nh
@@ -387,6 +444,11 @@ def procesar(ruta, modulo_pedido, hoja, con_extras):
                 extra[k] = texto(v)
                 if k not in extras_nombres:
                     extras_nombres.append(k)
+        # En las hojas de Tickets que exporta el sistema no hay columna "Ticket": el número viene en "Orden externa"
+        if modulo != "ordenes" and not rec.get("ticket"):
+            alt = rec.get("orden_externa_id") or rec.get("orden_servicio")
+            if alt:
+                rec["ticket"] = limpiar_id(str(alt))
         clave = clave_de(modulo, rec)
         if not clave:
             descartadas.append((nfila, "Sin identificador", celdas))
@@ -396,7 +458,7 @@ def procesar(ruta, modulo_pedido, hoja, con_extras):
             vistas[clave] = nfila
             ok.append((nfila, rec, extra))
 
-    return dict(ruta=ruta, hoja=nombre_hoja, modulo=modulo, conf=conf, scores=scores, ok=ok, descartadas=descartadas,
+    return dict(ruta=ruta, hoja=nombre_hoja, modulo=modulo, conf=conf, motivo=motivo, scores=scores, ok=ok, descartadas=descartadas,
                 total=len(datos), extras=extras_nombres, ignoradas=sorted(ignoradas), fechas_malas=fechas_malas,
                 encabezados=raw, con_extras=con_extras)
 
@@ -440,7 +502,7 @@ def escribir(res, salida):
     r = wb.create_sheet("Resumen")
     filas = [
         ("Archivo original", res["ruta"].name), ("Hoja leída", res["hoja"]),
-        ("Módulo", f'{NOMBRES[modulo]}  (detección: {res["conf"]})'),
+        ("Módulo", f'{NOMBRES[modulo]}  (detección: {res["conf"]}{" · " + res["motivo"] if res.get("motivo") else ""})'),
         ("Filas leídas", res["total"]), ("Filas listas para importar", len(res["ok"])),
         ("Filas descartadas", len(res["descartadas"])),
         ("Fechas que no se pudieron leer", len(res["fechas_malas"])),
@@ -489,20 +551,29 @@ def main():
         if not ruta.exists():
             print(f"✗ {ruta}: no existe")
             continue
-        res = procesar(ruta, a.modulo, a.hoja, a.con_extras)
-        salida = a.salida or ruta.with_name(ruta.stem + "_listo.xlsx")
-        escribir(res, salida)
-        print(f"\n✓ {ruta.name}  →  {salida.name}")
-        print(f"  Módulo: {NOMBRES[res['modulo']]} (detección {res['conf']})  ·  hoja «{res['hoja']}»")
-        print(f"  Filas: {res['total']} leídas · {len(res['ok'])} listas · {len(res['descartadas'])} descartadas")
-        if res["conf"] in ("baja", "media"):
-            print("  ⚠ Detección poco segura: revisa el módulo o fuérzalo con --modulo")
-        if res["ignoradas"]:
-            print(f"  Ignoradas (no se pisan): {', '.join(res['ignoradas'])}")
-        if res["extras"]:
-            print(f"  Otras columnas: {', '.join(res['extras'])}" + ("" if a.con_extras else "  (no incluidas)"))
-        if res["fechas_malas"]:
-            print(f"  ⚠ {len(res['fechas_malas'])} fecha(s) sin leer, p. ej. {res['fechas_malas'][0]}")
+        hojas = [a.hoja] if a.hoja else hojas_con_datos(ruta)
+        if len(hojas) > 1 and a.salida:
+            ap.error("-o/--salida no se puede usar con un libro de varias hojas: indica una con --hoja")
+        for hoja in hojas:
+            res = procesar(ruta, a.modulo, hoja, a.con_extras)
+            if a.salida:
+                salida = a.salida
+            elif len(hojas) > 1:   # una salida por hoja: <archivo>_<hoja>_listo.xlsx
+                salida = ruta.with_name(f"{ruta.stem}_{re.sub(r'[^A-Za-z0-9_-]+', '_', res['hoja'])}_listo.xlsx")
+            else:
+                salida = ruta.with_name(ruta.stem + "_listo.xlsx")
+            escribir(res, salida)
+            print(f"\n✓ {ruta.name} · hoja «{res['hoja']}»  →  {salida.name}")
+            print(f"  Módulo: {NOMBRES[res['modulo']]} (detección {res['conf']}{' · ' + res['motivo'] if res.get('motivo') else ''})")
+            print(f"  Filas: {res['total']} leídas · {len(res['ok'])} listas · {len(res['descartadas'])} descartadas")
+            if res["conf"] in ("baja", "media"):
+                print("  ⚠ Detección poco segura: revisa el módulo o fuérzalo con --modulo")
+            if res["ignoradas"]:
+                print(f"  Ignoradas (no se pisan): {', '.join(res['ignoradas'])}")
+            if res["extras"]:
+                print(f"  Otras columnas: {', '.join(res['extras'])}" + ("" if a.con_extras else "  (no incluidas)"))
+            if res["fechas_malas"]:
+                print(f"  ⚠ {len(res['fechas_malas'])} fecha(s) sin leer, p. ej. {res['fechas_malas'][0]}")
 
 
 if __name__ == "__main__":

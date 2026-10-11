@@ -19,8 +19,11 @@ python preparar_excel.py *.xlsx
 |---|---|
 | `--modulo` | `auto` (por defecto), `tickets`, `ordenes`, `calidad` o `razones` |
 | `-o ARCHIVO` | nombre de salida (por defecto `<nombre>_listo.xlsx`) |
-| `--hoja NOMBRE` | hoja a leer (por defecto la primera con datos) |
+| `--hoja NOMBRE` | procesa solo esa hoja. Sin esto, si el libro trae **varias hojas con datos** (p. ej. Órdenes y Tickets) se procesa cada una y se escribe un archivo por hoja: `<archivo>_<hoja>_listo.xlsx` |
 | `--con-extras` | conserva las demás columnas del archivo al final |
+
+## Órdenes y Tickets en el mismo libro
+Las dos salen del sistema con **los mismos encabezados**, así que no se distinguen por los títulos. El script (igual que el panel) mira el **contenido**: *Reparación / Avería* → Tickets; *Instalación / Traslado / Migración / Aprov* → Órdenes; y si no alcanza, el nombre de la hoja. En los Tickets de ese tipo el número del ticket viene en la columna *Orden externa*.
 
 ## Qué corrige
 - Encuentra los encabezados aunque haya títulos encima.

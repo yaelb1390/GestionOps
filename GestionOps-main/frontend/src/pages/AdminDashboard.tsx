@@ -11,6 +11,7 @@ import ConfigModulos from './ConfigModulos';
 import RecoveryCodes from './RecoveryCodes';
 import ConfirmarClave, { PerfilBloqueado } from './ConfirmarClave';
 import './PerfilTabs.css';
+import './TablaCompacta.css';
 import { subscribeTables } from '../services/realtime';
 import { SUDO_EVENT, cerrarConfirmacion } from '../services/api';
 import { logout, fetchTickets, type Ticket, fetchInspectors, fetchPersonalDetalle, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
@@ -829,7 +830,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="table-container">
+            <div className="table-container tabla-compacta">
               <table>
                 <thead>
                   <tr>
@@ -872,13 +873,13 @@ export default function AdminDashboard() {
                         <td>{getSupervisor(t)}</td>
                         <td>{t.sector || '-'}</td>
                         <td>
-                          <span className={`badge ${String(t.priority).toLowerCase() === 'alta' ? 'danger' : String(t.priority).toLowerCase() === 'media' ? 'warning' : 'info'}`}>
+                          <span title={String(t.priority || '')} className={`badge ${String(t.priority).toLowerCase() === 'alta' ? 'danger' : String(t.priority).toLowerCase() === 'media' ? 'warning' : 'info'}`}>
                             {t.priority || '-'}
                           </span>
                         </td>
                         <td>
                           {t.codigo_aplicado || t['Código Aplicado'] ? (
-                            <span className="badge success">Finalizado: {t.codigo_aplicado || t['Código Aplicado']}</span>
+                            <span className="badge success" title={`Finalizado: ${t.codigo_aplicado || t['Código Aplicado']}`}>Finalizado: {t.codigo_aplicado || t['Código Aplicado']}</span>
                           ) : (
                             <span className={`badge ${t.status === 'Inspeccionado' || t.status === 'Aprobado' ? 'success' : t.status === 'Rechazado' ? 'danger' : t.status === 'En Proceso' ? 'info' : 'warning'}`}>
                               {t.status || 'Pendiente'}
@@ -887,13 +888,13 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           {t.inspector || t.inspector_id ? (
-                            <span className="badge info">{t.inspector || t.inspector_id}</span>
+                            <span className="badge info" title={String(t.inspector || t.inspector_id)}>{t.inspector || t.inspector_id}</span>
                           ) : (
                             <span className="badge danger">Sin Asignar</span>
                           )}
                         </td>
                         <td>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div className="tc-acciones">
                             <select
                               className="assign-select"
                               style={{ padding: '0.25rem 1.5rem 0.25rem 0.5rem', fontSize: '0.7rem' }}
@@ -1042,7 +1043,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="table-container">
+            <div className="table-container tabla-compacta">
               <table>
                 <thead>
                   <tr>
@@ -1078,7 +1079,8 @@ export default function AdminDashboard() {
                     const ordenId = o.orden_servicio || o.ticket;
                     return (
                       <tr key={idx}>
-                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                        <td className="tc-trunc tc-clave" style={{ fontWeight: 700, color: 'var(--text-main)', ['--w' as any]: '200px' }}
+                          title={String(o.descripcion_orden || o.ticket || (o as any).trabajo || '')}>
                           {/* Trabajo = descripción del Excel */}
                           {o.descripcion_orden || o.ticket || (o as any).trabajo || '-'}
                         </td>
@@ -1086,16 +1088,16 @@ export default function AdminDashboard() {
                           {/* Orden externa = número de la orden (la clave con la que se asigna y se aplica el código) */}
                           {o.orden_externa_id || o.orden_servicio || '-'}
                         </td>
-                        <td style={{ fontSize: '0.8rem' }}>{o.cliente || '-'}</td>
+                        <td className="tc-trunc" style={{ ['--w' as any]: '140px' }} title={String(o.cliente || '')}>{o.cliente || '-'}</td>
                         <td>{o.tech || (o as any).tech_name || '-'}</td>
                         <td>{o.supervisor || '-'}</td>
                         <td>{o.tecnologia || (o as any)['tipo red'] || '-'}</td>
-                        <td>{o.sector || (o as any).ciudad || '-'}</td>
-                        <td>{o.terminal || '-'}</td>
+                        <td className="tc-trunc" style={{ ['--w' as any]: '120px' }} title={String(o.sector || (o as any).ciudad || '')}>{o.sector || (o as any).ciudad || '-'}</td>
+                        <td className="tc-trunc" style={{ ['--w' as any]: '110px' }} title={String(o.terminal || '')}>{o.terminal || '-'}</td>
                         {/* Gestor Asignado */}
                         <td>
                           {(o as any).inspector ? (
-                            <span className="badge info">{(o as any).inspector}</span>
+                            <span className="badge info" title={String((o as any).inspector)}>{(o as any).inspector}</span>
                           ) : (
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                               {(o as any).inspector_id ? `ID: ${(o as any).inspector_id}` : '-'}
