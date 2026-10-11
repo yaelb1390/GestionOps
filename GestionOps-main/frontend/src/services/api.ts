@@ -43,6 +43,7 @@ export interface Inspector {
   password?: string;     // nunca viene del servidor; solo se envía al crear/cambiar
   rol?: 'Admin' | 'Inspector' | 'QAOR';
   correo_recuperacion?: string;
+  es_super?: boolean;
 }
 
 type Tabla = 'tickets' | 'ordenes' | 'calidad' | 'razones';
@@ -157,7 +158,8 @@ let inspectorCache: Inspector[] = [];
 
 export const fetchInspectors = async (): Promise<Inspector[]> => {
   try {
-    const { data, error } = await supabase.from('personal_publico').select('*').order('nombre');
+    // Lista básica (para asignar): sin usuario ni correo. El directorio completo está en fetchPersonalDetalle().
+    const { data, error } = await supabase.from('personal_basico').select('*').order('nombre');
     if (error) throw error;
     inspectorCache = (data || []).map((p: any) => ({
       id: p.id_externo || p.id,
@@ -176,6 +178,16 @@ export const fetchInspectors = async (): Promise<Inspector[]> => {
   }
 };
 
+// Directorio completo (usuario y correo). El servidor lo entrega solo con la contraseña confirmada: se usa dentro de Mi Perfil.
+export const fetchPersonalDetalle = async (): Promise<Inspector[]> => {
+  const { data, error } = await supabase.rpc('personal_detalle');
+  if (error) { avisarSiFaltaConfirmacion(error); console.error('Error leyendo el directorio de personal:', error); return []; }
+  return (data || []).map((p: any) => ({
+    id: p.id_externo || p.id, uuid: p.id, nombre: p.nombre, sector: p.sector || '', estado: p.estado,
+    usuario: p.usuario, rol: p.rol, correo_recuperacion: p.correo_recuperacion || '', es_super: p.es_super,
+  }));
+};
+
 // Las pantallas identifican al gestor por su id "tarjeta"; la BD usa el uuid
 async function resolveUuid(idOrUuid: string): Promise<string> {
   const find = () => inspectorCache.find(i => i.id === String(idOrUuid) || i.uuid === String(idOrUuid));
@@ -189,7 +201,7 @@ export const createInspector = async (id: string, nombre: string, sector: string
   const { error } = await supabase.rpc('admin_save_personal', {
     p: { id_externo: id, nombre, sector, usuario, password, rol, correo_recuperacion },
   });
-  if (error) console.error('Error creating inspector:', error);
+  if (error) { console.error('Error creating inspector:', error); avisarSiFaltaConfirmacion(error); }
   return !error;
 };
 
@@ -204,6 +216,7 @@ export const updateInspector = async (id: string, updates: Partial<Inspector> & 
     return true;
   } catch (error) {
     console.error('Error updating inspector:', error);
+    avisarSiFaltaConfirmacion(error as any);
     return false;
   }
 };
@@ -215,6 +228,7 @@ export const deleteInspector = async (id: string): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error('Error deleting inspector:', error);
+    avisarSiFaltaConfirmacion(error as any);
     return false;
   }
 };
@@ -222,8 +236,11 @@ export const deleteInspector = async (id: string): Promise<boolean> => {
 // Antes: hoja Config. Ahora: el super admin. La contraseña nunca se devuelve.
 export const fetchConfig = async (): Promise<any> => {
   try {
-    const { data } = await supabase.from('personal_publico').select('usuario, correo_recuperacion').eq('es_super', true).maybeSingle();
-    return { admin_username: data?.usuario || '', admin_password: '', admin_recovery_email: data?.correo_recuperacion || '' };
+    // Usuario y correo del super admin: viven en el directorio completo, que exige la contraseña confirmada (Mi Perfil)
+    const { data, error } = await supabase.rpc('personal_detalle');
+    if (error) return {};
+    const su = (data || []).find((p: any) => p.es_super);
+    return { admin_username: su?.usuario || '', admin_password: '', admin_recovery_email: su?.correo_recuperacion || '' };
   } catch (error) {
     console.error('Error fetching config:', error);
     return {};
@@ -234,7 +251,10 @@ export const updateAdminProfile = async (username: string, password: string, rec
   const { error } = await supabase.rpc('admin_update_profile', {
     p_username: username, p_password: password || '', p_recovery_email: recovery_email,
   });
-  if (error) console.error('Error updating admin profile:', error);
+  if (error) {
+    console.error('Error updating admin profile:', error);
+    if (avisarSiFaltaConfirmacion(error)) throw new Error(MSG_SUDO);
+  }
   return !error;
 };
 
@@ -385,7 +405,7 @@ export async function getRecoveryStatus(): Promise<RecoveryStatus | null> {
 // Genera un lote de 8 códigos (anula el anterior). Se devuelven una sola vez, en texto claro.
 export async function generateRecoveryCodes(): Promise<string[]> {
   const { data, error } = await supabase.rpc('generate_recovery_codes');
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(avisarSiFaltaConfirmacion(error) ? MSG_SUDO : error.message);
   return data as string[];
 }
 
@@ -426,4 +446,29 @@ export async function enviarCorreoPrueba(): Promise<string> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || 'No se pudo enviar el correo de prueba');
   return body.destino as string;
+}
+
+// ── Confirmación de contraseña (acciones sensibles) ──────────────────────────
+
+// Si el servidor rechazó una acción por falta de confirmación, avisa a la app para que pida la contraseña.
+export const SUDO_EVENT = 'sudo-required';
+export function avisarSiFaltaConfirmacion(error: { message?: string } | null | undefined): boolean {
+  if (error?.message?.includes('SUDO_REQUIRED')) {
+    window.dispatchEvent(new Event(SUDO_EVENT));
+    return true;
+  }
+  return false;
+}
+const MSG_SUDO = 'Confirma tu contraseña para continuar';
+
+// true = contraseña correcta (el servidor recuerda la confirmación 10 min en ESTA sesión). Lanza Error si está bloqueado.
+export async function verificarClave(password: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('verify_sudo', { p_password: password });
+  if (error) throw new Error(error.message);
+  return data === true;
+}
+
+// Cierra la confirmación (al salir de Mi Perfil). No es crítico si falla: caduca sola.
+export async function cerrarConfirmacion(): Promise<void> {
+  try { await supabase.rpc('end_sudo'); } catch { /* caduca a los 10 min */ }
 }

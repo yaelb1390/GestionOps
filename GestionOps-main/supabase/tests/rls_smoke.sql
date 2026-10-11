@@ -167,6 +167,7 @@ do $$ begin
   raise notice 'ok: un gestor no puede generar códigos';
 end $$;
 select pg_temp.claims('admin', current_setting('test.root')::uuid);
+select public.verify_sudo('pw-root');   -- generar códigos exige confirmar la contraseña (migración 0010)
 select set_config('test.codes', array_to_string(public.generate_recovery_codes(), ' '), true);
 select pg_temp.expect('se generan 8 códigos con formato XXXX-XXXX-XXXX',
   array_length(string_to_array(current_setting('test.codes'), ' '), 1) = 8
@@ -259,6 +260,106 @@ do $$ begin
   begin perform public.request_recovery_otp('root'); raise exception 'FALLO: request_recovery_otp abierta';
   exception when insufficient_privilege then null; end;
   raise notice 'ok: request_recovery_otp solo la ejecuta service_role';
+end $$;
+reset role;
+
+-- 6f) Confirmación de contraseña (modo sudo) para acciones sensibles
+reset role;
+delete from public.login_attempts where usuario like 'sudo:%' or usuario like 'rec:%';
+delete from public.sudo_sessions;
+create or replace function pg_temp.claims_s(p_role text, p_pid uuid, p_sid text) returns void language plpgsql as $f$
+begin
+  perform set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'session_id', p_sid,
+    'app_metadata', json_build_object('app_role', p_role, 'personal_id', p_pid))::text, true);
+end $f$;
+set local role authenticated;
+select pg_temp.claims_s('admin', current_setting('test.root')::uuid, 'sess-A');
+do $$ begin
+  begin perform public.admin_update_profile('', '', 'otro@correo.com'); raise exception 'FALLO: cambió el perfil sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  begin perform public.generate_recovery_codes(); raise exception 'FALLO: generó códigos sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  raise notice 'ok: sin confirmar, no se cambia el perfil ni se generan códigos';
+end $$;
+select pg_temp.expect('contraseña incorrecta: verify_sudo devuelve false', public.verify_sudo('mala') = false);
+select pg_temp.expect('contraseña correcta: verify_sudo devuelve true', public.verify_sudo('NuevaPorCorreo-26') = true);
+select public.admin_update_profile('', '', 'nuevo@correo.com');
+reset role;
+select pg_temp.expect('confirmada: el cambio de perfil se aplica', (select value = 'nuevo@correo.com' from public.app_config where param = 'admin_recovery_email')
+  and (select correo_recuperacion = 'nuevo@correo.com' from public.personal where usuario = 'root'));
+set local role authenticated;
+select pg_temp.claims_s('admin', current_setting('test.root')::uuid, 'sess-B');
+do $$ begin
+  begin perform public.admin_update_profile('', '', 'robado@correo.com'); raise exception 'FALLO: otra sesión heredó la confirmación';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  raise notice 'ok: la confirmación solo vale para la sesión que la hizo';
+end $$;
+-- Personal (0011): TODO alta/edición/baja exige confirmación; el directorio completo también
+do $$ begin
+  begin perform public.admin_save_personal('{"nombre":"G Test","usuario":"gtest","password":"x1234567","rol":"Inspector","id_externo":"G1"}'::jsonb); raise exception 'FALLO: creó un gestor sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  begin perform public.admin_save_personal('{"nombre":"Nuevo Admin","usuario":"nadmin","password":"x1234567","rol":"Admin"}'::jsonb); raise exception 'FALLO: creó un admin sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  begin perform public.admin_save_personal(jsonb_build_object('id', current_setting('test.root'), 'password', 'Hackeada-2026')); raise exception 'FALLO: cambió una clave sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  begin perform public.admin_delete_personal(current_setting('test.root')::uuid); raise exception 'FALLO: borró sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  begin perform * from public.personal_detalle(); raise exception 'FALLO: leyó el directorio sin confirmar';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  raise notice 'ok: sin confirmar no se crea, edita, borra ni se lee el directorio de personal';
+end $$;
+select pg_temp.expect('la lista básica (para asignar) no trae usuario ni correo',
+  (select count(*) from public.personal_basico) >= 3
+  and not exists (select 1 from information_schema.columns where table_name = 'personal_basico' and column_name in ('usuario', 'correo_recuperacion', 'password_hash')));
+do $$ begin
+  begin perform * from public.personal_publico limit 1; raise exception 'FALLO: personal_publico sigue legible';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: personal_publico ya no se puede leer desde la API';
+end $$;
+-- con la confirmación vigente (otra sesión, sess-C) todo funciona
+select pg_temp.claims_s('admin', current_setting('test.root')::uuid, 'sess-C');
+select public.verify_sudo('NuevaPorCorreo-26');
+select pg_temp.expect('confirmado: el directorio completo incluye usuarios y el correo efectivo',
+  (select count(*) from public.personal_detalle() where usuario is not null) >= 3);
+select pg_temp.expect('confirmado: crear un gestor funciona', public.admin_save_personal('{"nombre":"G Test","usuario":"gtest","password":"x1234567","rol":"Inspector","id_externo":"G1"}'::jsonb) is not null);
+select public.admin_delete_personal(id) from public.personal_basico where nombre = 'G Test';
+select pg_temp.expect('confirmado: borrar al gestor funciona', (select count(*) = 0 from public.personal_basico where nombre = 'G Test'));
+select public.end_sudo();
+select pg_temp.claims_s('inspector', current_setting('test.ana')::uuid, 'sess-G');
+select pg_temp.expect('un gestor no ve la lista básica de personal', (select count(*) = 0 from public.personal_basico));
+-- caducidad
+select pg_temp.claims_s('admin', current_setting('test.root')::uuid, 'sess-A');
+select pg_temp.expect('en sess-A sigue vigente (generar códigos funciona)', array_length(public.generate_recovery_codes(), 1) = 8);
+reset role;
+update public.sudo_sessions set until_at = clock_timestamp() - interval '1 second';
+set local role authenticated;
+select pg_temp.claims_s('admin', current_setting('test.root')::uuid, 'sess-A');
+do $$ begin
+  begin perform public.generate_recovery_codes(); raise exception 'FALLO: la confirmación no caducó';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  raise notice 'ok: la confirmación caduca a los 10 minutos';
+end $$;
+-- cerrar la confirmación a mano
+select public.verify_sudo('NuevaPorCorreo-26');
+select public.end_sudo();
+do $$ begin
+  begin perform public.generate_recovery_codes(); raise exception 'FALLO: end_sudo no cerró';
+  exception when others then if sqlerrm <> 'SUDO_REQUIRED' then raise; end if; end;
+  raise notice 'ok: al salir de Mi Perfil se cierra la confirmación';
+end $$;
+-- bloqueo tras 5 intentos fallidos (el intento correcto también se rechaza)
+do $$ begin
+  for i in 1..5 loop perform public.verify_sudo('incorrecta-' || i); end loop;
+  begin perform public.verify_sudo('NuevaPorCorreo-26'); raise exception 'FALLO: sin bloqueo en verify_sudo';
+  exception when others then if sqlerrm not like 'Demasiados intentos%' then raise; end if; end;
+  raise notice 'ok: tras 5 fallos verify_sudo se bloquea 15 minutos';
+end $$;
+-- un gestor no puede ni intentarlo
+select pg_temp.claims_s('inspector', current_setting('test.ana')::uuid, 'sess-G');
+do $$ begin
+  begin perform public.verify_sudo('lo-que-sea'); raise exception 'FALLO: un gestor usó verify_sudo';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok: un gestor no puede usar verify_sudo';
 end $$;
 reset role;
 

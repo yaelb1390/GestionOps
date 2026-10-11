@@ -9,8 +9,11 @@ import { useNavigate } from 'react-router-dom';
 import ImportExcel from './ImportExcel';
 import ConfigModulos from './ConfigModulos';
 import RecoveryCodes from './RecoveryCodes';
+import ConfirmarClave, { PerfilBloqueado } from './ConfirmarClave';
+import './PerfilTabs.css';
 import { subscribeTables } from '../services/realtime';
-import { logout, fetchTickets, type Ticket, fetchInspectors, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
+import { SUDO_EVENT, cerrarConfirmacion } from '../services/api';
+import { logout, fetchTickets, type Ticket, fetchInspectors, fetchPersonalDetalle, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -73,6 +76,30 @@ export default function AdminDashboard() {
   const [razonesSupervisorFilter, setRazonesSupervisorFilter] = useState('');
   const [bulkAssignRazonesInspector, setBulkAssignRazonesInspector] = useState('');
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'light');
+
+  // Mi Perfil pide la contraseña cada vez que se entra. El servidor además exige esa confirmación (10 min, por sesión)
+  // para cambiar el perfil, generar códigos o tocar cuentas de administrador.
+  const [perfilOk, setPerfilOk] = useState(false);
+  const [pedirClave, setPedirClave] = useState(false);   // ventana flotante cuando el servidor pide confirmar
+  const [perfilTab, setPerfilTab] = useState<'cuenta' | 'personal'>('cuenta');
+  useEffect(() => {
+    if (!perfilOk) { setPerfilTab('cuenta'); return; }
+    loadAdminConfig();        // usuario y correo del super admin (exigen la confirmación)
+    loadInspectors();         // completa la lista con usuarios y correos
+  }, [perfilOk]);
+  useEffect(() => {
+    if (activeTab !== 'config' && perfilOk) { setPerfilOk(false); cerrarConfirmacion(); }
+  }, [activeTab, perfilOk]);
+  useEffect(() => {
+    if (!perfilOk) return;
+    const t = setTimeout(() => setPerfilOk(false), 10 * 60 * 1000);   // mismo plazo que el servidor
+    return () => clearTimeout(t);
+  }, [perfilOk]);
+  useEffect(() => {
+    const abrir = () => setPedirClave(true);
+    window.addEventListener(SUDO_EVENT, abrir);
+    return () => window.removeEventListener(SUDO_EVENT, abrir);
+  }, []);
 
   const [ordenesPage, setOrdenesPage] = useState(1);
   const [calidadPage, setCalidadPage] = useState(1);
@@ -180,7 +207,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadTickets();
     loadInspectors();
-    loadAdminConfig();
     loadRazones();
   }, []);
 
@@ -219,7 +245,6 @@ export default function AdminDashboard() {
 
     if (activeTab === 'ordenes') loadOrdenes();
     if (activeTab === 'calidad') loadCalidad();
-    if (activeTab === 'personal') loadInspectors();
     if (activeTab === 'razones') loadRazones();
     if (activeTab === 'tickets') loadTickets();
     if (activeTab === 'inspecciones') { loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
@@ -285,10 +310,17 @@ export default function AdminDashboard() {
     setLoadingCalidad(false);
   };
 
+  // Lista básica siempre (para asignar tickets); con la contraseña confirmada se completa con usuario y correo.
   const loadInspectors = async () => {
     setLoadingInspectors(true);
-    const data = await fetchInspectors();
-    setInspectors(data);
+    const basica = await fetchInspectors();
+    if (perfilOk) {
+      const detalle = await fetchPersonalDetalle();
+      const porId = new Map(detalle.map(d => [d.uuid, d]));
+      setInspectors(basica.map(b => ({ ...b, ...(porId.get(b.uuid) || {}) })));
+    } else {
+      setInspectors(basica);
+    }
     setLoadingInspectors(false);
   };
 
@@ -444,9 +476,6 @@ export default function AdminDashboard() {
           </button>
           <button className={`nav-item ${activeTab === 'inspecciones' ? 'active' : ''}`} onClick={() => setActiveTab('inspecciones')}>
             <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length + ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length + calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length + _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length}</span>
-          </button>
-          <button className={`nav-item ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>
-            <Users size={20} /> Personal <span className="nav-badge">{inspectors.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'importar' ? 'active' : ''}`} onClick={() => setActiveTab('importar')}>
             <Upload size={20} /> Importar Excel
@@ -1113,7 +1142,18 @@ export default function AdminDashboard() {
 
 
 
-        {activeTab === 'personal' && (
+        {activeTab === 'config' && perfilOk && (
+          <div className="pt-tabs" role="tablist" aria-label="Secciones de Mi Perfil">
+            <button role="tab" aria-selected={perfilTab === 'cuenta'} className={`pt-tab${perfilTab === 'cuenta' ? ' on' : ''}`} onClick={() => setPerfilTab('cuenta')}>
+              <Settings size={17} /> Mi cuenta
+            </button>
+            <button role="tab" aria-selected={perfilTab === 'personal'} className={`pt-tab${perfilTab === 'personal' ? ' on' : ''}`} onClick={() => setPerfilTab('personal')}>
+              <Users size={17} /> Personal <span className="pt-count">{inspectors.length}</span>
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'config' && perfilOk && perfilTab === 'personal' && (
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
               <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Users size={20} color="var(--primary-color)" /> Directorio de Gestores</h3>
@@ -1264,7 +1304,7 @@ export default function AdminDashboard() {
                       </td>
                       <td><span className={`badge ${insp.rol === 'Admin' ? 'danger' : insp.rol === 'QAOR' ? 'success' : 'info'}`}>{insp.rol === 'Inspector' ? 'Gestor' : insp.rol}</span></td>
                       <td>
-                        <div>ID: {insp.id}</div>
+                        <div title={String(insp.id)}>ID: {/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(insp.id)) ? String(insp.id).slice(0, 8) + '…' : insp.id}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{insp.usuario || 'Sin usuario'}</div>
                       </td>
                       <td>{insp.password ? '••••••••' : '***'}</td>
@@ -1539,7 +1579,19 @@ export default function AdminDashboard() {
           />
         )}
 
-        {activeTab === 'config' && (
+        {activeTab === 'config' && !perfilOk && (
+          <>
+          <PerfilBloqueado />
+          <ConfirmarClave
+            titulo="Confirma tu contraseña"
+            mensaje="Por seguridad, escribe tu contraseña de administrador para ver y modificar tu perfil, tu correo, tus códigos de recuperación y el personal."
+            onConfirmado={() => setPerfilOk(true)}
+            onCancelar={() => setActiveTab('dashboard')}
+          />
+          </>
+        )}
+
+        {activeTab === 'config' && perfilOk && perfilTab === 'cuenta' && (
           <div className="glass-panel" style={{ maxWidth: '600px' }}>
             <h3 style={{ color: 'var(--text-main)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Settings size={20} color="var(--primary-color)" /> Configuración de Super Administrador
@@ -1556,7 +1608,9 @@ export default function AdminDashboard() {
               const password = formData.get('password') as string;
               const recovery_email = formData.get('recovery_email') as string;
               
-              const success = await updateAdminProfile(username, password, recovery_email);
+              let success = false;
+              try { success = await updateAdminProfile(username, password, recovery_email); }
+              catch (err: any) { displayToast(err?.message || 'Error al actualizar perfil', 'error'); setSavingConfig(false); return; }
               if (success) {
                 displayToast('Perfil actualizado correctamente', 'success');
                 loadAdminConfig();
@@ -1586,7 +1640,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'config' && <RecoveryCodes usuario={localStorage.getItem('username') || adminConfig.admin_username || 'admin'} notify={displayToast} />}
+        {activeTab === 'config' && perfilOk && perfilTab === 'cuenta' && <RecoveryCodes usuario={localStorage.getItem('username') || adminConfig.admin_username || 'admin'} notify={displayToast} />}
         {activeTab === 'razones' && (
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -1975,6 +2029,14 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+      {pedirClave && (
+        <ConfirmarClave
+          titulo="Confirma tu contraseña"
+          mensaje="Esta acción es sensible. Escribe tu contraseña para continuar."
+          onConfirmado={() => { setPedirClave(false); displayToast('Contraseña confirmada. Repite la acción.', 'success'); }}
+          onCancelar={() => setPedirClave(false)}
+        />
       )}
     </div>
   );

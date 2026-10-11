@@ -1,0 +1,22 @@
+/* Pestañas internas de Mi Perfil (Mi cuenta · Personal): control segmentado sobrio */
+.pt-tabs {
+  display: flex; width: fit-content; align-self: flex-start; gap: 4px; padding: 4px; margin-bottom: 1.25rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--text-main) 6%, transparent);
+}
+.pt-tab {
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1.1rem;
+  border: 0; border-radius: 999px; background: none; cursor: pointer;
+  font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--text-muted);
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.pt-tab:hover:not(.on) { color: var(--text-main); }
+.pt-tab:focus-visible { outline: 2px solid color-mix(in srgb, var(--primary-color) 50%, transparent); outline-offset: 1px; }
+.pt-tab.on { background: var(--surface-color); color: var(--text-main); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.08); }
+.pt-tab.on svg { color: var(--primary-color); }
+.pt-count {
+  min-width: 22px; padding: 1px 7px; border-radius: 999px; text-align: center;
+  background: color-mix(in srgb, var(--text-main) 10%, transparent); color: var(--text-muted);
+  font-size: 0.74rem; font-variant-numeric: tabular-nums;
+}
+.pt-tab.on .pt-count { background: color-mix(in srgb, var(--primary-color) 12%, transparent); color: var(--primary-color); }
+@media (max-width: 520px) { .pt-tabs { width: 100%; } .pt-tab { flex: 1; justify-content: center; padding: 0.55rem 0.6rem; } }
