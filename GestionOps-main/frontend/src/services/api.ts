@@ -152,6 +152,77 @@ export const fetchOrdenes = async (_role: string = 'admin'): Promise<Orden[]> =>
 export const fetchCalidad = async (_role: string = 'admin'): Promise<any[]> => safeFetch('calidad');
 export const fetchRazones = async (_role: string = 'admin'): Promise<any[]> => safeFetch('razones');
 
+// ── Lecturas paginadas en el servidor (panel de administración) ──────────────
+// La base entrega solo la página visible; búsqueda y filtros se aplican allí (supabase/migrations/0013_paginacion.sql).
+
+export interface PaginaParams {
+  search?: string;
+  filtros?: Record<string, string>;
+  supervisor?: string;
+  page: number;        // desde 1
+  pageSize: number;
+}
+export interface Pagina<T = any> { rows: T[]; total: number; capped: boolean }
+
+export async function fetchPagina(tabla: Tabla, p: PaginaParams): Promise<Pagina> {
+  const { data, error } = await supabase.rpc('listar_pagina', {
+    p_table: tabla, p_search: p.search || null, p_filtros: p.filtros || {}, p_supervisor: p.supervisor || null,
+    p_limit: p.pageSize, p_offset: (Math.max(1, p.page) - 1) * p.pageSize,
+  });
+  if (error) { console.error(`Error cargando ${tabla}:`, error); return { rows: [], total: 0, capped: false }; }
+  const d = data as { rows: any[]; total: number; capped: boolean };
+  return { rows: (d.rows || []).map(mapRow), total: d.total || 0, capped: !!d.capped };
+}
+
+export interface ConteoModulo { total: number; inspeccionados: number; por_estado: Record<string, number> }
+export type PanelStats = Record<Tabla, ConteoModulo>;
+
+const STATS_VACIO: PanelStats = Object.fromEntries(
+  (['tickets', 'ordenes', 'calidad', 'razones'] as Tabla[]).map(t => [t, { total: 0, inspeccionados: 0, por_estado: {} }])) as PanelStats;
+
+export async function fetchPanelStats(): Promise<PanelStats> {
+  const { data, error } = await supabase.rpc('panel_stats');
+  if (error) { console.error('Error cargando contadores:', error); return STATS_VACIO; }
+  return { ...STATS_VACIO, ...(data as any) };
+}
+
+export async function fetchSupervisores(tabla: Tabla): Promise<string[]> {
+  const { data, error } = await supabase.rpc('listar_supervisores', { p_table: tabla });
+  if (error) { console.error('Error cargando supervisores:', error); return []; }
+  return (data as string[]) || [];
+}
+
+export async function fetchUltimasInspecciones(n = 3): Promise<any[]> {
+  const { data, error } = await supabase.rpc('ultimas_inspecciones', { p_n: n });
+  if (error) { console.error('Error cargando inspecciones:', error); return []; }
+  return ((data as any[]) || []).map(r => {
+    const { _type, ...fila } = r;
+    return { ...mapRow(fila), _tabla: _type };
+  });
+}
+
+export interface InspeccionFila {
+  origen: 'Ticket' | 'Orden' | 'Repetida' | 'Razon';
+  id: string; tech: string; gestor: string; sup: string; sector: string;
+  fecha_inspeccion: string; codigo: string;
+}
+
+export async function fetchInspecciones(p: { search?: string; tipo?: string; page: number; pageSize: number }): Promise<Pagina<InspeccionFila>> {
+  const { data, error } = await supabase.rpc('listar_inspecciones', {
+    p_search: p.search || null, p_tipo: p.tipo || 'Todos', p_limit: p.pageSize, p_offset: (Math.max(1, p.page) - 1) * p.pageSize,
+  });
+  if (error) { console.error('Error cargando inspecciones:', error); return { rows: [], total: 0, capped: false }; }
+  const d = data as { rows: any[]; total: number; capped: boolean };
+  return { rows: (d.rows || []).map(r => ({ ...r, fecha_inspeccion: fmtRD(r.fecha_inspeccion) })), total: d.total || 0, capped: !!d.capped };
+}
+
+export interface TecnicoRepetidas { name: string; repeated: number; total: number }
+export async function fetchTopRepetidas(n = 5): Promise<TecnicoRepetidas[]> {
+  const { data, error } = await supabase.rpc('top_repetidas', { p_n: n });
+  if (error) { console.error('Error cargando repetidas:', error); return []; }
+  return (data as TecnicoRepetidas[]) || [];
+}
+
 // ── Personal ─────────────────────────────────────────────────────────────────
 
 let inspectorCache: Inspector[] = [];

@@ -14,13 +14,43 @@ import './PerfilTabs.css';
 import './TablaCompacta.css';
 import { subscribeTables } from '../services/realtime';
 import { SUDO_EVENT, cerrarConfirmacion } from '../services/api';
-import { logout, fetchTickets, type Ticket, fetchInspectors, fetchPersonalDetalle, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, fetchOrdenes, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
+import { fetchPagina, fetchPanelStats, fetchSupervisores, fetchUltimasInspecciones, fetchTopRepetidas, fetchInspecciones, type PaginaParams, type PanelStats, type InspeccionFila, type TecnicoRepetidas } from '../services/api';
+import { logout, type Ticket, fetchInspectors, fetchPersonalDetalle, createInspector, updateInspector, deleteInspector, autoAssignTickets, type Inspector, fetchConfig, updateAdminProfile, fetchCalidad, fetchRazones, assignCalidadBySupervisor, assignCalidadIndividual, type Orden, cancelManualCodigo, assignOrdenesBySupervisor, assignOrdenesIndividual, assignRazonesBySupervisor, assignRazonesIndividual, assignTicketsBySupervisor, assignTicket } from '../services/api';
+
+// Espera a que el usuario deje de escribir antes de consultar al servidor
+function useDebounced<T>(valor: T, ms = 300): T {
+  const [d, setD] = useState(valor);
+  useEffect(() => { const t = setTimeout(() => setD(valor), ms); return () => clearTimeout(t); }, [valor, ms]);
+  return d;
+}
+
+// Encabezado de columna -> columna de la base (el servidor filtra solo por columnas permitidas)
+const COL_TICKETS: Record<string, string> = { 'Ticket': 'ticket', 'Técnico': 'tech', 'Supervisor': 'supervisor', 'Sector': 'sector', 'Prioridad': 'priority', 'Estado': 'status' };
+const COL_ORDENES: Record<string, string> = { 'Trabajo': 'descripcion_orden', 'Orden externa': 'orden_externa_id', 'Cliente': 'cliente', 'Asignado A': 'tech', 'Supervisor': 'supervisor', 'Tecnología': 'tecnologia', 'Sector': 'sector', 'Terminal': 'terminal' };
+const aColumnas = (mapa: Record<string, string>, filtros: Record<string, string>) =>
+  Object.fromEntries(Object.entries(filtros).filter(([, v]) => v && v.trim()).map(([k, v]) => [mapa[k] || k, v]));
+const COLOR_ORIGEN: Record<string, string> = { Ticket: '#3b82f6', Orden: '#ef4444', Repetida: '#f59e0b', Razon: '#ec4899' };
+const nf = (n: number | undefined | null) => (n ?? 0).toLocaleString('es-DO');
+// El servidor cuenta hasta 10.001: si se pasa de 10.000 se muestra "10.000+"
+const conteo = (n: number, capped: boolean) => capped ? `${nf(10000)}+` : nf(n);
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ticketsTotal, setTicketsTotal] = useState(0);
+  const [ticketsCapped, setTicketsCapped] = useState(false);
+  const [ordenesTotal, setOrdenesTotal] = useState(0);
+  const [ordenesCapped, setOrdenesCapped] = useState(false);
+  const [stats, setStats] = useState<PanelStats | null>(null);
+  const [supsTickets, setSupsTickets] = useState<string[]>([]);
+  const [supsOrdenes, setSupsOrdenes] = useState<string[]>([]);
+  const [ultimas, setUltimas] = useState<any[]>([]);
+  const [loadingUltimas, setLoadingUltimas] = useState(true);
+  const [topRep, setTopRep] = useState<TecnicoRepetidas[]>([]);
+  const [inspPage, setInspPage] = useState<{ rows: InspeccionFila[]; total: number; capped: boolean }>({ rows: [], total: 0, capped: false });
+  const [loadingInsp, setLoadingInsp] = useState(false);
 
 
   // Estados de Inspectores
@@ -107,6 +137,19 @@ export default function AdminDashboard() {
   const [razonesPage, setRazonesPage] = useState(1);
   const [ticketsPage, setTicketsPage] = useState(1);
   const itemsPerPage = 20;
+
+  const ticketsSearchD = useDebounced(ticketsSearch);
+  const ticketsColsD = useDebounced(ticketsColumnFilters);
+  const ordenesSearchD = useDebounced(ordenesSearch);
+  const ordenesColsD = useDebounced(ordenesColumnFilters);
+  const inspSearchD = useDebounced(inspeccionesSearch);
+  const reqT = useRef(0), reqO = useRef(0), reqI = useRef(0);
+  const qTickets = useRef<PaginaParams>({ page: 1, pageSize: itemsPerPage });
+  const qOrdenes = useRef<PaginaParams>({ page: 1, pageSize: itemsPerPage });
+  const qInsp = useRef<{ search?: string; tipo?: string; page: number; pageSize: number }>({ page: 1, pageSize: 25 });
+  qTickets.current = { search: ticketsSearchD, filtros: aColumnas(COL_TICKETS, ticketsColsD), supervisor: ticketsSupervisorFilter, page: ticketsPage, pageSize: itemsPerPage };
+  qOrdenes.current = { search: ordenesSearchD, filtros: aColumnas(COL_ORDENES, ordenesColsD), supervisor: ordenesSupervisorFilter, page: ordenesPage, pageSize: itemsPerPage };
+  qInsp.current = { search: inspSearchD, tipo: inspeccionesTypeFilter, page: inspeccionesPage, pageSize: 25 };
 
   const Pagination = ({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (p: number) => void }) => {
     if (totalPages <= 1) return null;
@@ -206,9 +249,8 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    loadTickets();
     loadInspectors();
-    loadRazones();
+    loadStats();
   }, []);
 
 
@@ -225,32 +267,32 @@ export default function AdminDashboard() {
   useEffect(() => {
     return subscribeTables((tabla) => {
       const tab = activeTabRef.current;
-      const watching = tab === 'dashboard' || tab === 'inspecciones' ||
-        (tab === 'tickets' && tabla === 'tickets') || (tab === 'ordenes' && tabla === 'ordenes') ||
-        (tab === 'calidad' && tabla === 'calidad') || (tab === 'razones' && tabla === 'razones');
-      if (!watching) return;
-      if (tabla === 'tickets') loadTickets();
-      if (tabla === 'ordenes') loadOrdenes();
-      if (tabla === 'calidad') loadCalidad();
-      if (tabla === 'razones') loadRazones();
+      loadStats();
+      if (tab === 'dashboard') { loadUltimas(); loadTopRep(); return; }
+      if (tab === 'inspecciones') { loadInsp(); return; }
+      if (tab === 'tickets' && tabla === 'tickets') loadTickets();
+      if (tab === 'ordenes' && tabla === 'ordenes') loadOrdenes();
+      if (tab === 'calidad' && tabla === 'calidad') loadCalidad();
+      if (tab === 'razones' && tabla === 'razones') loadRazones();
     }, 800);
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'dashboard') {
-      loadTickets();
-      loadCalidad();
-      loadOrdenes();
-      loadRazones();
-    }
-
-    if (activeTab === 'ordenes') loadOrdenes();
+    if (activeTab === 'dashboard') { loadStats(); loadUltimas(); loadTopRep(); }
     if (activeTab === 'calidad') loadCalidad();
     if (activeTab === 'razones') loadRazones();
-    if (activeTab === 'tickets') loadTickets();
-    if (activeTab === 'inspecciones') { loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
-
+    if (activeTab === 'inspecciones') loadStats();
+    if (activeTab === 'tickets') fetchSupervisores('tickets').then(setSupsTickets);
+    if (activeTab === 'ordenes') fetchSupervisores('ordenes').then(setSupsOrdenes);
   }, [activeTab]);
+
+  // Tickets, Órdenes e Inspecciones: cada cambio de página, búsqueda o filtro pide al servidor solo esa página
+  useEffect(() => { if (activeTab === 'tickets') loadTickets(); },
+    [activeTab, ticketsPage, ticketsSearchD, ticketsColsD, ticketsSupervisorFilter]);
+  useEffect(() => { if (activeTab === 'ordenes') loadOrdenes(); },
+    [activeTab, ordenesPage, ordenesSearchD, ordenesColsD, ordenesSupervisorFilter]);
+  useEffect(() => { if (activeTab === 'inspecciones') loadInsp(); },
+    [activeTab, inspeccionesPage, inspSearchD, inspeccionesTypeFilter]);
 
   const ensureKeys = (item: any, type: 'ticket' | 'orden' | 'calidad') => {
     if (!item) return item;
@@ -333,19 +375,36 @@ export default function AdminDashboard() {
   };
 
   const loadOrdenes = async () => {
+    const id = ++reqO.current;
     setLoadingOrdenes(true);
-    const data = await fetchOrdenes();
-    setOrdenes(data.map(item => ensureKeys(item, 'orden')));
+    const r = await fetchPagina('ordenes', qOrdenes.current);
+    if (id !== reqO.current) return;                       // llegó una respuesta más nueva
+    setOrdenes(r.rows.map(item => ensureKeys(item, 'orden')));
+    setOrdenesTotal(r.total); setOrdenesCapped(r.capped);
     setLoadingOrdenes(false);
   };
 
   const loadTickets = async () => {
+    const id = ++reqT.current;
     setLoading(true);
-    const data = await fetchTickets();
-    setTickets(data.map(item => ensureKeys(item, 'ticket')));
+    const r = await fetchPagina('tickets', qTickets.current);
+    if (id !== reqT.current) return;
+    setTickets(r.rows.map(item => ensureKeys(item, 'ticket')));
+    setTicketsTotal(r.total); setTicketsCapped(r.capped);
     setLoading(false);
   };
-  
+
+  const loadStats = async () => { setStats(await fetchPanelStats()); };
+  const loadUltimas = async () => { setLoadingUltimas(true); setUltimas(await fetchUltimasInspecciones(3)); setLoadingUltimas(false); };
+  const loadTopRep = async () => { setTopRep(await fetchTopRepetidas(5)); };
+  const loadInsp = async () => {
+    const id = ++reqI.current;
+    setLoadingInsp(true);
+    const r = await fetchInspecciones(qInsp.current);
+    if (id !== reqI.current) return;
+    setInspPage(r); setLoadingInsp(false);
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -365,35 +424,8 @@ export default function AdminDashboard() {
   };
 
   // Computed Arrays for Pagination
-  const filteredOrdenes = ordenes.filter(o => {
-    const term = ordenesSearch.toLowerCase();
-    const matchesGlobal = !term || [
-      o.orden_servicio, o.orden_externa_id, o.cliente, o.supervisor, o.tech, o.tech_id, o.ticket, o.sector, o.descripcion_orden
-    ].some(v => String(v || '').toLowerCase().includes(term));
-    const matchesSupervisor = ordenesSupervisorFilter === '' || 
-      String(o.supervisor || '').toLowerCase() === ordenesSupervisorFilter.toLowerCase();
-    const matchesColumns = Object.entries(ordenesColumnFilters).every(([key, val]) => {
-      if (!val) return true;
-      const term = val.toLowerCase();
-      switch (key) {
-        case 'Trabajo': return String(o.descripcion_orden || o.ticket || (o as any).trabajo || o.orden_servicio || '').toLowerCase().includes(term);
-        case 'Orden externa': return String(o.orden_externa_id || o.orden_servicio || (o as any)['orden externa'] || '').toLowerCase().includes(term);
-        case 'Cliente': return String(o.cliente || '').toLowerCase().includes(term);
-        case 'OE Vencimiento': return String(o.fecha || (o as any)['oe vencimiento'] || '').toLowerCase().includes(term);
-        case 'Prioridad': return String(o.priority || (o as any).prioridad || '').toLowerCase().includes(term);
-        case 'Asignado A': return String(o.tech || (o as any).tech_name || '').toLowerCase().includes(term);
-        case 'Supervisor': return String(o.supervisor || '').toLowerCase().includes(term);
-        case 'Estado': return String(o.status || '').toLowerCase().includes(term);
-        case 'Tecnología': return String(o.tecnologia || (o as any)['tipo red'] || '').toLowerCase().includes(term);
-        case 'Sector': return String(o.sector || (o as any).ciudad || '').toLowerCase().includes(term);
-        case 'Terminal': return String(o.terminal || '').toLowerCase().includes(term);
-        default: return String((o as any)[key] || '').toLowerCase().includes(term);
-      }
-    });
-    return matchesGlobal && matchesSupervisor && matchesColumns;
-  });
-  const totalOrdenesPages = Math.ceil(filteredOrdenes.length / itemsPerPage);
-  const currentPaginatedOrdenes = filteredOrdenes.slice((ordenesPage - 1) * itemsPerPage, ordenesPage * itemsPerPage);
+  const totalOrdenesPages = Math.max(1, Math.ceil(ordenesTotal / itemsPerPage));
+  const currentPaginatedOrdenes = ordenes;      // el servidor ya entrega solo la página visible
 
   const filteredCalidad = calidadData.filter(c => {
     const term = calidadSearch.toLowerCase();
@@ -427,30 +459,8 @@ export default function AdminDashboard() {
   const totalRazonesPages = Math.ceil(filteredRazones.length / itemsPerPage);
   const currentPaginatedRazones = filteredRazones.slice((razonesPage - 1) * itemsPerPage, razonesPage * itemsPerPage);
 
-  const filteredTickets = tickets.filter(t => {
-    const term = ticketsSearch.toLowerCase();
-    const matchesGlobal = !term || [
-      t.ticket, t.tech, t.tech_id, t.supervisor, t.sector, t.status, t.inspector, t.codigo_aplicado
-    ].some(v => String(v || '').toLowerCase().includes(term));
-    const matchesSupervisor = ticketsSupervisorFilter === '' || 
-      String(getSupervisor(t)).toLowerCase() === ticketsSupervisorFilter.toLowerCase();
-    const matchesColumns = Object.entries(ticketsColumnFilters).every(([key, val]) => {
-      if (!val) return true;
-      const term = val.toLowerCase();
-      switch (key) {
-        case 'Ticket': return String(t.ticket || '').toLowerCase().includes(term);
-        case 'Técnico': return String(t.tech || '').toLowerCase().includes(term);
-        case 'Supervisor': return String(t.supervisor || '').toLowerCase().includes(term);
-        case 'Sector': return String(t.sector || '').toLowerCase().includes(term);
-        case 'Prioridad': return String(t.priority || '').toLowerCase().includes(term);
-        case 'Estado': return String(t.status || '').toLowerCase().includes(term);
-        default: return String((t as any)[key] || '').toLowerCase().includes(term);
-      }
-    });
-    return matchesGlobal && matchesSupervisor && matchesColumns;
-  });
-  const totalTicketsPages = Math.ceil(filteredTickets.length / itemsPerPage);
-  const currentPaginatedTickets = filteredTickets.slice((ticketsPage - 1) * itemsPerPage, ticketsPage * itemsPerPage);
+  const totalTicketsPages = Math.max(1, Math.ceil(ticketsTotal / itemsPerPage));
+  const currentPaginatedTickets = tickets;      // el servidor ya entrega solo la página visible
 
   return (
     <div className="app-container">
@@ -466,17 +476,17 @@ export default function AdminDashboard() {
           </button>
           
           <button className={`nav-item ${activeTab === 'tickets' ? 'active' : ''}`} onClick={() => setActiveTab('tickets')}>
-            <FileText size={20} /> Tickets <span className="nav-badge">{tickets.length}</span>
+            <FileText size={20} /> Tickets <span className="nav-badge">{stats ? nf(stats.tickets.total) : '…'}</span>
           </button>
 
           <button className={`nav-item ${activeTab === 'ordenes' ? 'active' : ''}`} onClick={() => setActiveTab('ordenes')}>
-            <Package size={20} /> Ordenes <span className="nav-badge">{ordenes.length}</span>
+            <Package size={20} /> Ordenes <span className="nav-badge">{stats ? nf(stats.ordenes.total) : '…'}</span>
           </button>
           <button className={`nav-item ${activeTab === 'calidad' ? 'active' : ''}`} onClick={() => setActiveTab('calidad')}>
-            <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{calidadData.length}</span>
+            <RotateCcw size={20} /> Averías Repetidas <span className="nav-badge">{stats ? nf(stats.calidad.total) : calidadData.length}</span>
           </button>
           <button className={`nav-item ${activeTab === 'inspecciones' ? 'active' : ''}`} onClick={() => setActiveTab('inspecciones')}>
-            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length + ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length + calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length + _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length}</span>
+            <CheckCircle2 size={20} /> Inspecciones <span className="nav-badge">{stats ? nf(stats.tickets.inspeccionados + stats.ordenes.inspeccionados + stats.calidad.inspeccionados + stats.razones.inspeccionados) : '…'}</span>
           </button>
           <button className={`nav-item ${activeTab === 'importar' ? 'active' : ''}`} onClick={() => setActiveTab('importar')}>
             <Upload size={20} /> Importar Excel
@@ -508,7 +518,7 @@ export default function AdminDashboard() {
                activeTab === 'ordenes' ? <><Package size={28} color="var(--primary-color)" /> Órdenes de Trabajo</> : 
                activeTab === 'inspecciones' ? <><CheckCircle2 size={28} color="var(--primary-color)" /> Historial de Inspecciones Mixtas</> :
                activeTab === 'personal' ? <><Users size={28} color="var(--primary-color)" /> Directorio de Personal ({inspectors.length})</> :
-               activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({calidadData.length})</> :
+               activeTab === 'calidad' ? <> <RotateCcw size={28} color="var(--primary-color)" /> Averías Repetidas ({stats ? nf(stats.calidad.total) : calidadData.length})</> :
                activeTab === 'razones' ? <> <AlertCircle size={28} color="var(--primary-color)" /> Código Razón Cliente ({_razones.length})</> :
                activeTab === 'importar' ? <><Upload size={28} color="var(--primary-color)" /> Importar desde Excel</> :
                activeTab === 'configuracion' ? <><SlidersHorizontal size={28} color="var(--primary-color)" /> Configuración</> :
@@ -522,66 +532,31 @@ export default function AdminDashboard() {
         {activeTab === 'dashboard' && (
           <>
             <div className="kpi-grid">
-              {/* Card 1 */}
-              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Ticket'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
-                <div className="kpi-icon blue" style={{ background: 'rgba(59, 130, 246, 0.1)' }}><FileText color="#3b82f6" /></div>
-                <div className="kpi-info" style={{ width: '100%' }}>
-                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Tickets Inspeccionados</h3>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
-                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{tickets.filter(t => t.status === 'Aprobado' || t.status === 'Inspeccionado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length}</p>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {tickets.length}</span>
+              {([
+                { k: 'tickets', tipo: 'Ticket', titulo: 'Tickets Inspeccionados', color: '#3b82f6', fondo: 'rgba(59, 130, 246, 0.1)', clase: 'blue', icono: <FileText color="#3b82f6" /> },
+                { k: 'ordenes', tipo: 'Orden', titulo: 'Órdenes Inspeccionadas', color: '#ef4444', fondo: 'rgba(239, 68, 68, 0.1)', clase: 'red', icono: <Package color="#ef4444" /> },
+                { k: 'calidad', tipo: 'Repetida', titulo: 'Averías Repetidas Insp.', color: '#f59e0b', fondo: 'rgba(245, 158, 11, 0.1)', clase: 'amber', icono: <RotateCcw color="#f59e0b" /> },
+                { k: 'razones', tipo: 'Razon', titulo: 'Razones Inspeccionadas', color: '#ec4899', fondo: 'rgba(236, 72, 153, 0.1)', clase: '', icono: <AlertCircle color="#ec4899" /> },
+              ] as const).map(c => {
+                const d = stats?.[c.k];
+                return (
+                  <div key={c.k} className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }}
+                    onClick={() => { setInspeccionesSearch(''); setInspeccionesTypeFilter(c.tipo); setInspeccionesPage(1); setActiveTab('inspecciones'); }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                    <div className={`kpi-icon ${c.clase}`} style={{ background: c.fondo }}>{c.icono}</div>
+                    <div className="kpi-info" style={{ width: '100%' }}>
+                      <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>{c.titulo}</h3>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+                        <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{d ? nf(d.inspeccionados) : '…'}</p>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {d ? nf(d.total) : '…'}</span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                        <div style={{ width: `${d ? (d.inspeccionados / (d.total || 1)) * 100 : 0}%`, height: '100%', background: c.color, transition: 'width 1s ease-out' }}></div>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${(tickets.filter(t => t.status === 'Aprobado' || t.status === 'Inspeccionado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).length / (tickets.length || 1)) * 100}%`, height: '100%', background: '#3b82f6', transition: 'width 1s ease-out' }}></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2 */}
-              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Orden'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
-                <div className="kpi-icon red" style={{ background: 'rgba(239, 68, 68, 0.1)' }}><Package color="#ef4444" /></div>
-                <div className="kpi-info" style={{ width: '100%' }}>
-                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Órdenes Inspeccionadas</h3>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
-                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length}</p>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {ordenes.length}</span>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${(ordenes.filter(o => o.status === 'Completado' || o.status === 'Inspeccionado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).length / (ordenes.length || 1)) * 100}%`, height: '100%', background: '#ef4444', transition: 'width 1s ease-out' }}></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3 */}
-              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Repetida'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
-                <div className="kpi-icon amber" style={{ background: 'rgba(245, 158, 11, 0.1)' }}><RotateCcw color="#f59e0b" /></div>
-                <div className="kpi-info" style={{ width: '100%' }}>
-                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Averías Repetidas Insp.</h3>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
-                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length}</p>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {calidadData.length}</span>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${(calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).length / (calidadData.length || 1)) * 100}%`, height: '100%', background: '#f59e0b', transition: 'width 1s ease-out' }}></div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Card 4 */}
-              <div className="glass-panel kpi-card" style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }} onClick={() => { setInspeccionesSearch('Razon'); setActiveTab('inspecciones'); }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
-                <div className="kpi-icon" style={{ background: 'rgba(236, 72, 153, 0.1)' }}><AlertCircle color="#ec4899" /></div>
-                <div className="kpi-info" style={{ width: '100%' }}>
-                  <h3 style={{ fontSize: '0.9rem', marginBottom: '0.2rem' }}>Razones Inspeccionadas</h3>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
-                    <p style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>{_razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length}</p>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, paddingBottom: '0.3rem' }}>de {_razones.length}</span>
-                  </div>
-                  <div style={{ width: '100%', height: '8px', background: 'var(--bg-color)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <div style={{ width: `${(_razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).length / (_razones.length || 1)) * 100}%`, height: '100%', background: '#ec4899', transition: 'width 1s ease-out' }}></div>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
 
             <div className="responsive-grid" style={{ marginBottom: '1.5rem' }}>
@@ -590,84 +565,28 @@ export default function AdminDashboard() {
                   <AlertCircle size={20} color="var(--primary-color)" /> Técnicos con Más Repetidas (%)
                 </h3>
                 <div className="top-techs">
-                  {loadingCalidad ? (
+                  {!stats ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader2 className="spinner" /></div>
-                  ) : calidadData && calidadData.length > 0 ? (
-                    (() => {
-                      const techStats: Record<string, { name: string, repeated: number, total: number }> = {};
-                      
-                      // Aggregar repetidas de calidadData
-                      calidadData.forEach(item => {
-                        const nameKey = Object.keys(item).find(k => 
-                          ['nombre', 'técnico', 'tecnico', 'nombre del técnico', 'nombre del tecnico', 'tech'].includes(k.toLowerCase().trim())
-                        ) || 'Nombre';
-                        const name = String(item[nameKey] || 'N/A').trim();
-                        if (name === 'N/A' || name === '-') return;
-                        
-                        if (!techStats[name]) techStats[name] = { name, repeated: 0, total: 0 };
-                        techStats[name].repeated++;
-                      });
-
-                      // Estimar totales desde tickets para el porcentaje
-                      tickets.forEach(t => {
-                        const name = String(t.tech || t.tech_id || '').trim();
-                        if (name && techStats[name]) {
-                          techStats[name].total++;
-                        }
-                      });
-
-                      return Object.values(techStats)
-                        .map(t => {
-                          // Si no hay total en tickets, usamos el count de repetidas como base (mínimo 1)
-                          const total = t.total || t.repeated;
-                          const repPerc = (t.repeated / total) * 100;
-                          return { name: t.name, repPerc, count: t.repeated };
-                        })
-                        .sort((a, b) => b.repPerc - a.repPerc)
-                        .slice(0, 5)
-                        .map((tech, idx) => (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 0', borderBottom: idx < 4 ? '1px solid var(--glass-border)' : 'none' }}>
-                            <div style={{ 
-                              width: '28px', 
-                              height: '28px', 
-                              borderRadius: '8px', 
-                              background: idx === 0 ? 'var(--primary-color)' : 'rgba(255,255,255,0.05)', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              fontSize: '0.8rem', 
-                              fontWeight: 800, 
-                              color: idx === 0 ? '#fff' : 'var(--text-main)',
-                              border: '1px solid var(--glass-border)'
-                            }}>
-                              {idx + 1}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>{tech.name}</span>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{tech.count} repetidas</span>
-                              </div>
-                              <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                                <div style={{ 
-                                  height: '100%', 
-                                  background: tech.repPerc > 20 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', 
-                                  width: `${Math.min(100, tech.repPerc)}%`,
-                                  transition: 'width 1s ease-out'
-                                }}></div>
-                              </div>
-                            </div>
-                            <div style={{ 
-                              minWidth: '50px', 
-                              textAlign: 'right', 
-                              fontWeight: 800, 
-                              color: tech.repPerc > 20 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', 
-                              fontSize: '1rem' 
-                            }}>
-                              {tech.repPerc.toFixed(1)}%
-                            </div>
+                  ) : topRep.length > 0 ? (
+                    topRep.map(t => ({ name: t.name, count: t.repeated, repPerc: (t.repeated / (t.total || t.repeated || 1)) * 100 })).map((tech, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 0', borderBottom: idx < 4 ? '1px solid var(--glass-border)' : 'none' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: idx === 0 ? 'var(--primary-color)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800, color: idx === 0 ? '#fff' : 'var(--text-main)', border: '1px solid var(--glass-border)' }}>
+                          {idx + 1}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>{tech.name}</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{tech.count} repetidas</span>
                           </div>
-                        ));
-                    })()
+                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', background: tech.repPerc > 20 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', width: `${Math.min(100, tech.repPerc)}%`, transition: 'width 1s ease-out' }}></div>
+                          </div>
+                        </div>
+                        <div style={{ minWidth: '50px', textAlign: 'right', fontWeight: 800, color: tech.repPerc > 20 ? '#ef4444' : tech.repPerc > 10 ? '#f59e0b' : '#10b981', fontSize: '1rem' }}>
+                          {tech.repPerc.toFixed(1)}%
+                        </div>
+                      </div>
+                    ))
                   ) : (
                     <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No hay datos de calidad suficientes.</p>
                   )}
@@ -690,21 +609,13 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? (
-                      <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
+                    {loadingUltimas ? (
+                      <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}><Loader2 className="spinner" /></td></tr>
                     ) : (() => {
-                      // Helper: tomar los últimos N de cada tipo para que ningún tipo quede excluido
-                      const lastN = (arr: any[], n: number) => arr.slice(-n);
-
-                      const mkTicket  = (t: any) => ({ ...t, _type: 'Ticket',  _id: t.ticket || '-',             _gestor: t.inspector || t.inspector_id || '',          _fecha: t.fecha_inspeccion || t['fecha_inspeccion'] || t['Fecha Inspección'] || '' });
-                      const mkOrden   = (o: any) => ({ ...o, _type: 'Orden',   _id: o.ticket || o.orden_servicio || '-', _gestor: (o as any).gestor || o.inspector || '',  _fecha: (o as any).fecha_inspeccion || (o as any)['Fecha Inspección'] || '' });
-                      const mkCalidad = (c: any) => ({ ...c, _type: 'Calidad', _id: c.ticket || '-',             _gestor: c.inspector || c.inspector_id || '',          _fecha: c.fecha_inspeccion || c['fecha_inspeccion'] || c['Fecha Inspección'] || '' });
-
-                      const ticketItems  = lastN(tickets.filter(t  => t.status  === 'Inspeccionado' || t.status  === 'Aprobado' || t.status  === 'Rechazado' || !!t.codigo_aplicado  || !!t['Código Aplicado']),  3).map(mkTicket);
-                      const ordenItems   = lastN(ordenes.filter(o  => o.status  === 'Inspeccionado' || o.status  === 'Completado'|| o.status  === 'Aprobado'  || !!o.codigo_aplicado  || !!(o as any)['Código Aplicado']), 3).map(mkOrden);
-                      const calidadItems = lastN(calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']), 3).map(mkCalidad);
-
-                      // Combinar, ordenar por fecha descendente y tomar los 6 más recientes
+                      const etiqueta: Record<string, string> = { tickets: 'Ticket', ordenes: 'Orden', calidad: 'Calidad' };
+                      const mk = (r: any) => ({ ...r, _type: etiqueta[r._tabla] || r._tabla,
+                        _id: r._tabla === 'ordenes' ? (r.orden_externa_id || r.orden_servicio || r.ticket || '-') : (r.ticket || '-'),
+                        _gestor: r.inspector || r.inspector_id || '', _fecha: r.fecha_inspeccion || '' });
                       const parseRDDate = (s: string) => {
                         if (!s) return 0;
                         // "dd/MM/yyyy HH:mm" o "dd-MM-yyyy HH:mm"
@@ -712,11 +623,8 @@ export default function AdminDashboard() {
                         if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00`).getTime();
                         return new Date(s).getTime() || 0;
                       };
-
-                      const combined = [...ticketItems, ...ordenItems, ...calidadItems]
-                        .sort((a, b) => parseRDDate(b._fecha) - parseRDDate(a._fecha))
-                        .slice(0, 6);
-
+                      // El servidor entrega las 3 más recientes de cada módulo; aquí se mezclan y se muestran las 6 últimas
+                      const combined = ultimas.map(mk).sort((a, b) => parseRDDate(b._fecha) - parseRDDate(a._fecha)).slice(0, 6);
                       const latest = combined;
 
                       if (latest.length === 0) return <tr><td colSpan={6} style={{textAlign: 'center', padding: '2rem'}}>No se han realizado inspecciones aún</td></tr>;
@@ -783,7 +691,7 @@ export default function AdminDashboard() {
                     style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
                   >
                     <option value="">1. Seleccionar Supervisor...</option>
-                    {Array.from(new Set(tickets.map(t => String(getSupervisor(t) || '')).filter(s => s && s !== '-'))).map(sup => (
+                    {supsTickets.map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -956,6 +864,9 @@ export default function AdminDashboard() {
                   })}
                 </tbody>
               </table>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.75rem' }}>
+                {conteo(ticketsTotal, ticketsCapped)} resultados
+              </div>
               <Pagination currentPage={ticketsPage} totalPages={totalTicketsPages} onPageChange={setTicketsPage} />
             </div>
           </div>
@@ -996,7 +907,7 @@ export default function AdminDashboard() {
                     style={{ flex: 1, minWidth: '200px', height: '42px', border: '1px solid #3b82f6' }}
                   >
                     <option value="">1. Seleccionar Supervisor...</option>
-                    {Array.from(new Set(ordenes.map(o => String(o.supervisor || '')).filter(s => s && s !== '-'))).map(sup => (
+                    {supsOrdenes.map(sup => (
                       <option key={sup} value={sup}>{sup}</option>
                     ))}
                   </select>
@@ -1137,6 +1048,9 @@ export default function AdminDashboard() {
                   })}
                 </tbody>
               </table>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.75rem' }}>
+                {conteo(ordenesTotal, ordenesCapped)} resultados
+              </div>
               <Pagination currentPage={ordenesPage} totalPages={totalOrdenesPages} onPageChange={setOrdenesPage} />
             </div>
           </div>
@@ -1835,43 +1749,16 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'inspecciones' && (() => {
-          // ── Construir lista mixta ──────────────────────────────────────────────
-          const mixed: any[] = [];
-
-          tickets.filter(t => t.status === 'Inspeccionado' || t.status === 'Aprobado' || t.status === 'Rechazado' || !!t.codigo_aplicado || !!t['Código Aplicado']).forEach(t => {
-            mixed.push({ _origin: 'Ticket', _color: '#3b82f6', _id: t.ticket, _tech: t.tech || t.tech_id || '-', _gestor: t.inspector || t.inspector_id || '-', _sup: getSupervisor(t) || '-', _sector: t.sector || '-', _date: t.fecha_inspeccion || t['Fecha Inspección'] || t.fecha || '', _code: t.codigo_aplicado || t['Código Aplicado'] || '', ...t });
-          });
-          ordenes.filter(o => o.status === 'Inspeccionado' || o.status === 'Completado' || o.status === 'Aprobado' || !!o.codigo_aplicado || !!(o as any)['Código Aplicado']).forEach(o => {
-            mixed.push({ _origin: 'Orden', _color: '#ef4444', _id: (o as any).orden_externa_id || o.orden_servicio || o.ticket || '-', _tech: o.tech || o.tech_id || '-', _gestor: (o as any).inspector || (o as any).gestor || '-', _sup: o.supervisor || '-', _sector: o.sector || (o as any).ciudad || '-', _date: (o as any).fecha_inspeccion || o.fecha || (o as any).oe_vence || '', _code: o.codigo_aplicado || (o as any)['Código Aplicado'] || '', ...o });
-          });
-          calidadData.filter(c => c.status === 'Inspeccionado' || c.status === 'Aprobado' || !!c.codigo_aplicado || !!c['Código Aplicado']).forEach(c => {
-            mixed.push({ _origin: 'Repetida', _color: '#f59e0b', _id: c.ticket || '-', _tech: c.tech || c.tech_id || '-', _gestor: c.inspector || c.inspector_id || '-', _sup: c.supervisor || getSupervisor(c) || '-', _sector: c.sector || '-', _date: c.fecha_inspeccion || c['Fecha Inspección'] || c.fecha || '', _code: c.codigo_aplicado || c['Código Aplicado'] || '', ...c });
-          });
-          _razones.filter(r => !!(r.codigo_aplicado || r['Código Aplicado'])).forEach(r => {
-            mixed.push({ _origin: 'Razon', _color: '#ec4899', _id: r.ticket || r.id || r['ID TICKET'] || r['TRABAJO'] || '-', _tech: r.tecnico || r.tech || r['Asignado A'] || '-', _gestor: r.inspector || r.inspector_id || '-', _sup: r.supervisor || getSupervisor(r) || '-', _sector: r.sector || '-', _date: r.fecha_inspeccion || r.fecha || '', _code: r.codigo_aplicado || r['Código Aplicado'] || '', ...r });
-          });
-
-          // Ordenar fecha desc (más recientes primero)
-          const parseAny = (s: string) => { if (!s) return 0; const m = s.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})\s*(\d{2}):(\d{2})/); if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}`).getTime(); return new Date(s).getTime() || 0; };
-          mixed.sort((a, b) => parseAny(b._date) - parseAny(a._date));
-
-          // ── Filtros ───────────────────────────────────────────────────────────
-          const term = inspeccionesSearch.toLowerCase().trim();
-          const filtered = mixed.filter(item => {
-            if (inspeccionesTypeFilter !== 'Todos' && item._origin !== inspeccionesTypeFilter) return false;
-            if (!term) return true;
-            return [item._id, item._tech, item._gestor, item._sup, item._sector, item._origin, item._code].some(v => String(v || '').toLowerCase().includes(term));
-          });
-
-          // ── Paginación ────────────────────────────────────────────────────────
+          // La lista mixta, la búsqueda, el filtro por tipo y la paginación se resuelven en el servidor
           const INSP_PER_PAGE = 25;
-          const totalInspPages = Math.ceil(filtered.length / INSP_PER_PAGE);
-          const paginated = filtered.slice((inspeccionesPage - 1) * INSP_PER_PAGE, inspeccionesPage * INSP_PER_PAGE);
+          const totalInspPages = Math.max(1, Math.ceil(inspPage.total / INSP_PER_PAGE));
+          const paginated = inspPage.rows.map(r => ({ _origin: r.origen, _color: COLOR_ORIGEN[r.origen] || '#3b82f6', _id: r.id, _tech: r.tech, _gestor: r.gestor, _sup: r.sup, _sector: r.sector, _date: r.fecha_inspeccion, _code: r.codigo }));
 
-          // ── CSV Export ────────────────────────────────────────────────────────
-          const exportCSV = () => {
+          // ── CSV Export (hasta 10.000 filas con el filtro actual) ──────────────
+          const exportCSV = async () => {
+            const todo = await fetchInspecciones({ search: inspSearchD, tipo: inspeccionesTypeFilter, page: 1, pageSize: 10000 });
             const headers = ['Origen','ID/Ticket','Técnico','Gestor','Supervisor','Sector','Fecha Inspección','Código Aplicado'];
-            const rows = filtered.map(i => [i._origin, i._id, i._tech, i._gestor, i._sup, i._sector, i._date, i._code].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
+            const rows = todo.rows.map(i => [i.origen, i.id, i.tech, i.gestor, i.sup, i.sector, i.fecha_inspeccion, i.codigo].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
             const csv = [headers.join(','), ...rows].join('\n');
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -1879,14 +1766,13 @@ export default function AdminDashboard() {
             URL.revokeObjectURL(url);
           };
 
-          // ── Contadores por tipo ───────────────────────────────────────────────
-          const counts = { Ticket: mixed.filter(i => i._origin === 'Ticket').length, Orden: mixed.filter(i => i._origin === 'Orden').length, Repetida: mixed.filter(i => i._origin === 'Repetida').length, Razon: mixed.filter(i => i._origin === 'Razon').length };
+          // ── Contadores por tipo (de la base, no de las filas descargadas) ─────
           const types: { label: string; key: string; color: string }[] = [
             { label: 'Todos', key: 'Todos', color: 'var(--primary-color)' },
-            { label: `Tickets (${counts.Ticket})`, key: 'Ticket', color: '#3b82f6' },
-            { label: `Órdenes (${counts.Orden})`, key: 'Orden', color: '#ef4444' },
-            { label: `Repetidas (${counts.Repetida})`, key: 'Repetida', color: '#f59e0b' },
-            { label: `Razones (${counts.Razon})`, key: 'Razon', color: '#ec4899' },
+            { label: `Tickets (${nf(stats?.tickets.inspeccionados)})`, key: 'Ticket', color: '#3b82f6' },
+            { label: `Órdenes (${nf(stats?.ordenes.inspeccionados)})`, key: 'Orden', color: '#ef4444' },
+            { label: `Repetidas (${nf(stats?.calidad.inspeccionados)})`, key: 'Repetida', color: '#f59e0b' },
+            { label: `Razones (${nf(stats?.razones.inspeccionados)})`, key: 'Razon', color: '#ec4899' },
           ];
 
           return (
@@ -1895,7 +1781,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
                   <CheckCircle2 size={20} color="var(--primary-color)" /> Panel de Inspecciones Unificado
-                  <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>{filtered.length} registros</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>{conteo(inspPage.total, inspPage.capped)} registros</span>
                 </h3>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                   <div className="search-bar" style={{ width: 'auto', minWidth: '320px' }}>
@@ -1955,7 +1841,9 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginated.length === 0 ? (
+                    {loadingInsp && paginated.length === 0 ? (
+                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem' }}><Loader2 className="spinner" /></td></tr>
+                    ) : paginated.length === 0 ? (
                       <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No se encontraron resultados</td></tr>
                     ) : paginated.map((item, idx) => (
                       <tr key={idx}>
@@ -1989,7 +1877,7 @@ export default function AdminDashboard() {
                                 onConfirm: async () => {
                                   const type = item._origin === 'Ticket' ? 'tickets' : item._origin === 'Orden' ? 'ordenes' : item._origin === 'Razon' ? 'razones' : 'calidad';
                                   const { success } = await cancelManualCodigo(String(item._id), type);
-                                  if (success) { displayToast('Inspección cancelada'); loadTickets(); loadOrdenes(); loadCalidad(); loadRazones(); }
+                                  if (success) { displayToast('Inspección cancelada'); loadInsp(); loadStats(); }
                                   setConfirmModal(null);
                                 }
                               });
